@@ -101,11 +101,13 @@ class TTYDManager:
         theme_json = self.config.theme.model_dump_json()
         cmd.extend(['-t', f'theme={theme_json}'])
         
-        # Read-only mode if specified
-        if not self.config.ttyd_options.writable:
+        # Explicitly set writable or read‑only mode
+        if self.config.ttyd_options.writable:
+            cmd.append('--writable')
+        else:
             cmd.append('-R')
         
-        # Add client script
+        # Add client script to run in the terminal
         cmd.extend([
             'python',
             str(self.config.client_script)
