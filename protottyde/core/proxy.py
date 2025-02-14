@@ -2,6 +2,10 @@
 
 """
 Proxy management for ttyd HTTP and WebSocket connections.
+
+This module handles the proxying of both HTTP and WebSocket connections to the ttyd
+process, with special handling for path management to support both root and non-root
+mounting configurations.
 """
 
 import json
@@ -24,6 +28,10 @@ logger = logging.getLogger("protottyde")
 class ProxyManager:
     """
     Manages HTTP and WebSocket proxying for ttyd while maintaining same-origin security.
+    
+    This class handles the complexities of proxying requests to the ttyd process,
+    including path rewriting and WebSocket connection management. It supports both
+    root ("/") and non-root ("/path") mounting configurations.
     """
     
     def __init__(self, config: TTYDConfig):
@@ -36,12 +44,15 @@ class ProxyManager:
         self.config = config
         self._client: Optional[httpx.AsyncClient] = None
         
-        # Build base URLs
-        host = f"127.0.0.1:{config.port}"  # Use the port from config
+        # Build base URLs for the ttyd process
+        host = f"{self.config.ttyd_options.interface}:{self.config.port}"
         self.target_url = f"http://{host}"
         self.ws_url = f"ws://{host}/ws"
         
-        logger.info(f"Proxy configured for ttyd at {self.target_url}")
+        logger.info(
+            f"Proxy configured for ttyd at {self.target_url} "
+            f"(terminal path: {self.config.terminal_path})"
+        )
 
     @property
     def http_client(self) -> httpx.AsyncClient:
@@ -58,6 +69,31 @@ class ProxyManager:
         if self._client:
             await self._client.aclose()
             self._client = None
+
+    def _strip_path_prefix(self, path: str) -> str:
+        """
+        Strip the mount path prefix from the request path.
+        
+        This method handles both root and non-root mounting scenarios to ensure
+        requests are properly forwarded to ttyd.
+        
+        Args:
+            path: Original request path
+            
+        Returns:
+            Path with prefix stripped for ttyd
+        """
+        # For root mounting, we only need to strip the /terminal prefix
+        if self.config.is_root_mounted:
+            if path.startswith("/terminal/"):
+                return path.replace("/terminal", "", 1)
+            return "/"
+            
+        # For non-root mounting, strip both the mount path and /terminal
+        prefix = self.config.terminal_path
+        if path.startswith(prefix):
+            return path.replace(prefix, "", 1) or "/"
+        return "/"
 
     async def _handle_sourcemap(self, path: str) -> Response:
         """Handle sourcemap requests with minimal response."""
@@ -78,6 +114,9 @@ class ProxyManager:
     async def proxy_http(self, request: Request) -> Response:
         """
         Proxy HTTP requests to ttyd.
+        
+        This method handles path rewriting and forwards the request to the ttyd
+        process, supporting both root and non-root mounting configurations.
 
         Args:
             request: Incoming FastAPI request
@@ -90,28 +129,26 @@ class ProxyManager:
         """
         path = request.url.path
         
-        # Strip the terminal path prefix
-        prefix = f"{self.config.mount_path}/terminal"
-        if path.startswith(prefix):
-            path = path.replace(prefix, "", 1) or "/"
-
         # Handle sourcemap requests
         if path.endswith('.map'):
             return await self._handle_sourcemap(path)
-
+            
+        # Strip the appropriate prefix based on mounting configuration
+        target_path = self._strip_path_prefix(path)
+        
         try:
-            # Forward the request
+            # Forward the request to ttyd
             headers = dict(request.headers)
             headers.pop("host", None)  # Remove host header
             
             response = await self.http_client.request(
                 method=request.method,
-                url=urljoin(self.target_url, path),
+                url=urljoin(self.target_url, target_path),
                 headers=headers,
                 content=await request.body()
             )
             
-            # Clean response headers
+            # Clean response headers that might cause issues
             response_headers = {
                 k: v for k, v in response.headers.items()
                 if k.lower() not in {
@@ -135,6 +172,9 @@ class ProxyManager:
     async def proxy_websocket(self, websocket: WebSocket) -> None:
         """
         Proxy WebSocket connections to ttyd.
+        
+        This method handles the WebSocket connection to the ttyd process,
+        including proper error handling and cleanup.
 
         Args:
             websocket: Incoming WebSocket connection
@@ -143,8 +183,10 @@ class ProxyManager:
             ProxyError: If WebSocket proxying fails
         """
         try:
-            # Accept the incoming connection
+            # Accept the incoming connection with ttyd subprotocol
             await websocket.accept(subprotocol='tty')
+            
+            logger.info(f"Opening WebSocket connection to {self.ws_url}")
             
             async with websockets.connect(
                 self.ws_url,
@@ -152,8 +194,11 @@ class ProxyManager:
                 ping_interval=None,
                 close_timeout=5
             ) as target_ws:
+                logger.info("WebSocket connection established")
+                
                 # Set up bidirectional forwarding
                 async def forward(source: Any, dest: Any, is_client: bool = True) -> None:
+                    """Forward data between WebSocket connections."""
                     try:
                         while True:
                             try:
@@ -167,15 +212,25 @@ class ProxyManager:
                                         await dest.send_bytes(data)
                                     else:
                                         await dest.send_text(data)
-                            except asyncio.CancelledError:
-                                raise
-                            except Exception as e:
-                                logger.debug(
+                            except websockets.exceptions.ConnectionClosed:
+                                logger.info(
                                     f"{'Client' if is_client else 'Target'} "
-                                    f"connection error: {e}"
+                                    "connection closed normally"
                                 )
                                 break
+                            except Exception as e:
+                                if not isinstance(e, asyncio.CancelledError):
+                                    logger.error(
+                                        f"{'Client' if is_client else 'Target'} "
+                                        f"connection error: {e}"
+                                    )
+                                break
+
                     except asyncio.CancelledError:
+                        logger.info(
+                            f"{'Client' if is_client else 'Target'} "
+                            "forwarding cancelled"
+                        )
                         raise
                     except Exception as e:
                         if not isinstance(e, websockets.exceptions.ConnectionClosed):
@@ -205,13 +260,13 @@ class ProxyManager:
 
         except Exception as e:
             logger.error(f"WebSocket proxy error: {e}")
-            raise ProxyError(f"WebSocket proxy error: {e}")
+            if not isinstance(e, websockets.exceptions.ConnectionClosed):
+                raise ProxyError(f"WebSocket proxy error: {e}")
         
         finally:
             # Ensure WebSocket is closed
             try:
-                if not websocket.client_state.DISCONNECTED:
-                    await websocket.close()
+                await websocket.close()
             except Exception:
                 pass  # Connection already closed
 
@@ -220,5 +275,7 @@ class ProxyManager:
         return {
             "http_endpoint": self.target_url,
             "ws_endpoint": self.ws_url,
-            "mount_path": self.config.mount_path
+            "mount_path": self.config.mount_path,
+            "terminal_path": self.config.terminal_path,
+            "is_root_mounted": self.config.is_root_mounted
         }

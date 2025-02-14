@@ -2,6 +2,10 @@
 
 """
 Configuration settings for protottyde using Pydantic models.
+
+This module defines the configuration structure for the protottyde package,
+with special handling for path management to support both root and non-root
+mounting of the terminal interface.
 """
 
 from pathlib import Path
@@ -20,7 +24,7 @@ class TTYDOptions(BaseModel):
     """TTYd process-specific configuration options."""
     writable: bool = True
     port: int = Field(default=7681, gt=1024, lt=65535)
-    interface: str = "0.0.0.0"
+    interface: str = "127.0.0.1"  # Listen only on localhost for security
     check_origin: bool = True
     max_clients: int = Field(default=1, gt=0)
     credential_required: bool = False
@@ -48,11 +52,16 @@ class ThemeConfig(BaseModel):
     font_size: Optional[int] = Field(default=None, gt=0)
 
 class TTYDConfig(BaseModel):
-    """Main configuration for protottyde."""
+    """
+    Main configuration for protottyde.
+    
+    This model handles both root ("/") and non-root ("/path") mounting configurations,
+    ensuring consistent path handling throughout the application.
+    """
     client_script: Path
-    mount_path: str = "/tty"
+    mount_path: str = "/"  # Default to root mounting
     port: int = Field(default=7681, gt=1024, lt=65535)
-    theme: ThemeConfig
+    theme: ThemeConfig = Field(default_factory=ThemeConfig)
     ttyd_options: TTYDOptions = Field(default_factory=TTYDOptions)
     template_override: Optional[Path] = None
     debug: bool = False
@@ -72,49 +81,77 @@ class TTYDConfig(BaseModel):
     @field_validator('mount_path')
     @classmethod
     def validate_mount_path(cls, v: str) -> str:
-        """Ensure mount path starts with / and doesn't end with /."""
+        """
+        Ensure mount path is properly formatted.
+        
+        For root mounting ("/"):
+        - Accepts "/" or "" and normalizes to "/"
+        
+        For non-root mounting:
+        - Ensures path starts with "/"
+        - Removes trailing "/"
+        - Does not allow "/terminal" as it's reserved
+        """
+        # Handle root mounting
+        if v in ("", "/"):
+            return "/"
+            
+        # Ensure path starts with "/"
         if not v.startswith('/'):
             v = f"/{v}"
-        return v.rstrip('/')
+            
+        # Remove trailing slash
+        v = v.rstrip('/')
+        
+        # Prevent mounting at /terminal as it's reserved for ttyd
+        if v == "/terminal":
+            raise ConfigurationError(
+                '"/terminal" is reserved for ttyd connections. '
+                'Please choose a different mount path.'
+            )
+            
+        return v
 
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'TTYDConfig':
-        """Create config from a dictionary, with proper error handling."""
-        try:
-            return cls(**data)
-        except Exception as e:
-            raise ConfigurationError(str(e))
-
-    def to_ttyd_args(self) -> list[str]:
-        """Convert configuration to ttyd command line arguments."""
-        args = []
+    @property
+    def is_root_mounted(self) -> bool:
+        """Check if the terminal is mounted at root."""
+        return self.mount_path == "/"
         
-        # Add standard options
-        args.extend(['-p', str(self.ttyd_options.port)])
-        args.extend(['-i', self.ttyd_options.interface])
+    @property
+    def terminal_path(self) -> str:
+        """
+        Get the path where ttyd terminal is mounted.
         
-        if not self.ttyd_options.check_origin:
-            args.append('--no-check-origin')
+        For root mounting ("/"):
+            terminal_path = "/terminal"
+        For non-root mounting ("/path"):
+            terminal_path = "/path/terminal"
+        """
+        if self.is_root_mounted:
+            return "/terminal"
+        return f"{self.mount_path}/terminal"
         
-        if self.ttyd_options.credential_required:
-            args.extend([
-                '-c', 
-                f"{self.ttyd_options.username}:{self.ttyd_options.password}"
-            ])
+    @property
+    def static_path(self) -> str:
+        """
+        Get the path where static files are served.
         
-        # Add theme configuration
-        theme_json = self.theme.model_dump_json()
-        args.extend(['-t', f'theme={theme_json}'])
-        
-        if not self.ttyd_options.writable:
-            args.append('-R')
-        
-        return args
+        For root mounting ("/"):
+            static_path = "/static"
+        For non-root mounting ("/path"):
+            static_path = "/path/static"
+        """
+        if self.is_root_mounted:
+            return "/static"
+        return f"{self.mount_path}/static"
 
     def get_health_check_info(self) -> Dict[str, Any]:
         """Get configuration info for health checks."""
         return {
             "mount_path": self.mount_path,
+            "terminal_path": self.terminal_path,
+            "static_path": self.static_path,
+            "is_root_mounted": self.is_root_mounted,
             "port": self.port,
             "debug": self.debug,
             "max_clients": self.ttyd_options.max_clients,

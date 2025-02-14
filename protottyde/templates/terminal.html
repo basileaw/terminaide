@@ -5,14 +5,42 @@
     <title>Terminal</title>
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='favicon.ico') }}">
     <style>
+        /* We first establish our CSS variables using the server-provided theme */
+        :root {
+            --bg-color: {
+                    {
+                    theme.background
+                }
+            }
+
+            ;
+
+            --text-color: {
+                    {
+                    theme.foreground
+                }
+            }
+
+            ;
+        }
+
+        /* Set background color for the entire viewport */
+        html {
+            background: var(--bg-color);
+            min-height: 100%;
+        }
+
         body {
             opacity: 0;
             transition: opacity 1s ease-in;
             margin: 0 auto;
             background: var(--bg-color);
+            color: var(--text-color);
             padding: clamp(.5rem, 2vw, 2rem);
             width: clamp(300px, 90vw, 1200px);
             max-height: 90vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
         }
 
         body.visible {
@@ -23,37 +51,100 @@
             width: 100%;
             height: 90vh;
             border: 0;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.2rem;
+            color: var(--text-color);
+            opacity: 0.8;
+        }
+
+        .error {
+            color: #ff3e3e;
+            text-align: center;
+            padding: 1rem;
+            margin: 1rem 0;
+            background: rgba(255, 62, 62, 0.1);
+            border-radius: 4px;
         }
     </style>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            document.documentElement.style.setProperty('--bg-color', '{{theme.background}}');
 
-            const injectStyles = () => {
+    <!-- We create a data element to hold our theme configuration -->
+    <script id="theme-data" type="application/json">
+        {{ theme | tojson | safe }}
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Safely parse the theme data from our data element
+            const themeData = JSON.parse(document.getElementById('theme-data').textContent);
+
+            // Apply theme settings to CSS variables
+            Object.entries(themeData).forEach(function (entry) {
+                const [key, value] = entry;
+                if (value) {
+                    document.documentElement.style.setProperty(`--${key}`, value);
+                }
+            });
+
+            function injectStyles() {
                 try {
                     const doc = document.getElementById('terminal').contentDocument;
                     const style = doc.createElement('style');
-                    style.textContent = '.xterm-viewport{overflow:hidden!important}.terminal.xterm{display:flex!important;justify-content:center!important;align-items:center!important}';
+                    style.textContent = `
+                        .xterm-viewport {
+                            overflow: hidden !important;
+                        }
+                        .terminal.xterm {
+                            display: flex !important;
+                            justify-content: center !important;
+                            align-items: center !important;
+                        }
+                    `;
                     doc.head.appendChild(style);
                     return true;
-                } catch { return false; }
-            };
+                } catch {
+                    return false;
+                }
+            }
 
             let attempts = 0;
-            const tryInject = () => {
-                if (injectStyles() || attempts++ > 19) {
-                    setTimeout(() => document.body.classList.add('visible'), 200);
+            const maxAttempts = 20;
+
+            function tryInject() {
+                if (injectStyles() || attempts++ > maxAttempts) {
+                    setTimeout(function () {
+                        document.body.classList.add('visible');
+                        const loading = document.getElementById('loading');
+                        if (loading) {
+                            loading.style.display = 'none';
+                        }
+                    }, 200);
                 } else {
                     setTimeout(tryInject, 100);
                 }
-            };
+            }
 
             document.getElementById('terminal').onload = tryInject;
+
+            document.getElementById('terminal').onerror = function () {
+                const error = document.createElement('div');
+                error.className = 'error';
+                error.textContent = 'Failed to load terminal. Please refresh the page.';
+                document.body.appendChild(error);
+            };
         });
     </script>
 </head>
 
 <body>
+    <div id="loading">Initializing terminal...</div>
     <iframe id="terminal" src="{{ mount_path }}"></iframe>
 </body>
 
