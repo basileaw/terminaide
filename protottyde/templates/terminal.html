@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Terminal</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='favicon.ico') }}">
+    <style>
+        body {
+            opacity: 0;
+            transition: opacity 1s ease-in;
+            margin: 0 auto;
+            background: var(--bg-color);
+            padding: clamp(.5rem, 2vw, 2rem);
+            width: clamp(300px, 90vw, 1200px);
+            max-height: 90vh;
+        }
+
+        body.visible {
+            opacity: 1;
+        }
+
+        #terminal {
+            width: 100%;
+            height: 90vh;
+            border: 0;
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.documentElement.style.setProperty('--bg-color', '{{theme.background}}');
+
+            const injectStyles = () => {
+                try {
+                    const doc = document.getElementById('terminal').contentDocument;
+                    const style = doc.createElement('style');
+                    style.textContent = '.xterm-viewport{overflow:hidden!important}.terminal.xterm{display:flex!important;justify-content:center!important;align-items:center!important}';
+                    doc.head.appendChild(style);
+                    return true;
+                } catch { return false; }
+            };
+
+            let attempts = 0;
+            const tryInject = () => {
+                if (injectStyles() || attempts++ > 19) {
+                    setTimeout(() => document.body.classList.add('visible'), 200);
+                } else {
+                    setTimeout(tryInject, 100);
+                }
+            };
+
+            document.getElementById('terminal').onload = tryInject;
+        });
+    </script>
+</head>
+
+<body>
+    <iframe id="terminal" src="{{ mount_path }}"></iframe>
+</body>
+
+</html>

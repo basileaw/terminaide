@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "protottyde"
 version = "0.1.0"
-description = ""
+description = "Serve Python CLI applications in the browser using ttyd"
 authors = ["Alex Basile <basileaw@gmail.com>"]
 readme = "README.md"
 
@@ -11,14 +11,17 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
 python = "^3.12"
-fastapi = "*"
-uvicorn = "*"
-jinja2 = "*"
+fastapi = ">=0.104.0"
+uvicorn = ">=0.24.0"
+jinja2 = ">=3.1.2"
+httpx = ">=0.25.0"
+websockets = ">=12.0"
+pydantic = ">=2.4.2"
+
+[tool.poetry.group.test-server.dependencies]
 bs4 = ">=0.0.2"
 requests = ">=2.32.3"
-httpx = "*"
 rich = "*"
-websockets = "*"
 
 [tool.poetry.group.dev.dependencies]
 pyyaml = "*"
