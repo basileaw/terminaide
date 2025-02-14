@@ -1,10 +1,9 @@
 # test-server/main.py
 
 import os
-import sys
 import logging
 from pathlib import Path
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from protottyde import serve_tty
 
