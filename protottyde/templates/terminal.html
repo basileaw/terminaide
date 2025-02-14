@@ -5,28 +5,9 @@
     <title>Terminal</title>
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='favicon.ico') }}">
     <style>
-        /* We first establish our CSS variables using the server-provided theme */
-        :root {
-            --bg-color: {
-                    {
-                    theme.background
-                }
-            }
-
-            ;
-
-            --text-color: {
-                    {
-                    theme.foreground
-                }
-            }
-
-            ;
-        }
-
         /* Set background color for the entire viewport */
         html {
-            background: var(--bg-color);
+            background: var(--background);
             min-height: 100%;
         }
 
@@ -34,7 +15,7 @@
             opacity: 0;
             transition: opacity 1s ease-in;
             margin: 0 auto;
-            background: var(--bg-color);
+            background: var(--background);
             color: var(--text-color);
             padding: clamp(.5rem, 2vw, 2rem);
             width: clamp(300px, 90vw, 1200px);
