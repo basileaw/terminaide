@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "protottyde"
+version = "0.1.0"
+description = ""
+authors = ["Alex Basile <basileaw@gmail.com>"]
+readme = "README.md"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "*"
+uvicorn = "*"
+jinja2 = "*"
+bs4 = ">=0.0.2"
+requests = ">=2.32.3"
+httpx = "*"
+rich = "*"
+websockets = "*"
+
+[tool.poetry.group.dev.dependencies]
+pyyaml = "*"
+boto3 = "*"
+botocore = "*"
+
+[tool.poe.tasks]
+serve = "python test-server/main.py"
+serve-container = "sh -c 'DIR=${PWD##*/} && docker buildx build --no-cache -t $DIR-web . && docker rm -f $DIR-web 2>/dev/null || true && docker run --name $DIR-web -p 80:80 -v ~/.aws:/root/.aws:ro $DIR-web'"
+ship = "python deployment/manage.py ship"
+secure = "python deployment/manage.py secure"
+scrap = "python deployment/manage.py scrap"

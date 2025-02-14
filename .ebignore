@@ -1,0 +1,13 @@
+# Ignore everything: 
+*
+
+# But include:
+!.ebextensions
+!.elasticbeanstalk
+!.ebignore
+!frontend/
+!backend/
+!Dockerfile
+!.dockerignore
+!Pipfile
+!Pipfile.lock
