@@ -6,13 +6,6 @@ ENV IS_CONTAINER=true \
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    libwebsockets-dev \
-    libjson-c-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install Poetry
 RUN pip install --no-cache-dir poetry
 

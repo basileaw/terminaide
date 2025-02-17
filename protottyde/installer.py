@@ -1,10 +1,10 @@
 # protottyde/installer.py
 
 """
-TTYd binary installation and setup.
+TTYd binary and dependency installation.
 
-This module handles downloading and setting up the ttyd binary for both
-x86_64 Linux (Docker) and ARM64 (Apple Silicon) environments.
+This module handles the complete installation of ttyd and all its dependencies
+across different platforms and environments.
 """
 
 import os
@@ -15,7 +15,7 @@ import logging
 import platform
 import subprocess
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Dict
 import urllib.request
 
 logger = logging.getLogger("protottyde")
@@ -23,13 +23,108 @@ logger = logging.getLogger("protottyde")
 TTYD_VERSION = "1.7.3"
 TTYD_GITHUB_BASE = f"https://github.com/tsl0922/ttyd/releases/download/{TTYD_VERSION}"
 
-# Mapping of platform to binary URL and filename
+# Platform-specific binary URLs
 PLATFORM_BINARIES = {
     ("Linux", "x86_64"): (f"{TTYD_GITHUB_BASE}/ttyd.x86_64", "ttyd"),
     ("Linux", "aarch64"): (f"{TTYD_GITHUB_BASE}/ttyd.aarch64", "ttyd"),
     ("Linux", "arm64"): (f"{TTYD_GITHUB_BASE}/ttyd.aarch64", "ttyd"),
     ("Darwin", "arm64"): (f"{TTYD_GITHUB_BASE}/ttyd.darwin.arm64", "ttyd"),
 }
+
+# Platform-specific system dependencies
+SYSTEM_DEPENDENCIES = {
+    "apt": {
+        "packages": ["libwebsockets-dev", "libjson-c-dev"],
+        "libraries": ["libwebsockets.so", "libjson-c.so"]
+    },
+    "brew": {
+        "packages": ["libwebsockets", "json-c"],
+        "libraries": ["libwebsockets.dylib", "libjson-c.dylib"]
+    }
+}
+
+def get_package_manager() -> Optional[str]:
+    """Detect the system's package manager."""
+    if platform.system() == "Darwin":
+        try:
+            subprocess.check_output(["brew", "--version"])
+            return "brew"
+        except (subprocess.SubprocessError, FileNotFoundError):
+            return None
+    elif platform.system() == "Linux":
+        try:
+            subprocess.check_output(["apt-get", "--version"])
+            return "apt"
+        except (subprocess.SubprocessError, FileNotFoundError):
+            return None
+    return None
+
+def install_system_dependencies(package_manager: str) -> None:
+    """Install required system dependencies using the appropriate package manager."""
+    deps = SYSTEM_DEPENDENCIES.get(package_manager)
+    if not deps:
+        raise RuntimeError(f"No dependency information for package manager: {package_manager}")
+
+    logger.info(f"Installing system dependencies using {package_manager}...")
+    
+    try:
+        if package_manager == "apt":
+            # Check if we can use sudo
+            try:
+                subprocess.check_output(["sudo", "-n", "true"])
+                sudo_prefix = ["sudo"]
+            except (subprocess.SubprocessError, FileNotFoundError):
+                sudo_prefix = []
+
+            # Update package list
+            subprocess.run(
+                [*sudo_prefix, "apt-get", "update", "-y"],
+                check=True,
+                capture_output=True
+            )
+            
+            # Install packages
+            subprocess.run(
+                [*sudo_prefix, "apt-get", "install", "-y", *deps["packages"]],
+                check=True,
+                capture_output=True
+            )
+            
+        elif package_manager == "brew":
+            for pkg in deps["packages"]:
+                subprocess.run(
+                    ["brew", "install", pkg],
+                    check=True,
+                    capture_output=True
+                )
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(
+            f"Failed to install system dependencies using {package_manager}. "
+            f"Error: {e.stderr.decode() if e.stderr else str(e)}"
+        )
+
+def verify_system_libraries(package_manager: str) -> List[str]:
+    """Verify required system libraries are present and return any missing ones."""
+    deps = SYSTEM_DEPENDENCIES.get(package_manager)
+    if not deps:
+        raise RuntimeError(f"No dependency information for package manager: {package_manager}")
+
+    missing = []
+    if package_manager == "apt":
+        try:
+            output = subprocess.check_output(["ldconfig", "-p"]).decode()
+            missing = [lib for lib in deps["libraries"] if lib not in output]
+        except subprocess.SubprocessError:
+            logger.warning("Could not verify libraries with ldconfig")
+    elif package_manager == "brew":
+        brew_prefix = subprocess.check_output(["brew", "--prefix"]).decode().strip()
+        lib_path = Path(brew_prefix) / "lib"
+        missing = [
+            lib for lib in deps["libraries"] 
+            if not (lib_path / lib).exists()
+        ]
+    
+    return missing
 
 def get_platform_info() -> Tuple[str, str]:
     """Get current platform and architecture."""
@@ -44,7 +139,6 @@ def get_platform_info() -> Tuple[str, str]:
 
 def get_binary_dir() -> Path:
     """Get the directory where the ttyd binary should be installed."""
-    # Use ~/.local/bin on Linux, ~/Library/Application Support on macOS
     if platform.system() == "Darwin":
         base_dir = Path.home() / "Library" / "Application Support" / "protottyde"
     else:
@@ -62,45 +156,6 @@ def download_binary(url: str, target_path: Path) -> None:
         target_path.chmod(target_path.stat().st_mode | stat.S_IEXEC)
     except Exception as e:
         raise RuntimeError(f"Failed to download ttyd: {e}")
-
-def verify_dependencies() -> None:
-    """Verify that required system libraries are available, installing if needed."""
-    required_libs = ["libwebsockets.so", "libjson-c.so"]
-    
-    if platform.system() == "Linux":
-        try:
-            # First check if libraries are present
-            output = subprocess.check_output(["ldconfig", "-p"]).decode()
-            missing = [lib for lib in required_libs if lib not in output]
-            
-            if missing:
-                logger.info("Installing required system libraries...")
-                try:
-                    # Try to install using apt-get
-                    subprocess.run([
-                        "apt-get", "update", "-y"
-                    ], check=True, capture_output=True)
-                    
-                    subprocess.run([
-                        "apt-get", "install", "-y",
-                        "libwebsockets-dev",
-                        "libjson-c-dev"
-                    ], check=True, capture_output=True)
-                    
-                    # Verify installation succeeded
-                    output = subprocess.check_output(["ldconfig", "-p"]).decode()
-                    still_missing = [lib for lib in required_libs if lib not in output]
-                    if still_missing:
-                        raise RuntimeError(
-                            f"Failed to install required libraries: {', '.join(still_missing)}"
-                        )
-                except subprocess.CalledProcessError as e:
-                    raise RuntimeError(
-                        f"Failed to install system dependencies. "
-                        f"Error: {e.stderr.decode() if e.stderr else str(e)}"
-                    )
-        except subprocess.CalledProcessError:
-            logger.warning("Could not verify dependencies with ldconfig")
 
 def get_ttyd_path() -> Optional[Path]:
     """Get path to installed ttyd binary, installing if necessary."""
@@ -122,6 +177,25 @@ def get_ttyd_path() -> Optional[Path]:
             f"Unsupported platform: {system} {machine}. "
             "Please report this issue on GitHub."
         )
+
+    # Set up system dependencies first
+    package_manager = get_package_manager()
+    if not package_manager:
+        raise RuntimeError(
+            f"No supported package manager found for {system}. "
+            "Please install libwebsockets and json-c manually."
+        )
+
+    # Check for missing libraries
+    missing_libs = verify_system_libraries(package_manager)
+    if missing_libs:
+        install_system_dependencies(package_manager)
+        # Verify installation succeeded
+        still_missing = verify_system_libraries(package_manager)
+        if still_missing:
+            raise RuntimeError(
+                f"Failed to install required libraries: {', '.join(still_missing)}"
+            )
     
     url, binary_name = PLATFORM_BINARIES[platform_key]
     binary_dir = get_binary_dir()
@@ -129,7 +203,6 @@ def get_ttyd_path() -> Optional[Path]:
     
     # Check if binary exists and is executable
     if not binary_path.exists() or not os.access(binary_path, os.X_OK):
-        verify_dependencies()
         download_binary(url, binary_path)
     
     return binary_path
