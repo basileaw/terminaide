@@ -180,27 +180,47 @@ class TTYDManager:
         Stop the ttyd process if it's running.
         
         This method ensures clean process termination using SIGTERM first,
-        followed by SIGKILL if necessary.
+        followed by SIGKILL if necessary. It handles cases where the process
+        might have already been terminated.
         """
         if self.process:
             logger.info("Stopping ttyd process...")
             
-            # Try graceful shutdown first
-            if os.name == 'nt':  # Windows
-                self.process.terminate()
-            else:  # Unix-like
-                os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
-
             try:
-                self.process.wait(timeout=5)  # Wait up to 5 seconds
-            except subprocess.TimeoutExpired:
-                # Force kill if graceful shutdown fails
-                if os.name == 'nt':
-                    self.process.kill()
-                else:
-                    os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
-                self.process.wait()
+                # Try graceful shutdown first
+                if os.name == 'nt':  # Windows
+                    self.process.terminate()
+                else:  # Unix-like
+                    try:
+                        pgid = os.getpgid(self.process.pid)
+                        os.killpg(pgid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        # Process is already gone, which is fine
+                        pass
 
+                try:
+                    self.process.wait(timeout=5)  # Wait up to 5 seconds
+                except subprocess.TimeoutExpired:
+                    # Force kill if graceful shutdown fails
+                    if os.name == 'nt':
+                        self.process.kill()
+                    else:
+                        try:
+                            pgid = os.getpgid(self.process.pid)
+                            os.killpg(pgid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            # Process is already gone, which is fine
+                            pass
+                    
+                    try:
+                        self.process.wait(timeout=1)
+                    except subprocess.TimeoutExpired:
+                        # If we still can't wait, the process is probably zombie or gone
+                        pass
+
+            except Exception as e:
+                logger.warning(f"Error during process cleanup: {e}")
+            
             self.process = None
             self._start_time = None
             logger.info("ttyd process stopped successfully")

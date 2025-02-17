@@ -47,7 +47,7 @@ serve_tty(
 if __name__ == '__main__':
     import uvicorn
     
-    server_port = int(os.getenv('PORT', '8000'))
+    server_port = int('8000')
     
     uvicorn_config = {
         "app": "main:app",
