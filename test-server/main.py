@@ -36,7 +36,7 @@ is_container = os.getenv('IS_CONTAINER', 'false').lower() == 'true'
 # The server_port is what the FastAPI server listens on
 # The ttyd_port is what the terminal process uses internally
 server_port = int(os.getenv('PORT', '80' if is_container else '8000'))
-ttyd_port = int(os.getenv('TTYD_PORT', '7681'))
+# ttyd_port = int(os.getenv('TTYD_PORT', '7681'))
 
 # Set up the terminal service at the root path
 # This creates a clean, professional experience where users see the terminal
@@ -48,7 +48,7 @@ serve_tty(
     app,
     client_script=client_script,
     mount_path="/",              # Mount at root for a clean URL
-    port=ttyd_port,             # Use our configured ttyd port
+    # port=ttyd_port,             # Use our configured ttyd port
     theme={                      # Configure the terminal appearance
         "background": "black",   # Black background for traditional terminal look
         # "foreground": "white",   # White text for good contrast

@@ -4,28 +4,68 @@
 Protottyde: Serve Python CLI applications in the browser using ttyd.
 
 This package provides tools to easily serve Python CLI applications through
-a browser-based terminal using ttyd.
+a browser-based terminal using ttyd. It handles binary installation and
+management automatically across supported platforms.
+
+Supported Platforms:
+- Linux x86_64 (Docker containers)
+- macOS ARM64 (Apple Silicon)
 """
 
+import logging
 from fastapi import FastAPI
 from pathlib import Path
 from typing import Optional, Dict, Any, Union
 
+# Configure package-level logging
+logging.getLogger("protottyde").addHandler(logging.NullHandler())
+
+# Core functionality
 from .core.settings import TTYDConfig
-from .serve import serve_tty
+from .serve import serve_tty, _configure_app
+
+# Installation management
+from .installer import setup_ttyd, get_platform_info
+
+# Expose all exceptions
 from .exceptions import (
-    TTYDNotFoundError,
-    TTYDStartupError, 
-    ClientScriptError
+    ProtottydeError,
+    BinaryError,
+    InstallationError,
+    PlatformNotSupportedError,
+    DependencyError,
+    DownloadError,
+    TTYDStartupError,
+    TTYDProcessError,
+    ClientScriptError,
+    TemplateError,
+    ProxyError,
+    ConfigurationError
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"  # Updated version number
 __all__ = [
+    # Main functionality
     "serve_tty",
     "TTYDConfig",
-    "TTYDNotFoundError",
+    
+    # Binary management
+    "setup_ttyd",
+    "get_platform_info",
+    
+    # Exceptions
+    "ProtottydeError",
+    "BinaryError",
+    "InstallationError",
+    "PlatformNotSupportedError",
+    "DependencyError",
+    "DownloadError",
     "TTYDStartupError",
-    "ClientScriptError"
+    "TTYDProcessError",
+    "ClientScriptError",
+    "TemplateError",
+    "ProxyError",
+    "ConfigurationError"
 ]
 
 # Type aliases for better documentation
@@ -46,6 +86,10 @@ def serve_tty(
     """
     Configure FastAPI application to serve a Python script through a browser-based terminal.
 
+    This function automatically handles ttyd binary installation and setup for the
+    current platform. Supported platforms are Linux x86_64 (for Docker) and
+    macOS ARM64 (Apple Silicon).
+
     Args:
         app: FastAPI application instance
         client_script: Path to Python script to run in terminal
@@ -57,10 +101,12 @@ def serve_tty(
         debug: Enable development mode with auto-reload (default: False)
 
     Raises:
-        TTYDNotFoundError: If ttyd is not installed
+        InstallationError: If ttyd binary installation fails
+        PlatformNotSupportedError: If running on an unsupported platform
+        DependencyError: If required system libraries are missing
         TTYDStartupError: If ttyd fails to start
         ClientScriptError: If client script cannot be found or executed
-        ValueError: If provided configuration values are invalid
+        ConfigurationError: If provided configuration values are invalid
 
     Example:
         ```python
@@ -81,7 +127,13 @@ def serve_tty(
             debug=True
         )
         ```
+
+    Notes:
+        - For Docker deployments, the package automatically handles ttyd installation
+        - Binary installation happens on first use and is cached for subsequent runs
+        - In Docker, required system libraries (libwebsockets, json-c) must be present
     """
+    # Create configuration object
     config = TTYDConfig(
         client_script=client_script,
         mount_path=mount_path,
@@ -92,5 +144,5 @@ def serve_tty(
         debug=debug
     )
     
-    from .serve import _configure_app
+    # Configure the application with our ttyd setup
     _configure_app(app, config)

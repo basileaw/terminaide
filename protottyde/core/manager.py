@@ -13,14 +13,15 @@ import os
 import signal
 import logging
 import subprocess
-import shutil
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 
-from ..exceptions import TTYDNotFoundError, TTYDStartupError, TTYDProcessError
+from ..exceptions import TTYDStartupError, TTYDProcessError
+from ..installer import setup_ttyd
 from .settings import TTYDConfig
 
 logger = logging.getLogger("protottyde")
@@ -42,29 +43,26 @@ class TTYDManager:
 
         Args:
             config: TTYDConfig instance with process configuration
-        
-        Raises:
-            TTYDNotFoundError: If ttyd is not installed
         """
         self.config = config
         self.process: Optional[subprocess.Popen] = None
         self._start_time: Optional[datetime] = None
-        self._verify_ttyd_installed()
+        self._ttyd_path: Optional[Path] = None
+        self._setup_ttyd()
 
-    def _verify_ttyd_installed(self) -> None:
+    def _setup_ttyd(self) -> None:
         """
-        Verify ttyd is installed and accessible.
+        Set up ttyd binary and verify it's ready to use.
         
-        This method checks for ttyd in the system PATH and logs its location
-        for debugging purposes.
-        
-        Raises:
-            TTYDNotFoundError: If ttyd binary is not found
+        This method handles the installation and verification of the ttyd binary,
+        using our installer module to manage platform-specific binaries.
         """
-        ttyd_path = shutil.which('ttyd')
-        if not ttyd_path:
-            raise TTYDNotFoundError()
-        logger.info(f"Found ttyd binary at: {ttyd_path}")
+        try:
+            self._ttyd_path = setup_ttyd()
+            logger.info(f"Using ttyd binary at: {self._ttyd_path}")
+        except Exception as e:
+            logger.error(f"Failed to set up ttyd: {e}")
+            raise TTYDStartupError(f"Failed to set up ttyd: {e}")
 
     def _build_command(self) -> List[str]:
         """
@@ -77,7 +75,10 @@ class TTYDManager:
         Returns:
             List of command arguments for ttyd process
         """
-        cmd = ['ttyd']
+        if not self._ttyd_path:
+            raise TTYDStartupError("ttyd binary path not set")
+            
+        cmd = [str(self._ttyd_path)]
         
         # Basic configuration
         cmd.extend(['-p', str(self.config.port)])
@@ -88,6 +89,8 @@ class TTYDManager:
             cmd.append('--no-check-origin')
         
         if self.config.ttyd_options.credential_required:
+            if not (self.config.ttyd_options.username and self.config.ttyd_options.password):
+                raise TTYDStartupError("Credentials required but not provided")
             cmd.extend([
                 '-c', 
                 f"{self.config.ttyd_options.username}:{self.config.ttyd_options.password}"
@@ -101,7 +104,7 @@ class TTYDManager:
         theme_json = self.config.theme.model_dump_json()
         cmd.extend(['-t', f'theme={theme_json}'])
         
-        # Explicitly set writable or read‑only mode
+        # Explicitly set writable or read-only mode
         if self.config.ttyd_options.writable:
             cmd.append('--writable')
         else:
@@ -227,6 +230,7 @@ class TTYDManager:
             "pid": self.process.pid if self.process else None,
             "mounting": "root" if self.config.is_root_mounted else "non-root",
             "terminal_path": self.config.terminal_path,
+            "ttyd_path": str(self._ttyd_path) if self._ttyd_path else None,
             **self.config.get_health_check_info()
         }
 

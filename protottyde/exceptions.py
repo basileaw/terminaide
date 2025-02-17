@@ -4,39 +4,91 @@
 Custom exceptions for the protottyde package.
 
 These exceptions provide specific error cases that may occur during
-ttyd setup and operation.
+ttyd setup, installation, and operation.
 """
+
+from typing import Optional
+from pathlib import Path
 
 class ProtottydeError(Exception):
     """Base exception for all protottyde errors."""
 
-class TTYDNotFoundError(ProtottydeError):
-    """Raised when ttyd is not installed or not found in PATH."""
-    def __init__(self, message: str = None):
-        super().__init__(
-            message or 
-            "ttyd not found. Install with:\n"
-            "  Ubuntu/Debian: apt-get install ttyd\n"
-            "  MacOS: brew install ttyd\n"
-            "  Or build from source: https://github.com/tsl0922/ttyd"
-        )
+class BinaryError(ProtottydeError):
+    """Base class for binary-related errors."""
+    def __init__(self, message: str, binary_path: Optional[Path] = None):
+        super().__init__(message)
+        self.binary_path = binary_path
 
-class TTYDStartupError(ProtottydeError):
+class InstallationError(BinaryError):
+    """Raised when ttyd binary installation fails."""
+    def __init__(
+        self, 
+        message: str, 
+        binary_path: Optional[Path] = None,
+        platform: Optional[str] = None
+    ):
+        super().__init__(
+            f"Installation failed: {message}" +
+            (f" (platform: {platform})" if platform else ""),
+            binary_path
+        )
+        self.platform = platform
+
+class PlatformNotSupportedError(InstallationError):
+    """Raised when trying to install on an unsupported platform."""
+    def __init__(self, system: str, machine: str):
+        super().__init__(
+            f"Platform not supported: {system} {machine}",
+            platform=f"{system} {machine}"
+        )
+        self.system = system
+        self.machine = machine
+
+class DependencyError(InstallationError):
+    """Raised when required system dependencies are missing."""
+    def __init__(self, missing_deps: list[str]):
+        deps_str = ", ".join(missing_deps)
+        super().__init__(
+            f"Missing required dependencies: {deps_str}\n"
+            "Please install:\n"
+            "  Ubuntu/Debian: apt-get install libwebsockets-dev libjson-c-dev\n"
+            "  MacOS: brew install libwebsockets json-c"
+        )
+        self.missing_deps = missing_deps
+
+class DownloadError(InstallationError):
+    """Raised when downloading the ttyd binary fails."""
+    def __init__(self, url: str, error: str):
+        super().__init__(f"Failed to download from {url}: {error}")
+        self.url = url
+        self.error = error
+
+class TTYDStartupError(BinaryError):
     """Raised when ttyd process fails to start."""
-    def __init__(self, message: str = None, stderr: str = None):
+    def __init__(
+        self, 
+        message: str = None, 
+        stderr: str = None,
+        binary_path: Optional[Path] = None
+    ):
         msg = message or "Failed to start ttyd process"
         if stderr:
             msg = f"{msg}\nttyd error output:\n{stderr}"
-        super().__init__(msg)
+        super().__init__(msg, binary_path)
         self.stderr = stderr
 
-class TTYDProcessError(ProtottydeError):
+class TTYDProcessError(BinaryError):
     """Raised when ttyd process encounters an error during operation."""
-    def __init__(self, message: str = None, exit_code: int = None):
+    def __init__(
+        self, 
+        message: str = None, 
+        exit_code: int = None,
+        binary_path: Optional[Path] = None
+    ):
         msg = message or "ttyd process error"
         if exit_code is not None:
             msg = f"{msg} (exit code: {exit_code})"
-        super().__init__(msg)
+        super().__init__(msg, binary_path)
         self.exit_code = exit_code
 
 class ClientScriptError(ProtottydeError):
