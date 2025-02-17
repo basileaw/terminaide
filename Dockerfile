@@ -1,8 +1,6 @@
 FROM python:3.12-slim
 
-ENV IS_CONTAINER=true \
-    PYTHONUNBUFFERED=1 \
-    PORT=80
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
@@ -18,5 +16,5 @@ COPY test-server/ ./test-server/
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi --only main
 
-EXPOSE 80
+EXPOSE 8000
 CMD ["python", "test-server/main.py"]

@@ -30,8 +30,5 @@ boto3 = "*"
 botocore = "*"
 
 [tool.poe.tasks]
-serve = "python test-server/main.py"
-serve-container = "sh -c 'DIR=${PWD##*/} && docker buildx build --no-cache -t $DIR-web . && docker rm -f $DIR-web 2>/dev/null || true && docker run --name $DIR-web -p 80:80 -v ~/.aws:/root/.aws:ro $DIR-web'"
-ship = "python deployment/manage.py ship"
-secure = "python deployment/manage.py secure"
-scrap = "python deployment/manage.py scrap"
+serve-local = "python test-server/main.py"
+serve-container = "sh -c 'DIR=${PWD##*/} && docker buildx build --no-cache -t $DIR-web . && docker rm -f $DIR-web 2>/dev/null || true && docker run --name $DIR-web -p 8000:8000 -v ~/.aws:/root/.aws:ro $DIR-web'"
