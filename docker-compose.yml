@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ~/.aws:/root/.aws:ro
+    # Optional: for development
+    # volumes:
+    #   - ./test-server:/app/test-server

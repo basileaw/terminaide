@@ -31,4 +31,4 @@ botocore = "*"
 
 [tool.poe.tasks]
 serve-local = "python test-server/main.py"
-serve-container = "sh -c 'DIR=${PWD##*/} && docker buildx build --no-cache -t $DIR-web . && docker rm -f $DIR-web 2>/dev/null || true && docker run --name $DIR-web -p 8000:8000 -v ~/.aws:/root/.aws:ro $DIR-web'"
+serve-container = "docker compose up --build"
