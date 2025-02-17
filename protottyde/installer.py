@@ -26,13 +26,15 @@ TTYD_GITHUB_BASE = f"https://github.com/tsl0922/ttyd/releases/download/{TTYD_VER
 # Mapping of platform to binary URL and filename
 PLATFORM_BINARIES = {
     ("Linux", "x86_64"): (f"{TTYD_GITHUB_BASE}/ttyd.x86_64", "ttyd"),
+    ("Linux", "aarch64"): (f"{TTYD_GITHUB_BASE}/ttyd.arm64", "ttyd"),
+    ("Linux", "arm64"): (f"{TTYD_GITHUB_BASE}/ttyd.arm64", "ttyd"),
     ("Darwin", "arm64"): (f"{TTYD_GITHUB_BASE}/ttyd.arm64", "ttyd"),
 }
 
 def get_platform_info() -> Tuple[str, str]:
     """Get current platform and architecture."""
     system = platform.system()
-    machine = platform.machine()
+    machine = platform.machine().lower()
     
     # Normalize ARM architecture names
     if machine in ["arm64", "aarch64"]:
@@ -82,10 +84,20 @@ def get_ttyd_path() -> Optional[Path]:
     system, machine = get_platform_info()
     platform_key = (system, machine)
     
+    # Try common platform keys
+    if platform_key not in PLATFORM_BINARIES:
+        # For Linux, try to map to a compatible architecture
+        if system == "Linux":
+            for machine_type in ["arm64", "aarch64", "x86_64"]:
+                alt_key = (system, machine_type)
+                if alt_key in PLATFORM_BINARIES:
+                    platform_key = alt_key
+                    break
+    
     if platform_key not in PLATFORM_BINARIES:
         raise RuntimeError(
             f"Unsupported platform: {system} {machine}. "
-            "Only Linux x86_64 and macOS ARM64 are supported."
+            "Please report this issue on GitHub."
         )
     
     url, binary_name = PLATFORM_BINARIES[platform_key]

@@ -6,26 +6,17 @@ ENV IS_CONTAINER=true \
 
 WORKDIR /app
 
-# Install only the essential system dependencies for ttyd
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libwebsockets-dev \
-    libjson-c-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install Poetry
 RUN pip install --no-cache-dir poetry
 
-# Copy only the necessary files for dependency installation
+# Copy dependency files
 COPY pyproject.toml poetry.lock ./
 
-# Install dependencies (without dev dependencies or project itself)
+# Install dependencies
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi --only main --no-root \
-    && pip uninstall -y poetry virtualenv-clone virtualenv
+    && poetry install --no-interaction --no-ansi --only main --no-root
 
-# Copy the rest of the application
-COPY protottyde/ /app/protottyde/
+# Copy the application
 COPY test-server/ /app/test-server/
 
 EXPOSE 80
