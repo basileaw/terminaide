@@ -26,9 +26,9 @@ TTYD_GITHUB_BASE = f"https://github.com/tsl0922/ttyd/releases/download/{TTYD_VER
 # Mapping of platform to binary URL and filename
 PLATFORM_BINARIES = {
     ("Linux", "x86_64"): (f"{TTYD_GITHUB_BASE}/ttyd.x86_64", "ttyd"),
-    ("Linux", "aarch64"): (f"{TTYD_GITHUB_BASE}/ttyd.arm64", "ttyd"),
-    ("Linux", "arm64"): (f"{TTYD_GITHUB_BASE}/ttyd.arm64", "ttyd"),
-    ("Darwin", "arm64"): (f"{TTYD_GITHUB_BASE}/ttyd.arm64", "ttyd"),
+    ("Linux", "aarch64"): (f"{TTYD_GITHUB_BASE}/ttyd.aarch64", "ttyd"),
+    ("Linux", "arm64"): (f"{TTYD_GITHUB_BASE}/ttyd.aarch64", "ttyd"),
+    ("Darwin", "arm64"): (f"{TTYD_GITHUB_BASE}/ttyd.darwin.arm64", "ttyd"),
 }
 
 def get_platform_info() -> Tuple[str, str]:
@@ -64,18 +64,41 @@ def download_binary(url: str, target_path: Path) -> None:
         raise RuntimeError(f"Failed to download ttyd: {e}")
 
 def verify_dependencies() -> None:
-    """Verify that required system libraries are available."""
+    """Verify that required system libraries are available, installing if needed."""
     required_libs = ["libwebsockets.so", "libjson-c.so"]
     
     if platform.system() == "Linux":
         try:
+            # First check if libraries are present
             output = subprocess.check_output(["ldconfig", "-p"]).decode()
             missing = [lib for lib in required_libs if lib not in output]
+            
             if missing:
-                raise RuntimeError(
-                    f"Missing required libraries: {', '.join(missing)}. "
-                    "Please install libwebsockets-dev and libjson-c-dev."
-                )
+                logger.info("Installing required system libraries...")
+                try:
+                    # Try to install using apt-get
+                    subprocess.run([
+                        "apt-get", "update", "-y"
+                    ], check=True, capture_output=True)
+                    
+                    subprocess.run([
+                        "apt-get", "install", "-y",
+                        "libwebsockets-dev",
+                        "libjson-c-dev"
+                    ], check=True, capture_output=True)
+                    
+                    # Verify installation succeeded
+                    output = subprocess.check_output(["ldconfig", "-p"]).decode()
+                    still_missing = [lib for lib in required_libs if lib not in output]
+                    if still_missing:
+                        raise RuntimeError(
+                            f"Failed to install required libraries: {', '.join(still_missing)}"
+                        )
+                except subprocess.CalledProcessError as e:
+                    raise RuntimeError(
+                        f"Failed to install system dependencies. "
+                        f"Error: {e.stderr.decode() if e.stderr else str(e)}"
+                    )
         except subprocess.CalledProcessError:
             logger.warning("Could not verify dependencies with ldconfig")
 

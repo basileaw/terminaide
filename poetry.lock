@@ -502,30 +502,6 @@ files = [
 wcwidth = "*"
 
 [[package]]
-name = "protottyde"
-version = "0.1.0"
-description = "Serve Python CLI applications in the browser using ttyd"
-optional = false
-python-versions = "^3.12"
-files = []
-develop = false
-
-[package.dependencies]
-chatline = {git = "https://github.com/anotherbazeinthewall/chatline-interface.git"}
-fastapi = ">=0.104.0"
-httpx = ">=0.25.0"
-jinja2 = ">=3.1.2"
-pydantic = ">=2.4.2"
-uvicorn = ">=0.24.0"
-websockets = ">=12.0"
-
-[package.source]
-type = "git"
-url = "https://github.com/anotherbazeinthewall/protottyde-adapter.git"
-reference = "HEAD"
-resolved_reference = "c54467289504b9085464c5c9ad9b84a9377fb857"
-
-[[package]]
 name = "pydantic"
 version = "2.10.6"
 description = "Data validation using Python type hints"
@@ -991,4 +967,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "fda586d0f30773bfe190cb6acec5bfa5be21e6343cac5650867f705a38f69d70"
+content-hash = "ece750c3e164e5650aae2a45b006663779b985bf6cdf060bddb6eb80db7df735"

@@ -1,10 +1,9 @@
-# Ignore everything, except:
-## Docker
-!.dockerignore
+# Ignore everything
+*
+
+# Don't ignore these files/directories
 !Dockerfile
-## Application Code
-!protottyde/
-!test-server/
-## Poetry
 !pyproject.toml
 !poetry.lock
+!protottyde/
+!test-server/
