@@ -1,9 +1,12 @@
 [tool.poetry]
 name = "terminaide"
-version = "0.0.0"
+version = "0.0.1"
 description = "Serve Python CLI applications in the browser using ttyd"
 authors = ["Alex Basile <basileaw@gmail.com>"]
 packages = [{ include = "terminaide" }]
+readme = "README.md"
+repository = "https://github.com/anotherbazeinthewall/terminaide"
+license = "MIT"
 
 [build-system]
 requires = ["poetry-core"]
@@ -17,7 +20,7 @@ jinja2 = ">=3.1.2"
 httpx = ">=0.25.0"
 websockets = ">=12.0"
 pydantic = ">=2.4.2"
-chatline = { git = "https://github.com/anotherbazeinthewall/chatline-interface.git" }
+chatline = ">=0.0.5"
 
 [tool.poetry.group.test-server.dependencies]
 bs4 = ">=0.0.2"
@@ -32,3 +35,66 @@ botocore = "*"
 [tool.poe.tasks]
 serve-local = "python example/server.py"
 serve-container = "docker compose up --build"
+
+# Publish scripts
+check-changes = "bash -c 'if [ ! -z \"$(git status --porcelain)\" ]; then echo \"Error: You have uncommitted changes.\"; exit 1; fi'"
+
+publish-patch = """
+bash -c '
+  poe check-changes && \
+  git pull origin main && \
+  VERSION=$(poetry version -s) && \
+  if git rev-parse "v$VERSION" >/dev/null 2>&1; then \
+    echo "Error: Tag v$VERSION already exists" && exit 1; \
+  fi && \
+  poetry version patch && \
+  VERSION=$(poetry version -s) && \
+  poetry build && \
+  poetry publish && \
+  git add pyproject.toml && \
+  git commit -m "release v$VERSION" && \
+  git tag v$VERSION && \
+  git push origin main && \
+  git push origin --tags
+'
+"""
+
+publish-minor = """
+bash -c '
+  poe check-changes && \
+  git pull origin main && \
+  VERSION=$(poetry version -s) && \
+  if git rev-parse "v$VERSION" >/dev/null 2>&1; then \
+    echo "Error: Tag v$VERSION already exists" && exit 1; \
+  fi && \
+  poetry version minor && \
+  VERSION=$(poetry version -s) && \
+  poetry build && \
+  poetry publish && \
+  git add pyproject.toml && \
+  git commit -m "release v$VERSION" && \
+  git tag v$VERSION && \
+  git push origin main && \
+  git push origin --tags
+'
+"""
+
+publish-major = """
+bash -c '
+  poe check-changes && \
+  git pull origin main && \
+  VERSION=$(poetry version -s) && \
+  if git rev-parse "v$VERSION" >/dev/null 2>&1; then \
+    echo "Error: Tag v$VERSION already exists" && exit 1; \
+  fi && \
+  poetry version major && \
+  VERSION=$(poetry version -s) && \
+  poetry build && \
+  poetry publish && \
+  git add pyproject.toml && \
+  git commit -m "release v$VERSION" && \
+  git tag v$VERSION && \
+  git push origin main && \
+  git push origin --tags
+'
+"""
