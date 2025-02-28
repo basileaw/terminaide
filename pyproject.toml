@@ -1,9 +1,9 @@
 [tool.poetry]
-name = "protottyde"
-version = "0.1.0"
+name = "terminaide"
+version = "0.0.0"
 description = "Serve Python CLI applications in the browser using ttyd"
 authors = ["Alex Basile <basileaw@gmail.com>"]
-packages = [{ include = "protottyde" }]
+packages = [{ include = "terminaide" }]
 
 [build-system]
 requires = ["poetry-core"]
@@ -30,5 +30,5 @@ boto3 = "*"
 botocore = "*"
 
 [tool.poe.tasks]
-serve-local = "python test-server/main.py"
+serve-local = "python example/server.py"
 serve-container = "docker compose up --build"

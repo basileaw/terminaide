@@ -5,5 +5,5 @@
 !Dockerfile
 !pyproject.toml
 !poetry.lock
-!protottyde/
-!test-server/
+!terminaide/
+!example/

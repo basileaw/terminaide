@@ -1,4 +1,4 @@
-# protottyde/core/manager.py
+# terminaide/core/manager.py
 
 """
 TTYd process management and lifecycle control.
@@ -24,7 +24,7 @@ from ..exceptions import TTYDStartupError, TTYDProcessError
 from ..installer import setup_ttyd
 from .settings import TTYDConfig
 
-logger = logging.getLogger("protottyde")
+logger = logging.getLogger("terminaide")
 
 class TTYDManager:
     """

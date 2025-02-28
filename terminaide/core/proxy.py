@@ -1,4 +1,4 @@
-# protottyde/core/proxy.py
+# terminaide/core/proxy.py
 
 """
 Proxy management for ttyd HTTP and WebSocket connections.
@@ -23,7 +23,7 @@ from fastapi.responses import Response, StreamingResponse
 from ..exceptions import ProxyError
 from .settings import TTYDConfig
 
-logger = logging.getLogger("protottyde")
+logger = logging.getLogger("terminaide")
 
 class ProxyManager:
     """

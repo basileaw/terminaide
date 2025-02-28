@@ -1,4 +1,4 @@
-# protottyde/installer.py
+# terminaide/installer.py
 
 """
 TTYd binary and dependency installation.
@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Optional, Tuple, List, Dict
 import urllib.request
 
-logger = logging.getLogger("protottyde")
+logger = logging.getLogger("terminaide")
 
 TTYD_VERSION = "1.7.3"
 TTYD_GITHUB_BASE = f"https://github.com/tsl0922/ttyd/releases/download/{TTYD_VERSION}"
@@ -140,9 +140,9 @@ def get_platform_info() -> Tuple[str, str]:
 def get_binary_dir() -> Path:
     """Get the directory where the ttyd binary should be installed."""
     if platform.system() == "Darwin":
-        base_dir = Path.home() / "Library" / "Application Support" / "protottyde"
+        base_dir = Path.home() / "Library" / "Application Support" / "terminaide"
     else:
-        base_dir = Path.home() / ".local" / "share" / "protottyde"
+        base_dir = Path.home() / ".local" / "share" / "terminaide"
     
     base_dir.mkdir(parents=True, exist_ok=True)
     return base_dir

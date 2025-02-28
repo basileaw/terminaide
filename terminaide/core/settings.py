@@ -1,9 +1,9 @@
-# protottyde/core/settings.py
+# terminaide/core/settings.py
 
 """
-Configuration settings for protottyde using Pydantic models.
+Configuration settings for terminaide using Pydantic models.
 
-This module defines the configuration structure for the protottyde package,
+This module defines the configuration structure for the terminaide package,
 with special handling for path management to support both root and non-root
 mounting of the terminal interface.
 """
@@ -53,7 +53,7 @@ class ThemeConfig(BaseModel):
 
 class TTYDConfig(BaseModel):
     """
-    Main configuration for protottyde.
+    Main configuration for terminaide.
     
     This model handles both root ("/") and non-root ("/path") mounting configurations,
     ensuring consistent path handling throughout the application.

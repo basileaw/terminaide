@@ -1,7 +1,7 @@
-# protottyde/__init__.py
+# terminaide/__init__.py
 
 """
-Protottyde: Serve Python CLI applications in the browser using ttyd.
+terminaide: Serve Python CLI applications in the browser using ttyd.
 
 This package provides tools to easily serve Python CLI applications through
 a browser-based terminal using ttyd. It handles binary installation and
@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Union
 
 # Configure package-level logging
-logging.getLogger("protottyde").addHandler(logging.NullHandler())
+logging.getLogger("terminaide").addHandler(logging.NullHandler())
 
 # Core functionality
 from .core.settings import TTYDConfig
@@ -29,7 +29,7 @@ from .installer import setup_ttyd, get_platform_info
 
 # Expose all exceptions
 from .exceptions import (
-    ProtottydeError,
+    terminaideError,
     BinaryError,
     InstallationError,
     PlatformNotSupportedError,
@@ -54,7 +54,7 @@ __all__ = [
     "get_platform_info",
     
     # Exceptions
-    "ProtottydeError",
+    "terminaideError",
     "BinaryError",
     "InstallationError",
     "PlatformNotSupportedError",
@@ -111,7 +111,7 @@ def serve_tty(
     Example:
         ```python
         from fastapi import FastAPI
-        from protottyde import serve_tty
+        from terminaide import serve_tty
 
         app = FastAPI()
         

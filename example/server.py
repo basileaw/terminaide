@@ -1,15 +1,14 @@
-# test-server/main.py
+# example/server.py
 
 """
-Test server demonstrating protottyde integration with root mounting.
+Test server demonstrating terminaide integration with root mounting.
 This server serves a quote guessing game through a browser-based terminal.
 """
 
-import os
 import logging
 from pathlib import Path
 from fastapi import FastAPI
-from protottyde import serve_tty
+from terminaide import serve_tty
 
 # Configure logging
 logging.basicConfig(
@@ -22,11 +21,11 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI application
 app = FastAPI(
     title="Quote Guessing Game",
-    description="A terminal-based game served through protottyde"
+    description="A terminal-based game served through terminaide"
 )
 
 # Set up the terminal service at the root path
-client_script = Path(__file__).parent / "client" / "main.py"
+client_script = Path(__file__).parent / "client.py"
 
 # Configure the terminal service
 serve_tty(
@@ -50,7 +49,7 @@ if __name__ == '__main__':
     server_port = int('8000')
     
     uvicorn_config = {
-        "app": "main:app",
+        "app": "server:app",
         "host": "0.0.0.0",
         "port": server_port,
         "log_level": "info",

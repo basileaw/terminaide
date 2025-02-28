@@ -1,7 +1,7 @@
-# protottyde/exceptions.py
+# terminaide/exceptions.py
 
 """
-Custom exceptions for the protottyde package.
+Custom exceptions for the terminaide package.
 
 These exceptions provide specific error cases that may occur during
 ttyd setup, installation, and operation.
@@ -10,10 +10,10 @@ ttyd setup, installation, and operation.
 from typing import Optional
 from pathlib import Path
 
-class ProtottydeError(Exception):
-    """Base exception for all protottyde errors."""
+class terminaideError(Exception):
+    """Base exception for all terminaide errors."""
 
-class BinaryError(ProtottydeError):
+class BinaryError(terminaideError):
     """Base class for binary-related errors."""
     def __init__(self, message: str, binary_path: Optional[Path] = None):
         super().__init__(message)
@@ -91,7 +91,7 @@ class TTYDProcessError(BinaryError):
         super().__init__(msg, binary_path)
         self.exit_code = exit_code
 
-class ClientScriptError(ProtottydeError):
+class ClientScriptError(terminaideError):
     """Raised when there are issues with the client script."""
     def __init__(self, script_path: str, message: str = None):
         super().__init__(
@@ -99,7 +99,7 @@ class ClientScriptError(ProtottydeError):
         )
         self.script_path = script_path
 
-class TemplateError(ProtottydeError):
+class TemplateError(terminaideError):
     """Raised when there are issues with the HTML template."""
     def __init__(self, template_path: str = None, message: str = None):
         msg = "Template error"
@@ -110,7 +110,7 @@ class TemplateError(ProtottydeError):
         super().__init__(msg)
         self.template_path = template_path
 
-class ProxyError(ProtottydeError):
+class ProxyError(terminaideError):
     """Raised when there are issues with the proxy configuration or operation."""
     def __init__(self, message: str = None, original_error: Exception = None):
         msg = message or "Proxy error"
@@ -119,7 +119,7 @@ class ProxyError(ProtottydeError):
         super().__init__(msg)
         self.original_error = original_error
 
-class ConfigurationError(ProtottydeError):
+class ConfigurationError(terminaideError):
     """Raised when there are issues with the provided configuration."""
     def __init__(self, message: str, field: str = None):
         msg = f"Configuration error"

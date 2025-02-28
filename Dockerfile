@@ -9,12 +9,12 @@ RUN pip install --no-cache-dir poetry
 
 # Copy everything needed for the package
 COPY pyproject.toml poetry.lock ./
-COPY protottyde/ ./protottyde/
-COPY test-server/ ./test-server/
+COPY terminaide/ ./terminaide/
+COPY example/ ./example/
 
 # Install dependencies AND the package itself
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi --only main
 
 EXPOSE 8000
-CMD ["python", "test-server/main.py"]
+CMD ["python", "example/server.py"]

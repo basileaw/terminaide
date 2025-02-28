@@ -1,4 +1,4 @@
-# protottyde/serve.py
+# terminaide/serve.py
 
 """
 Main implementation for configuring and serving ttyd through FastAPI.
@@ -23,7 +23,7 @@ from .core.proxy import ProxyManager
 from .core.settings import TTYDConfig
 from .exceptions import TemplateError
 
-logger = logging.getLogger("protottyde")
+logger = logging.getLogger("terminaide")
 
 def _setup_templates(app: FastAPI, config: TTYDConfig) -> Tuple[Jinja2Templates, str]:
     """
@@ -209,7 +209,7 @@ def serve_tty(
     """
     Configure FastAPI application with ttyd functionality.
     
-    This function is the main entry point for the protottyde package. It sets up
+    This function is the main entry point for the terminaide package. It sets up
     a terminal service within your FastAPI application, providing a browser-based
     terminal interface to your Python script.
     
@@ -230,7 +230,7 @@ def serve_tty(
     Example for root mounting:
         ```python
         from fastapi import FastAPI
-        from protottyde import serve_tty
+        from terminaide import serve_tty
 
         app = FastAPI()
         serve_tty(app, "client.py")  # Terminal at /

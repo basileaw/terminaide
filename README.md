@@ -1,18 +1,18 @@
-# Protottyde
+# terminaide
 
 A Python package for serving CLI applications in the browser using ttyd.
 
 ## Installation
 
 ```bash
-pip install protottyde
+pip install terminaide
 ```
 
 ## Usage
 
 ```python
 from fastapi import FastAPI
-from protottyde import serve_tty
+from terminaide import serve_tty
 
 app = FastAPI()
 
