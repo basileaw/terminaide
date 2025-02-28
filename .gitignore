@@ -1,9 +1,10 @@
 
 .archive/
+
 .DS_Store
 .venv
 .vscode
-
+dist/
 
 # Python
 **/__pycache__
