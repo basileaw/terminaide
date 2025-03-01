@@ -81,6 +81,7 @@ def serve_tty(
     theme: Optional[ThemeConfig] = None,
     ttyd_options: Optional[TTYDOptions] = None,
     template_override: Optional[Union[str, Path]] = None,
+    title: str = "Terminal",  # Added title parameter with default
     debug: bool = False
 ) -> None:
     """
@@ -98,6 +99,7 @@ def serve_tty(
         theme: Terminal theme configuration (default: {"background": "black"})
         ttyd_options: Additional ttyd process options
         template_override: Custom HTML template path
+        title: Custom title for the terminal page (default: "Terminal")
         debug: Enable development mode with auto-reload (default: False)
 
     Raises:
@@ -124,6 +126,7 @@ def serve_tty(
             "client.py",
             mount_path="/terminal",
             theme={"background": "#1a1a1a"},
+            title="Custom Terminal",
             debug=True
         )
         ```
@@ -141,6 +144,7 @@ def serve_tty(
         theme=theme or {"background": "black"},
         ttyd_options=ttyd_options or {},
         template_override=template_override,
+        title=title,
         debug=debug
     )
     

@@ -65,6 +65,7 @@ class TTYDConfig(BaseModel):
     ttyd_options: TTYDOptions = Field(default_factory=TTYDOptions)
     template_override: Optional[Path] = None
     debug: bool = False
+    title: str = "Terminal"  # Default title for the HTML template
     
     @field_validator('client_script', 'template_override')
     @classmethod

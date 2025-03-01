@@ -36,7 +36,8 @@ serve_tty(
         "check_origin": False,
         "max_clients": 1,
     },
-    debug=True
+    debug=True,
+    title="Terminaide"
 )
 
 # Start the server when running this file directly

@@ -105,6 +105,7 @@ def _configure_routes(
                     "request": request,
                     "mount_path": config.terminal_path,
                     "theme": config.theme.model_dump(),
+                    "title": config.title
                 }
             )
         except Exception as e:
@@ -204,6 +205,7 @@ def serve_tty(
     theme: Optional[Dict[str, str]] = None,
     ttyd_options: Optional[Dict[str, Any]] = None,
     template_override: Optional[Union[str, Path]] = None,
+    title: str = "Terminal",  # Default title
     debug: bool = False
 ) -> None:
     """
@@ -225,6 +227,7 @@ def serve_tty(
         theme: Terminal theme configuration (default: {"background": "black"})
         ttyd_options: Additional ttyd process options
         template_override: Custom HTML template path
+        title: Custom title for the terminal page (default: "Terminal")
         debug: Enable development mode with auto-reload
 
     Example for root mounting:
@@ -242,7 +245,8 @@ def serve_tty(
             app,
             "client.py",
             mount_path="/terminal",  # Terminal at /terminal
-            theme={"background": "#1a1a1a"}
+            theme={"background": "#1a1a1a"},
+            title="My Custom Terminal"
         )
         ```
     """
@@ -253,6 +257,7 @@ def serve_tty(
         theme=theme or {"background": "black"},
         ttyd_options=ttyd_options or {},
         template_override=template_override,
+        title=title,
         debug=debug
     )
     
