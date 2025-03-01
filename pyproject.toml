@@ -34,7 +34,12 @@ botocore = "*"
 
 [tool.poe.tasks]
 serve-local = "python example/server.py"
-serve-container = "docker compose up --build"
+serve-container = """
+bash -c '
+  docker build -t ${PWD##*/} . && \
+  docker run -p 8000:8000 ${PWD##*/}
+'
+"""
 
 # Publish scripts
 check-changes = "bash -c 'if [ ! -z \"$(git status --porcelain)\" ]; then echo \"Error: You have uncommitted changes.\"; exit 1; fi'"
