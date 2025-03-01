@@ -3,22 +3,6 @@
 import argparse
 from chatline import Interface
 
-# Example messages for our test client implementation
-MESSAGES = {
-    "system": (
-        'Write in present tense. Write in third person. Use the following text styles:\n'
-        '- "quotes" for dialogue\n'
-        '- [Brackets...] for actions\n'
-        '- underscores for emphasis\n'
-        '- asterisks for bold text'
-    ),
-    "user": (
-        """Write the line: "[The machine powers on and hums...]\n\n"""
-        """Then, start a new, 25-word paragraph."""
-        """Begin with a greeting from the machine itself: " "Hey there," " """
-    )
-}
-
 def main():
     parser = argparse.ArgumentParser(description='ChatLine Interface')
     parser.add_argument('-e', '--endpoint',
@@ -38,7 +22,7 @@ def main():
     )
     
     chat.preface("Welcome to ChatLine", title="Baze, Inc.", border_color="dim yellow")
-    chat.start(MESSAGES)
+    chat.start()
 
 if __name__ == "__main__":
     main()
