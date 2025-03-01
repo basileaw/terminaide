@@ -19,10 +19,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI application
-app = FastAPI(
-    title="Quote Guessing Game",
-    description="A terminal-based game served through terminaide"
-)
+app = FastAPI()
 
 # Set up the terminal service at the root path
 client_script = Path(__file__).parent / "client.py"
