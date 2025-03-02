@@ -27,7 +27,7 @@ client_script = Path(__file__).parent / "client.py"
 # Configure the terminal service
 serve_tty(
     app,
-    client_script=client_script,
+    # client_script=client_script,
     mount_path="/",
     theme={
         "background": "black",
