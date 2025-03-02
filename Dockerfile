@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir poetry
 # Copy everything needed for the package
 COPY pyproject.toml poetry.lock ./
 COPY terminaide/ ./terminaide/
-COPY example/ ./example/
+COPY tests/ ./tests/
 COPY README.md .
 
 # Install dependencies AND the package itself
@@ -19,4 +19,4 @@ RUN poetry config virtualenvs.create false \
 
 EXPOSE 8000
 
-CMD ["python", "example/server.py"]
+CMD ["python", "tests/server.py"]

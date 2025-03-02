@@ -33,7 +33,7 @@ boto3 = "*"
 botocore = "*"
 
 [tool.poe.tasks]
-serve-local = "python example/server.py"
+serve-local = "python tests/server.py"
 serve-container = """
 bash -c '
   docker build -t ${PWD##*/} . && \

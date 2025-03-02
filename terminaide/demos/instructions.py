@@ -17,7 +17,7 @@ def main(stdscr):
         "You're seeing this message because no custom client script was configured.",
         "",
         "To use your own client script, provide a path to your script when calling",
-        "serve_tty(), for example:",
+        "serve_tty(), for tests:",
         "",
         "serve_tty(client_script='/path/to/your/script.py')",
         "",

@@ -1,4 +1,4 @@
-# example/server.py
+# tests/server.py
 
 """
 Test server demonstrating terminaide integration with root mounting.
