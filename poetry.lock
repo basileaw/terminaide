@@ -219,23 +219,6 @@ files = [
 ]
 
 [[package]]
-name = "chatline"
-version = "0.0.5"
-description = "A pretty command line interface for LLM chat."
-optional = false
-python-versions = "<4.0,>=3.12"
-files = [
-    {file = "chatline-0.0.5-py3-none-any.whl", hash = "sha256:0ad9783fbc616922118f4a8a77471ff66185c0439be63e25e62d2ce0db53989e"},
-    {file = "chatline-0.0.5.tar.gz", hash = "sha256:f779addfc2f3d05c310265b74e1f97bb9670a81bfbbaa6673e0a5cf55232173c"},
-]
-
-[package.dependencies]
-boto3 = "*"
-httpx = "*"
-prompt-toolkit = "*"
-rich = "*"
-
-[[package]]
 name = "click"
 version = "8.1.8"
 description = "Composable command line interface toolkit"
@@ -482,20 +465,6 @@ files = [
     {file = "mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"},
     {file = "mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"},
 ]
-
-[[package]]
-name = "prompt-toolkit"
-version = "3.0.50"
-description = "Library for building powerful interactive command lines in Python"
-optional = false
-python-versions = ">=3.8.0"
-files = [
-    {file = "prompt_toolkit-3.0.50-py3-none-any.whl", hash = "sha256:9b6427eb19e479d98acff65196a307c555eb567989e6d88ebbb1b509d9779198"},
-    {file = "prompt_toolkit-3.0.50.tar.gz", hash = "sha256:544748f3860a2623ca5cd6d2795e7a14f3d0e1c3c9728359013f79877fc89bab"},
-]
-
-[package.dependencies]
-wcwidth = "*"
 
 [[package]]
 name = "pydantic"
@@ -872,17 +841,6 @@ h11 = ">=0.8"
 standard = ["colorama (>=0.4)", "httptools (>=0.6.3)", "python-dotenv (>=0.13)", "pyyaml (>=5.1)", "uvloop (>=0.14.0,!=0.15.0,!=0.15.1)", "watchfiles (>=0.13)", "websockets (>=10.4)"]
 
 [[package]]
-name = "wcwidth"
-version = "0.2.13"
-description = "Measures the displayed width of unicode strings in a terminal"
-optional = false
-python-versions = "*"
-files = [
-    {file = "wcwidth-0.2.13-py2.py3-none-any.whl", hash = "sha256:3da69048e4540d84af32131829ff948f1e022c1c6bdb8d6102117aac784f6859"},
-    {file = "wcwidth-0.2.13.tar.gz", hash = "sha256:72ea0c06399eb286d978fdedb6923a9eb47e1c486ce63e9b4e64fc18303972b5"},
-]
-
-[[package]]
 name = "websockets"
 version = "15.0"
 description = "An implementation of the WebSocket Protocol (RFC 6455 & 7692)"
@@ -963,4 +921,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "121f8b13ef0a19d4ddc7c7ec57f61e876b069e416b78cef54d479cbacbd0a170"
+content-hash = "c157822888544af2794298de514fe2e9e7d63ea186926b50f51b12f5d44d4a80"
