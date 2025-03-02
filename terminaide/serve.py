@@ -198,14 +198,14 @@ def _configure_app(app: FastAPI, config: TTYDConfig) -> None:
 
 def serve_tty(
     app: FastAPI, 
-    client_script: Union[str, Path],
+    client_script: Optional[Union[str, Path]] = None,  # Now optional
     *,
     mount_path: str = "/",  # Default to root mounting
     port: int = 7681,
     theme: Optional[Dict[str, str]] = None,
     ttyd_options: Optional[Dict[str, Any]] = None,
     template_override: Optional[Union[str, Path]] = None,
-    title: str = "Terminal",  # Default title
+    title: str = "Terminal",
     debug: bool = False
 ) -> None:
     """
@@ -219,9 +219,11 @@ def serve_tty(
     ("/your/path"). When mounted at root, the terminal interface appears directly
     at your domain root, creating a cleaner user experience.
 
+    If no client_script is provided, a default demo will be used automatically.
+
     Args:
         app: FastAPI application instance
-        client_script: Path to Python script to run in terminal
+        client_script: Path to Python script to run in terminal (optional, uses demo if None)
         mount_path: URL path where to mount terminal (default: "/")
         port: Port for ttyd process (default: 7681)
         theme: Terminal theme configuration (default: {"background": "black"})
@@ -230,26 +232,38 @@ def serve_tty(
         title: Custom title for the terminal page (default: "Terminal")
         debug: Enable development mode with auto-reload
 
-    Example for root mounting:
+    Example with default demo:
         ```python
         from fastapi import FastAPI
         from terminaide import serve_tty
 
         app = FastAPI()
-        serve_tty(app, "client.py")  # Terminal at /
+        serve_tty(app)  # Uses default demo
         ```
 
-    Example for custom path:
+    Example with custom path:
         ```python
         serve_tty(
             app,
             "client.py",
             mount_path="/terminal",  # Terminal at /terminal
             theme={"background": "#1a1a1a"},
-            title="My Custom Terminal"
+            title="Custom Terminal"
         )
         ```
     """
+    # Use default demo client if no client_script is provided
+    if client_script is None:
+        # Get the path to our demo client
+        demo_client = Path(__file__).parent / "demos" / "client.py"
+        client_script = demo_client
+        
+        # If title is still the default, update it to indicate it's the demo
+        if title == "Terminal":
+            title = "Terminaide Demo"
+            
+        logger.info("No client script provided, using built-in demo")
+    
     config = TTYDConfig(
         client_script=client_script,
         mount_path=mount_path,
