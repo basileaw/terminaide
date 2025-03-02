@@ -10,9 +10,13 @@ mounting configurations.
 """
 
 import os
+import sys
+import socket
+import time
 import signal
 import logging
 import subprocess
+import platform
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
@@ -25,6 +29,7 @@ from ..installer import setup_ttyd
 from .settings import TTYDConfig
 
 logger = logging.getLogger("terminaide")
+
 
 class TTYDManager:
     """
@@ -112,11 +117,53 @@ class TTYDManager:
         
         # Add client script to run in the terminal
         cmd.extend([
-            'python',
+            sys.executable,  # e.g. 'python'
             str(self.config.client_script)
         ])
         
         return cmd
+
+    def _is_port_in_use(self, host: str, port: int) -> bool:
+        """
+        Check if a TCP port is in use on the given host.
+        Returns True if something is listening, False otherwise.
+        """
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(0.5)
+            return sock.connect_ex((host, port)) == 0
+
+    def _kill_process_on_port(self, host: str, port: int) -> None:
+        """
+        Attempt to kill whatever process is listening on the given port.
+        
+        This is a lightweight "best effort" approach, using lsof/fuser on Unix
+        or other commands as needed. It won't work on Windows by default.
+        """
+        system = platform.system().lower()
+        logger.warning(
+            f"Port {port} is already in use. Attempting to kill leftover process..."
+        )
+
+        try:
+            if system in ["linux", "darwin"]:
+                # lsof -t -i :port => returns PIDs
+                # xargs kill -9 => kill them
+                cmd = f"lsof -t -i tcp:{port}"
+                # Use sudo if you want to ensure permission
+                result = subprocess.run(
+                    cmd.split(),
+                    capture_output=True,
+                    text=True
+                )
+                pids = result.stdout.strip().split()
+                for pid in pids:
+                    if pid.isdigit():
+                        logger.warning(f"Killing leftover process {pid} on port {port}")
+                        subprocess.run(["kill", "-9", pid], check=False)
+            else:
+                logger.warning("Automatic leftover kill not implemented on this OS.")
+        except Exception as e:
+            logger.error(f"Failed to kill leftover process on port {port}: {e}")
 
     def start(self) -> None:
         """
@@ -131,6 +178,19 @@ class TTYDManager:
         """
         if self.is_running:
             raise TTYDProcessError("TTYd process is already running")
+
+        # --- CHECK AND KILL ANY LEFTOVER PROCESS ON THIS PORT ---
+        host = self.config.ttyd_options.interface
+        port = self.config.port
+        if self._is_port_in_use(host, port):
+            self._kill_process_on_port(host, port)
+            # Let the OS finish killing
+            time.sleep(1.0)
+            # Double-check
+            if self._is_port_in_use(host, port):
+                raise TTYDStartupError(
+                    f"Port {port} is still in use after attempting to kill leftover process."
+                )
 
         cmd = self._build_command()
         cmd_str = ' '.join(cmd)
@@ -165,7 +225,6 @@ class TTYDManager:
                     )
                     return
                     
-                import time
                 time.sleep(check_interval)
                 
             logger.error("ttyd process did not start within timeout")
@@ -215,7 +274,7 @@ class TTYDManager:
                     try:
                         self.process.wait(timeout=1)
                     except subprocess.TimeoutExpired:
-                        # If we still can't wait, the process is probably zombie or gone
+                        # If we still can't wait, the process is probably gone or stuck
                         pass
 
             except Exception as e:
@@ -270,3 +329,4 @@ class TTYDManager:
             yield
         finally:
             self.stop()
+

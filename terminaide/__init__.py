@@ -1,5 +1,3 @@
-# terminaide/__init__.py
-
 """
 terminaide: Serve Python CLI applications in the browser using ttyd.
 
@@ -13,23 +11,10 @@ Supported Platforms:
 """
 
 import logging
-from pathlib import Path
-from typing import Optional, Dict, Any, Union
-
-# Configure package-level logging
-logging.getLogger("terminaide").addHandler(logging.NullHandler())
-
-# Core functionality - import directly from serve.py
-from .serve import serve_tty, _configure_app
+from .serve import serve_tty, _configure_app  # Import only definitions, no side effects
 from .core.settings import TTYDConfig
-
-# Installation management
 from .installer import setup_ttyd, get_platform_info
-
-# Demo functionality
 from .demos import run as demo_run
-
-# Expose all exceptions
 from .exceptions import (
     terminaideError,
     BinaryError,
@@ -45,19 +30,22 @@ from .exceptions import (
     ConfigurationError
 )
 
+# Configure package-level logging
+logging.getLogger("terminaide").addHandler(logging.NullHandler())
+
 __version__ = "0.2.0"  # Updated version number
 __all__ = [
     # Main functionality
     "serve_tty",
     "TTYDConfig",
-    
+
     # Binary management
     "setup_ttyd",
     "get_platform_info",
-    
+
     # Demo functionality
     "demo_run",
-    
+
     # Exceptions
     "terminaideError",
     "BinaryError",
@@ -73,5 +61,5 @@ __all__ = [
     "ConfigurationError"
 ]
 
-# Create an alias for better import experience
+# Optional: Provide a convenience alias if desired
 demos = demo_run
