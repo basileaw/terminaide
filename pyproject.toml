@@ -30,19 +30,14 @@ rich = "*"
 pyyaml = "*"
 boto3 = "*"
 botocore = "*"
+docker = "^7.1.0"
 
 [tool.poe.tasks]
 serve-local = "python tests/server.py"
-serve-container = """
-bash -c '
-  docker build -t ${PWD##*/} . && \
-  docker run -p 8000:8000 ${PWD##*/}
-'
-"""
+serve-container = "python tests/container.py"
 
 # Publish scripts
 check-changes = "bash -c 'if [ ! -z \"$(git status --porcelain)\" ]; then echo \"Error: You have uncommitted changes.\"; exit 1; fi'"
-
 publish-patch = """
 bash -c '
   poe check-changes && \
