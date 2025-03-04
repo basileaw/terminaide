@@ -28,64 +28,16 @@ uvicorn = ">=0.24.0"
 serve-local = "python tests/server.py"
 serve-container = "python tests/container.py"
 
-# Publish scripts
-check-changes = "bash -c 'if [ ! -z \"$(git status --porcelain)\" ]; then echo \"Error: You have uncommitted changes.\"; exit 1; fi'"
-publish-patch = """
-bash -c '
-  poe check-changes && \
-  git pull origin main && \
-  VERSION=$(poetry version -s) && \
-  if git rev-parse "v$VERSION" >/dev/null 2>&1; then \
-    echo "Error: Tag v$VERSION already exists" && exit 1; \
-  fi && \
-  poetry version patch && \
-  VERSION=$(poetry version -s) && \
-  poetry build && \
-  poetry publish && \
-  git add pyproject.toml && \
-  git commit -m "release v$VERSION" && \
-  git tag v$VERSION && \
-  git push origin main && \
-  git push origin --tags
-'
-"""
-
-publish-minor = """
-bash -c '
-  poe check-changes && \
-  git pull origin main && \
-  VERSION=$(poetry version -s) && \
-  if git rev-parse "v$VERSION" >/dev/null 2>&1; then \
-    echo "Error: Tag v$VERSION already exists" && exit 1; \
-  fi && \
-  poetry version minor && \
-  VERSION=$(poetry version -s) && \
-  poetry build && \
-  poetry publish && \
-  git add pyproject.toml && \
-  git commit -m "release v$VERSION" && \
-  git tag v$VERSION && \
-  git push origin main && \
-  git push origin --tags
-'
-"""
-
-publish-major = """
-bash -c '
-  poe check-changes && \
-  git pull origin main && \
-  VERSION=$(poetry version -s) && \
-  if git rev-parse "v$VERSION" >/dev/null 2>&1; then \
-    echo "Error: Tag v$VERSION already exists" && exit 1; \
-  fi && \
-  poetry version major && \
-  VERSION=$(poetry version -s) && \
-  poetry build && \
-  poetry publish && \
-  git add pyproject.toml && \
-  git commit -m "release v$VERSION" && \
-  git tag v$VERSION && \
-  git push origin main && \
-  git push origin --tags
-'
-"""
+[tool.poe.tasks.release]
+args = ["type"]
+help = "Release a new version (patch/minor/major)"
+sequence = [
+  { cmd = "poetry version ${type}" },
+  { cmd = "git add pyproject.toml" },
+  { shell = """
+      VERSION=$(poetry version -s)
+      git commit -m "release $VERSION"
+      git tag v$VERSION
+      git push && git push --tags
+    """ },
+]
