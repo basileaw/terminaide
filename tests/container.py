@@ -6,10 +6,10 @@ This replaces the need for a separate Dockerfile and manual docker commands.
 """
 
 import logging
-import re
-import shutil
 import sys
+import shutil
 import tempfile
+import subprocess
 from pathlib import Path
 
 import docker
@@ -22,42 +22,43 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-def extract_dependencies_from_pyproject(pyproject_path):
+def generate_requirements_txt(pyproject_path, temp_dir):
     """
-    Extract dependencies from pyproject.toml file.
+    Generate requirements.txt from pyproject.toml including all dependencies except those in the dev group.
     
     Args:
         pyproject_path: Path to pyproject.toml file
-        
+        temp_dir: Directory to save requirements.txt
+    
     Returns:
-        list: List of dependencies in pip format
+        Path: Path to generated requirements.txt
     """
     try:
-        with open(pyproject_path, "r") as f:
-            content = f.read()
+        logger.info("Generating requirements.txt from pyproject.toml (including all except dev dependencies)")
+        req_path = Path(temp_dir) / "requirements.txt"
         
-        # Extract dependencies section using regex
-        deps_match = re.search(r'\[tool\.poetry\.dependencies\]([\s\S]*?)(\[tool|$)', content)
-        if not deps_match:
-            raise ValueError("Could not find dependencies section in pyproject.toml")
+        # Use poetry to export dependencies, including main and all other groups except dev
+        result = subprocess.run(
+            ["poetry", "export", "--only", "main,test", "--format", "requirements.txt"],
+            cwd=pyproject_path.parent,
+            capture_output=True,
+            text=True,
+            check=True
+        )
         
-        deps_section = deps_match.group(1)
-        package_matches = re.findall(r'(\w+)\s*=\s*["\']([^"\']+)["\']', deps_section)
+        with open(req_path, "w") as f:
+            f.write(result.stdout)
+            
+        logger.info(f"Requirements file generated at {req_path}")
+        return req_path
         
-        dependencies = []
-        for package, version in package_matches:
-            if package != "python":  # Skip python version constraint
-                if version.startswith("^") or version.startswith("~"):
-                    # Convert Poetry version specifiers to pip format
-                    version = ">=" + version[1:]
-                dependencies.append(f"{package}{version}")
-        
-        return dependencies
-        
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to generate requirements: {e}")
+        logger.error(f"Poetry output: {e.stderr}")
+        sys.exit(1)
     except Exception as e:
-        logger.error(f"Failed to extract dependencies: {e}")
-        # Return fallback dependencies
-        return ["fastapi", "uvicorn", "httpx", "websockets", "jinja2"]
+        logger.error(f"Failed to generate requirements: {e}")
+        sys.exit(1)
 
 def build_and_run_container(port=8000):
     """
@@ -92,17 +93,11 @@ def build_and_run_container(port=8000):
                     shutil.copytree(src_dir, dst_dir)
             
             # Generate requirements.txt from pyproject.toml
-            logger.info("Generating requirements.txt from pyproject.toml")
-            dependencies = extract_dependencies_from_pyproject(project_root / "pyproject.toml")
-            
-            # Write dependencies to requirements.txt
-            req_path = temp_path / "requirements.txt"
-            with open(req_path, "w") as f:
-                for dep in dependencies:
-                    f.write(f"{dep}\n")
+            generate_requirements_txt(project_root / "pyproject.toml", temp_path)
             
             # Create Dockerfile in the temporary directory
-            dockerfile_content = """FROM python:3.12-slim
+            dockerfile_content = """
+FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
