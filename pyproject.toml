@@ -29,8 +29,22 @@ docker = "^7.1.0"
 poethepoet = "^0.33.0"
 
 [tool.poe.tasks]
-serve = "python tests/server.py"
 contain = "python tests/container.py"
+
+[tool.poe.tasks.serve]
+cmd = "python tests/server.py"
+args = [
+  { name = "mode", default = "demo", help = "Server mode (demo, single, multi_no_root, etc.)" },
+  { name = "port", default = "8000", help = "Port number" },
+]
+help = """Run the test server in different configuration modes:
+
+- demo: Default mode with the built-in demo at root
+- single: Single script at root path
+- multi_no_root: Multiple scripts with demo at root
+- multi_with_root: Multiple scripts with client.py at root
+- combined: Both client_script and script_routes defined
+- user_root_after/before: Custom user route at root path"""
 
 [tool.poe.tasks.release]
 args = ["type"]

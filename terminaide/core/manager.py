@@ -170,10 +170,16 @@ class TTYDManager:
             cmd.append('-R')
         
         # Add client script to run in the terminal
-        cmd.extend([
+        python_cmd = [
             sys.executable,  # e.g. 'python'
             str(script_config.client_script)
-        ])
+        ]
+        
+        # Add any script arguments if provided
+        if script_config.args:
+            python_cmd.extend(script_config.args)
+            
+        cmd.extend(python_cmd)
         
         return cmd
 

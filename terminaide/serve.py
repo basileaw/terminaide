@@ -130,15 +130,19 @@ def _configure_routes(
 
 
 def _create_script_configs(
-    client_script: Optional[Union[str, Path]],
-    script_routes: Optional[Dict[str, Union[str, Path]]] = None
+    client_script: Optional[Union[str, Path, List]],
+    script_routes: Optional[Dict[str, Union[str, Path, List]]] = None
 ) -> List[ScriptConfig]:
     """
     Create script configurations from client_script and script_routes.
     
     Args:
-        client_script: Default script for the root path (can be None if script_routes provided)
-        script_routes: Dictionary mapping routes to script paths
+        client_script: Default script for the root path. Can be:
+            - A string or Path object pointing to the script
+            - A list where the first element is the script path and remaining elements are arguments
+        script_routes: Dictionary mapping routes to script configurations. Values can be:
+            - A string or Path object pointing to the script
+            - A list where the first element is the script path and remaining elements are arguments
         
     Returns:
         List of ScriptConfig objects
@@ -153,20 +157,40 @@ def _create_script_configs(
     
     # Add default client script for root path if provided and root not already defined
     if client_script is not None and not has_root_path:
+        # Handle case where client_script is a list [script_path, arg1, arg2, ...]
+        if isinstance(client_script, list) and len(client_script) > 0:
+            script_path = client_script[0]
+            args = client_script[1:] if len(client_script) > 1 else []
+        else:
+            # Traditional case - just a script path
+            script_path = client_script
+            args = []
+            
         script_configs.append(
             ScriptConfig(
                 route_path="/",
-                client_script=client_script
+                client_script=script_path,
+                args=args
             )
         )
     
     # Add script routes
     if script_routes:
-        for route_path, script_path in script_routes.items():
+        for route_path, script_spec in script_routes.items():
+            # Handle case where script_spec is a list [script_path, arg1, arg2, ...]
+            if isinstance(script_spec, list) and len(script_spec) > 0:
+                script_path = script_spec[0]
+                args = script_spec[1:] if len(script_spec) > 1 else []
+            else:
+                # Traditional case - just a script path
+                script_path = script_spec
+                args = []
+                
             script_configs.append(
                 ScriptConfig(
                     route_path=route_path,
-                    client_script=script_path
+                    client_script=script_path,
+                    args=args
                 )
             )
     

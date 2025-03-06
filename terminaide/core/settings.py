@@ -8,7 +8,8 @@ with special handling for path management to support both root and non-root
 mounting of the terminal interface.
 
 The configuration now supports multiple script routing, allowing different
-client scripts to be served on different paths.
+client scripts to be served on different paths. Scripts can now receive
+command-line arguments through the configuration.
 """
 
 from pathlib import Path
@@ -59,10 +60,12 @@ class ScriptConfig(BaseModel):
     Configuration for a single script route.
     
     Each script configuration represents a unique terminal endpoint with its own
-    script, port, and optional custom title.
+    script, port, and optional custom title. Scripts can now receive command-line
+    arguments.
     """
     route_path: str  # The URL path where this terminal will be available
     client_script: Path  # Path to the script file to execute
+    args: List[str] = Field(default_factory=list)  # Command-line arguments for the script
     port: Optional[int] = None  # Port will be auto-assigned if None
     title: Optional[str] = None  # Custom title for this terminal
     
@@ -88,6 +91,13 @@ class ScriptConfig(BaseModel):
             v = v.rstrip('/')
             
         return v
+    
+    @field_validator('args')
+    @classmethod
+    def validate_args(cls, v: List[str]) -> List[str]:
+        """Validate and normalize command-line arguments."""
+        # Convert all arguments to strings to ensure consistency
+        return [str(arg) for arg in v]
 
 class TTYDConfig(BaseModel):
     """
@@ -95,7 +105,7 @@ class TTYDConfig(BaseModel):
     
     This model handles both root ("/") and non-root ("/path") mounting configurations,
     ensuring consistent path handling throughout the application. It now supports
-    multiple script configurations for different routes.
+    multiple script configurations for different routes, including command-line arguments.
     """
     client_script: Path  # Default script (for backward compatibility)
     mount_path: str = "/"  # Default to root mounting
@@ -279,6 +289,7 @@ class TTYDConfig(BaseModel):
             script_info.append({
                 "route_path": config.route_path,
                 "script": str(config.client_script),
+                "args": config.args,
                 "port": config.port,
                 "title": config.title or self.title
             })
