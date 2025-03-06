@@ -4,14 +4,14 @@
 Proxy management for ttyd HTTP and WebSocket connections.
 
 This module handles the proxying of both HTTP and WebSocket connections to the ttyd
-process, with special handling for path management to support both root and non-root
-mounting configurations.
+processes, with special handling for path management to support both root and non-root
+mounting configurations. It now supports multiple ttyd processes for different routes.
 """
 
 import json
 import logging
 import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 from urllib.parse import urljoin
 
 import httpx
@@ -20,8 +20,8 @@ import websockets.exceptions
 from fastapi import Request, WebSocket, HTTPException
 from fastapi.responses import Response, StreamingResponse
 
-from ..exceptions import ProxyError
-from .settings import TTYDConfig
+from ..exceptions import ProxyError, RouteNotFoundError
+from .settings import TTYDConfig, ScriptConfig
 
 logger = logging.getLogger("terminaide")
 
@@ -29,9 +29,10 @@ class ProxyManager:
     """
     Manages HTTP and WebSocket proxying for ttyd while maintaining same-origin security.
     
-    This class handles the complexities of proxying requests to the ttyd process,
+    This class handles the complexities of proxying requests to ttyd processes,
     including path rewriting and WebSocket connection management. It supports both
-    root ("/") and non-root ("/path") mounting configurations.
+    root ("/") and non-root ("/path") mounting configurations, as well as
+    multiple script configurations for different routes.
     """
     
     def __init__(self, config: TTYDConfig):
@@ -44,15 +45,46 @@ class ProxyManager:
         self.config = config
         self._client: Optional[httpx.AsyncClient] = None
         
-        # Build base URLs for the ttyd process
-        host = f"{self.config.ttyd_options.interface}:{self.config.port}"
-        self.target_url = f"http://{host}"
-        self.ws_url = f"ws://{host}/ws"
+        # Track the targets for each script configuration
+        self.targets: Dict[str, Dict[str, str]] = {}
+        
+        # Initialize target info for each script config
+        self._initialize_targets()
         
         logger.info(
-            f"Proxy configured for ttyd at {self.target_url} "
-            f"(terminal path: {self.config.terminal_path})"
+            f"Proxy configured for {len(self.targets)} ttyd targets "
+            f"({'multi-script' if self.config.is_multi_script else 'single-script'} mode)"
         )
+
+    def _initialize_targets(self) -> None:
+        """Initialize target info for each script configuration."""
+        for script_config in self.config.script_configs:
+            route_path = script_config.route_path
+            port = script_config.port
+            
+            if port is None:
+                logger.error(f"Script config for route {route_path} has no port assigned")
+                continue
+                
+            # Build base URLs for this ttyd process
+            host = f"{self.config.ttyd_options.interface}:{port}"
+            target_url = f"http://{host}"
+            ws_url = f"ws://{host}/ws"
+            
+            # Store target info
+            self.targets[route_path] = {
+                "target_url": target_url,
+                "ws_url": ws_url,
+                "port": port
+            }
+            
+            # Get terminal path for this route
+            terminal_path = self.config.get_terminal_path_for_route(route_path)
+            
+            logger.info(
+                f"Proxy route '{route_path}' configured for ttyd at {target_url} "
+                f"(terminal path: {terminal_path})"
+            )
 
     @property
     def http_client(self) -> httpx.AsyncClient:
@@ -70,7 +102,38 @@ class ProxyManager:
             await self._client.aclose()
             self._client = None
 
-    def _strip_path_prefix(self, path: str) -> str:
+    def _get_target_info(self, request_path: str) -> Tuple[ScriptConfig, Dict[str, str]]:
+        """
+        Get target information for a given request path.
+        
+        This method finds the correct script configuration and target info
+        for a specific request path.
+        
+        Args:
+            request_path: Path from incoming request
+            
+        Returns:
+            Tuple of (ScriptConfig, target_info_dict)
+            
+        Raises:
+            RouteNotFoundError: If no matching route is found
+        """
+        # Get the script config for this path
+        script_config = self.config.get_script_config_for_path(request_path)
+        
+        if not script_config:
+            raise RouteNotFoundError(f"No script configuration found for path: {request_path}")
+            
+        # Get target info for this route
+        route_path = script_config.route_path
+        target_info = self.targets.get(route_path)
+        
+        if not target_info:
+            raise RouteNotFoundError(f"No target information found for route: {route_path}")
+            
+        return script_config, target_info
+
+    def _strip_path_prefix(self, path: str, script_config: ScriptConfig) -> str:
         """
         Strip the mount path prefix from the request path.
         
@@ -79,20 +142,32 @@ class ProxyManager:
         
         Args:
             path: Original request path
+            script_config: Script configuration for this request
             
         Returns:
             Path with prefix stripped for ttyd
         """
-        # For root mounting, we only need to strip the /terminal prefix
-        if self.config.is_root_mounted:
+        route_path = script_config.route_path
+        terminal_path = self.config.get_terminal_path_for_route(route_path)
+        
+        # For root script with root mounting
+        if route_path == "/" and self.config.is_root_mounted:
             if path.startswith("/terminal/"):
                 return path.replace("/terminal", "", 1)
             return "/"
             
-        # For non-root mounting, strip both the mount path and /terminal
-        prefix = self.config.terminal_path
-        if path.startswith(prefix):
-            return path.replace(prefix, "", 1) or "/"
+        # For root script with non-root mounting
+        if route_path == "/" and not self.config.is_root_mounted:
+            prefix = self.config.terminal_path
+            if path.startswith(prefix):
+                return path.replace(prefix, "", 1) or "/"
+            return "/"
+            
+        # For non-root scripts
+        if path.startswith(f"{terminal_path}/"):
+            return path.replace(terminal_path, "", 1) or "/"
+        
+        # Fallback
         return "/"
 
     async def _handle_sourcemap(self, path: str) -> Response:
@@ -113,10 +188,10 @@ class ProxyManager:
 
     async def proxy_http(self, request: Request) -> Response:
         """
-        Proxy HTTP requests to ttyd.
+        Proxy HTTP requests to the appropriate ttyd process.
         
-        This method handles path rewriting and forwards the request to the ttyd
-        process, supporting both root and non-root mounting configurations.
+        This method handles path rewriting and forwards the request to the correct ttyd
+        process based on the request path.
 
         Args:
             request: Incoming FastAPI request
@@ -126,24 +201,28 @@ class ProxyManager:
 
         Raises:
             ProxyError: If proxying fails
+            RouteNotFoundError: If no matching route is found
         """
         path = request.url.path
         
         # Handle sourcemap requests
         if path.endswith('.map'):
             return await self._handle_sourcemap(path)
-            
-        # Strip the appropriate prefix based on mounting configuration
-        target_path = self._strip_path_prefix(path)
         
         try:
+            # Get target info for this path
+            script_config, target_info = self._get_target_info(path)
+            
+            # Strip the appropriate prefix based on mounting configuration
+            target_path = self._strip_path_prefix(path, script_config)
+            
             # Forward the request to ttyd
             headers = dict(request.headers)
             headers.pop("host", None)  # Remove host header
             
             response = await self.http_client.request(
                 method=request.method,
-                url=urljoin(self.target_url, target_path),
+                url=urljoin(target_info["target_url"], target_path),
                 headers=headers,
                 content=await request.body()
             )
@@ -165,36 +244,61 @@ class ProxyManager:
                 media_type=response.headers.get('content-type')
             )
 
+        except RouteNotFoundError as e:
+            logger.error(f"Route not found: {e}")
+            raise ProxyError(f"Failed to find route: {e}")
         except httpx.RequestError as e:
             logger.error(f"HTTP proxy error: {e}")
             raise ProxyError(f"Failed to proxy request: {e}")
 
-    async def proxy_websocket(self, websocket: WebSocket) -> None:
+    async def proxy_websocket(self, websocket: WebSocket, route_path: Optional[str] = None) -> None:
         """
-        Proxy WebSocket connections to ttyd.
+        Proxy WebSocket connections to the appropriate ttyd process.
         
-        This method handles the WebSocket connection to the ttyd process,
+        This method handles the WebSocket connection to the correct ttyd process,
         including proper error handling and cleanup.
 
         Args:
             websocket: Incoming WebSocket connection
+            route_path: Optional route path override (defaults to extracting from WebSocket path)
 
         Raises:
             ProxyError: If WebSocket proxying fails
+            RouteNotFoundError: If no matching route is found
         """
         try:
+            # If route_path not provided, extract from WebSocket URL path
+            if route_path is None:
+                ws_path = websocket.url.path
+                
+                # Try to get script config from the WebSocket path
+                script_config = self.config.get_script_config_for_path(ws_path)
+                
+                if not script_config:
+                    raise RouteNotFoundError(f"No script configuration found for WebSocket path: {ws_path}")
+                    
+                route_path = script_config.route_path
+            
+            # Get target info for this route
+            target_info = self.targets.get(route_path)
+            
+            if not target_info:
+                raise RouteNotFoundError(f"No target information found for route: {route_path}")
+                
+            ws_url = target_info["ws_url"]
+            
             # Accept the incoming connection with ttyd subprotocol
             await websocket.accept(subprotocol='tty')
             
-            logger.info(f"Opening WebSocket connection to {self.ws_url}")
+            logger.info(f"Opening WebSocket connection to {ws_url} for route {route_path}")
             
             async with websockets.connect(
-                self.ws_url,
+                ws_url,
                 subprotocols=['tty'],
                 ping_interval=None,
                 close_timeout=5
             ) as target_ws:
-                logger.info("WebSocket connection established")
+                logger.info(f"WebSocket connection established for route {route_path}")
                 
                 # Set up bidirectional forwarding
                 async def forward(source: Any, dest: Any, is_client: bool = True) -> None:
@@ -215,26 +319,26 @@ class ProxyManager:
                             except websockets.exceptions.ConnectionClosed:
                                 logger.info(
                                     f"{'Client' if is_client else 'Target'} "
-                                    "connection closed normally"
+                                    f"connection closed normally for route {route_path}"
                                 )
                                 break
                             except Exception as e:
                                 if not isinstance(e, asyncio.CancelledError):
                                     logger.error(
                                         f"{'Client' if is_client else 'Target'} "
-                                        f"connection error: {e}"
+                                        f"connection error for route {route_path}: {e}"
                                     )
                                 break
 
                     except asyncio.CancelledError:
                         logger.info(
                             f"{'Client' if is_client else 'Target'} "
-                            "forwarding cancelled"
+                            f"forwarding cancelled for route {route_path}"
                         )
                         raise
                     except Exception as e:
                         if not isinstance(e, websockets.exceptions.ConnectionClosed):
-                            logger.error(f"WebSocket forward error: {e}")
+                            logger.error(f"WebSocket forward error for route {route_path}: {e}")
 
                 # Create forwarding tasks
                 tasks = [
@@ -258,6 +362,9 @@ class ProxyManager:
                             except asyncio.CancelledError:
                                 pass
 
+        except RouteNotFoundError as e:
+            logger.error(f"Route not found for WebSocket: {e}")
+            raise ProxyError(f"Failed to find route for WebSocket: {e}")
         except Exception as e:
             logger.error(f"WebSocket proxy error: {e}")
             if not isinstance(e, websockets.exceptions.ConnectionClosed):
@@ -272,10 +379,27 @@ class ProxyManager:
 
     def get_routes_info(self) -> Dict[str, Any]:
         """Get information about proxy routes for monitoring."""
+        routes_info = []
+        
+        for script_config in self.config.script_configs:
+            route_path = script_config.route_path
+            target_info = self.targets.get(route_path, {})
+            
+            route_info = {
+                "route_path": route_path,
+                "script": str(script_config.client_script),
+                "terminal_path": self.config.get_terminal_path_for_route(route_path),
+                "http_endpoint": target_info.get("target_url"),
+                "ws_endpoint": target_info.get("ws_url"),
+                "port": target_info.get("port"),
+                "title": script_config.title or self.config.title
+            }
+            
+            routes_info.append(route_info)
+            
         return {
-            "http_endpoint": self.target_url,
-            "ws_endpoint": self.ws_url,
+            "routes": routes_info,
             "mount_path": self.config.mount_path,
-            "terminal_path": self.config.terminal_path,
-            "is_root_mounted": self.config.is_root_mounted
+            "is_root_mounted": self.config.is_root_mounted,
+            "is_multi_script": self.config.is_multi_script
         }

@@ -4,10 +4,11 @@
 Custom exceptions for the terminaide package.
 
 These exceptions provide specific error cases that may occur during
-ttyd setup, installation, and operation.
+ttyd setup, installation, and operation. The exception hierarchy has been
+expanded to support multi-script routing scenarios.
 """
 
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
 
 class terminaideError(Exception):
@@ -69,13 +70,16 @@ class TTYDStartupError(BinaryError):
         self, 
         message: str = None, 
         stderr: str = None,
-        binary_path: Optional[Path] = None
+        binary_path: Optional[Path] = None,
+        route_path: Optional[str] = None
     ):
-        msg = message or "Failed to start ttyd process"
+        route_info = f" for route '{route_path}'" if route_path else ""
+        msg = message or f"Failed to start ttyd process{route_info}"
         if stderr:
             msg = f"{msg}\nttyd error output:\n{stderr}"
         super().__init__(msg, binary_path)
         self.stderr = stderr
+        self.route_path = route_path
 
 class TTYDProcessError(BinaryError):
     """Raised when ttyd process encounters an error during operation."""
@@ -83,21 +87,26 @@ class TTYDProcessError(BinaryError):
         self, 
         message: str = None, 
         exit_code: int = None,
-        binary_path: Optional[Path] = None
+        binary_path: Optional[Path] = None,
+        route_path: Optional[str] = None
     ):
-        msg = message or "ttyd process error"
+        route_info = f" for route '{route_path}'" if route_path else ""
+        msg = message or f"ttyd process error{route_info}"
         if exit_code is not None:
             msg = f"{msg} (exit code: {exit_code})"
         super().__init__(msg, binary_path)
         self.exit_code = exit_code
+        self.route_path = route_path
 
 class ClientScriptError(terminaideError):
     """Raised when there are issues with the client script."""
-    def __init__(self, script_path: str, message: str = None):
+    def __init__(self, script_path: str, message: str = None, route_path: Optional[str] = None):
+        route_info = f" for route '{route_path}'" if route_path else ""
         super().__init__(
-            f"Error with client script '{script_path}': {message or 'Unknown error'}"
+            f"Error with client script '{script_path}'{route_info}: {message or 'Unknown error'}"
         )
         self.script_path = script_path
+        self.route_path = route_path
 
 class TemplateError(terminaideError):
     """Raised when there are issues with the HTML template."""
@@ -112,12 +121,14 @@ class TemplateError(terminaideError):
 
 class ProxyError(terminaideError):
     """Raised when there are issues with the proxy configuration or operation."""
-    def __init__(self, message: str = None, original_error: Exception = None):
-        msg = message or "Proxy error"
+    def __init__(self, message: str = None, original_error: Exception = None, route_path: Optional[str] = None):
+        route_info = f" for route '{route_path}'" if route_path else ""
+        msg = (message or "Proxy error") + route_info
         if original_error:
             msg = f"{msg}: {str(original_error)}"
         super().__init__(msg)
         self.original_error = original_error
+        self.route_path = route_path
 
 class ConfigurationError(terminaideError):
     """Raised when there are issues with the provided configuration."""
@@ -128,3 +139,34 @@ class ConfigurationError(terminaideError):
         msg = f"{msg}: {message}"
         super().__init__(msg)
         self.field = field
+
+# --- New Exceptions for Multi-Script Support ---
+
+class RouteNotFoundError(ProxyError):
+    """Raised when a request cannot be routed to any known script configuration."""
+    def __init__(self, message: str, request_path: Optional[str] = None):
+        path_info = f" (request path: {request_path})" if request_path else ""
+        super().__init__(f"Route not found: {message}{path_info}")
+        self.request_path = request_path
+
+class PortAllocationError(ConfigurationError):
+    """Raised when port allocation fails for multi-script configuration."""
+    def __init__(self, message: str, attempted_ports: Optional[List[int]] = None):
+        port_info = f" (attempted ports: {attempted_ports})" if attempted_ports else ""
+        super().__init__(f"{message}{port_info}", field="port")
+        self.attempted_ports = attempted_ports
+
+class ScriptConfigurationError(ConfigurationError):
+    """Raised when there are issues with script configurations."""
+    def __init__(self, message: str, route_path: Optional[str] = None):
+        field = f"script_routes[{route_path}]" if route_path else "script_routes"
+        super().__init__(message, field=field)
+        self.route_path = route_path
+
+class DuplicateRouteError(ScriptConfigurationError):
+    """Raised when duplicate route paths are found in script configurations."""
+    def __init__(self, route_path: str):
+        super().__init__(
+            f"Duplicate route path: {route_path}",
+            route_path=route_path
+        )

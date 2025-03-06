@@ -3,10 +3,10 @@
 """
 TTYd process management and lifecycle control.
 
-This module is responsible for starting, monitoring, and stopping the ttyd process.
+This module is responsible for starting, monitoring, and stopping ttyd processes.
 It ensures proper process cleanup and provides health monitoring capabilities.
-The manager adapts its behavior based on whether we're using root or non-root
-mounting configurations.
+The manager adapts its behavior based on whether we're using a single-script or
+multi-script configuration, handling multiple ttyd processes when needed.
 """
 
 import os
@@ -18,28 +18,31 @@ import logging
 import subprocess
 import platform
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set, Tuple
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 
-from ..exceptions import TTYDStartupError, TTYDProcessError
+from ..exceptions import TTYDStartupError, TTYDProcessError, PortAllocationError
 from ..installer import setup_ttyd
-from .settings import TTYDConfig
+from .settings import TTYDConfig, ScriptConfig
 
 logger = logging.getLogger("terminaide")
 
 
 class TTYDManager:
     """
-    Manages the lifecycle of the ttyd process.
+    Manages the lifecycle of ttyd processes.
     
-    This class handles all aspects of the ttyd process, including:
+    This class handles all aspects of ttyd processes, including:
     - Process startup and shutdown
     - Health monitoring
     - Resource cleanup
     - Signal handling
+    - Port allocation for multiple processes
+    
+    It supports both single-script and multi-script configurations.
     """
     
     def __init__(self, config: TTYDConfig):
@@ -50,10 +53,16 @@ class TTYDManager:
             config: TTYDConfig instance with process configuration
         """
         self.config = config
-        self.process: Optional[subprocess.Popen] = None
-        self._start_time: Optional[datetime] = None
         self._ttyd_path: Optional[Path] = None
         self._setup_ttyd()
+        
+        # Track processes by route path
+        self.processes: Dict[str, subprocess.Popen] = {}
+        self.start_times: Dict[str, datetime] = {}
+        
+        # Handle port allocation
+        self._base_port = config.port
+        self._allocate_ports()
 
     def _setup_ttyd(self) -> None:
         """
@@ -68,15 +77,60 @@ class TTYDManager:
         except Exception as e:
             logger.error(f"Failed to set up ttyd: {e}")
             raise TTYDStartupError(f"Failed to set up ttyd: {e}")
-
-    def _build_command(self) -> List[str]:
+    
+    def _allocate_ports(self) -> None:
         """
-        Build the ttyd command with all necessary arguments.
+        Allocate ports for each script configuration.
+        
+        This method assigns a unique port to each script configuration,
+        starting from the base port and incrementing for each script.
+        It checks for port availability to avoid conflicts.
+        """
+        # Get configs without assigned ports
+        configs_to_assign = [
+            config for config in self.config.script_configs 
+            if config.port is None
+        ]
+        
+        # Get already assigned ports to avoid duplicates
+        assigned_ports = {
+            config.port for config in self.config.script_configs 
+            if config.port is not None
+        }
+        
+        # Start from base port for allocation
+        next_port = self._base_port
+        
+        # Allocate ports to each config
+        for config in configs_to_assign:
+            # Find next available port
+            while next_port in assigned_ports or self._is_port_in_use("127.0.0.1", next_port):
+                next_port += 1
+                
+                # Avoid trying forever
+                if next_port > 65000:
+                    raise PortAllocationError("Failed to allocate ports: port range exhausted")
+            
+            # Assign the port
+            config.port = next_port
+            assigned_ports.add(next_port)
+            next_port += 1
+        
+        # Log port assignments
+        for config in self.config.script_configs:
+            logger.info(f"Assigned port {config.port} to script at route {config.route_path}")
+
+    def _build_command(self, script_config: ScriptConfig) -> List[str]:
+        """
+        Build the ttyd command with all necessary arguments for a script.
         
         This method constructs the command line arguments for ttyd based on
-        the current configuration, taking into account both root and non-root
-        mounting scenarios.
+        the current configuration, taking into account both the global config
+        and script-specific settings.
         
+        Args:
+            script_config: Script configuration to build command for
+            
         Returns:
             List of command arguments for ttyd process
         """
@@ -86,7 +140,7 @@ class TTYDManager:
         cmd = [str(self._ttyd_path)]
         
         # Basic configuration
-        cmd.extend(['-p', str(self.config.port)])
+        cmd.extend(['-p', str(script_config.port)])
         cmd.extend(['-i', self.config.ttyd_options.interface])
         
         # Security settings
@@ -118,7 +172,7 @@ class TTYDManager:
         # Add client script to run in the terminal
         cmd.extend([
             sys.executable,  # e.g. 'python'
-            str(self.config.client_script)
+            str(script_config.client_script)
         ])
         
         return cmd
@@ -126,7 +180,13 @@ class TTYDManager:
     def _is_port_in_use(self, host: str, port: int) -> bool:
         """
         Check if a TCP port is in use on the given host.
-        Returns True if something is listening, False otherwise.
+        
+        Args:
+            host: Host address to check
+            port: Port number to check
+            
+        Returns:
+            True if something is listening, False otherwise
         """
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.settimeout(0.5)
@@ -138,6 +198,10 @@ class TTYDManager:
         
         This is a lightweight "best effort" approach, using lsof/fuser on Unix
         or other commands as needed. It won't work on Windows by default.
+        
+        Args:
+            host: Host address where process is listening
+            port: Port number where process is listening
         """
         system = platform.system().lower()
         logger.warning(
@@ -167,21 +231,47 @@ class TTYDManager:
 
     def start(self) -> None:
         """
-        Start the ttyd process with the current configuration.
+        Start all ttyd processes based on script configurations.
         
-        This method launches ttyd with appropriate settings and monitors
-        its startup to ensure it's running correctly.
+        This method launches ttyd processes for each script configuration and monitors
+        their startup to ensure they're running correctly.
 
+        Raises:
+            TTYDStartupError: If any process fails to start
+        """
+        if not self.config.script_configs:
+            raise TTYDStartupError("No script configurations found")
+            
+        logger.info(
+            f"Starting {len(self.config.script_configs)} ttyd processes "
+            f"({'multi-script' if self.config.is_multi_script else 'single-script'} mode)"
+        )
+        
+        # Start each process
+        for script_config in self.config.script_configs:
+            self.start_process(script_config)
+
+    def start_process(self, script_config: ScriptConfig) -> None:
+        """
+        Start a single ttyd process for a script configuration.
+        
+        Args:
+            script_config: Script configuration to start
+            
         Raises:
             TTYDStartupError: If process fails to start
             TTYDProcessError: If process is already running
         """
-        if self.is_running:
-            raise TTYDProcessError("TTYd process is already running")
+        route_path = script_config.route_path
+        
+        # Check if process already running for this route
+        if route_path in self.processes and self.is_process_running(route_path):
+            raise TTYDProcessError(f"TTYd process already running for route {route_path}")
 
         # --- CHECK AND KILL ANY LEFTOVER PROCESS ON THIS PORT ---
         host = self.config.ttyd_options.interface
-        port = self.config.port
+        port = script_config.port
+        
         if self._is_port_in_use(host, port):
             self._kill_process_on_port(host, port)
             # Let the OS finish killing
@@ -192,19 +282,22 @@ class TTYDManager:
                     f"Port {port} is still in use after attempting to kill leftover process."
                 )
 
-        cmd = self._build_command()
+        cmd = self._build_command(script_config)
         cmd_str = ' '.join(cmd)
-        logger.info(f"Starting ttyd with command: {cmd_str}")
+        logger.info(f"Starting ttyd for route {route_path} with command: {cmd_str}")
 
         try:
             # Start the process in a new session to isolate signals
-            self.process = subprocess.Popen(
+            process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 start_new_session=True
             )
-            self._start_time = datetime.now()
+            
+            # Track the process
+            self.processes[route_path] = process
+            self.start_times[route_path] = datetime.now()
 
             # Monitor startup with longer timeout in debug mode
             timeout = 4 if self.config.debug else 2
@@ -212,114 +305,201 @@ class TTYDManager:
             checks = int(timeout / check_interval)
 
             for _ in range(checks):
-                if self.process.poll() is not None:
-                    stderr = self.process.stderr.read().decode('utf-8')
-                    logger.error(f"ttyd failed to start. Error: {stderr}")
+                if process.poll() is not None:
+                    stderr = process.stderr.read().decode('utf-8')
+                    logger.error(f"ttyd failed to start for route {route_path}. Error: {stderr}")
+                    # Clean up
+                    self.processes.pop(route_path, None)
+                    self.start_times.pop(route_path, None)
                     raise TTYDStartupError(stderr=stderr)
                     
-                if self.is_running:
-                    mount_type = "root" if self.config.is_root_mounted else "non-root"
+                if self.is_process_running(route_path):
                     logger.info(
-                        f"ttyd process started successfully with PID {self.process.pid} "
-                        f"({mount_type} mounting)"
+                        f"ttyd process started successfully for route {route_path} "
+                        f"with PID {process.pid} on port {port}"
                     )
                     return
                     
                 time.sleep(check_interval)
                 
-            logger.error("ttyd process did not start within timeout")
-            raise TTYDStartupError("ttyd process did not start within timeout")
+            logger.error(f"ttyd process for route {route_path} did not start within timeout")
+            # Clean up
+            self.processes.pop(route_path, None)
+            self.start_times.pop(route_path, None) 
+            raise TTYDStartupError(f"ttyd process for route {route_path} did not start within timeout")
 
         except subprocess.SubprocessError as e:
-            logger.error(f"Failed to start ttyd: {e}")
+            logger.error(f"Failed to start ttyd for route {route_path}: {e}")
             raise TTYDStartupError(str(e))
 
     def stop(self) -> None:
         """
-        Stop the ttyd process if it's running.
+        Stop all ttyd processes if they're running.
         
-        This method ensures clean process termination using SIGTERM first,
-        followed by SIGKILL if necessary. It handles cases where the process
-        might have already been terminated.
+        This method ensures clean process termination of all processes,
+        using SIGTERM first, followed by SIGKILL if necessary.
         """
-        if self.process:
-            logger.info("Stopping ttyd process...")
+        logger.info(f"Stopping all ttyd processes ({len(self.processes)} total)")
             
+        # Make a copy of keys to avoid modification during iteration
+        for route_path in list(self.processes.keys()):
+            self.stop_process(route_path)
+            
+        # Clear tracking dictionaries
+        self.processes.clear()
+        self.start_times.clear()
+            
+        logger.info("All ttyd processes stopped successfully")
+
+    def stop_process(self, route_path: str) -> None:
+        """
+        Stop a specific ttyd process if it's running.
+        
+        Args:
+            route_path: Route path of the process to stop
+        """
+        process = self.processes.get(route_path)
+        if not process:
+            return
+            
+        logger.info(f"Stopping ttyd process for route {route_path}...")
+        
+        try:
+            # Try graceful shutdown first
+            if os.name == 'nt':  # Windows
+                process.terminate()
+            else:  # Unix-like
+                try:
+                    pgid = os.getpgid(process.pid)
+                    os.killpg(pgid, signal.SIGTERM)
+                except ProcessLookupError:
+                    # Process is already gone, which is fine
+                    pass
+
             try:
-                # Try graceful shutdown first
-                if os.name == 'nt':  # Windows
-                    self.process.terminate()
-                else:  # Unix-like
+                process.wait(timeout=5)  # Wait up to 5 seconds
+            except subprocess.TimeoutExpired:
+                # Force kill if graceful shutdown fails
+                if os.name == 'nt':
+                    process.kill()
+                else:
                     try:
-                        pgid = os.getpgid(self.process.pid)
-                        os.killpg(pgid, signal.SIGTERM)
+                        pgid = os.getpgid(process.pid)
+                        os.killpg(pgid, signal.SIGKILL)
                     except ProcessLookupError:
                         # Process is already gone, which is fine
                         pass
-
+                
                 try:
-                    self.process.wait(timeout=5)  # Wait up to 5 seconds
+                    process.wait(timeout=1)
                 except subprocess.TimeoutExpired:
-                    # Force kill if graceful shutdown fails
-                    if os.name == 'nt':
-                        self.process.kill()
-                    else:
-                        try:
-                            pgid = os.getpgid(self.process.pid)
-                            os.killpg(pgid, signal.SIGKILL)
-                        except ProcessLookupError:
-                            # Process is already gone, which is fine
-                            pass
-                    
-                    try:
-                        self.process.wait(timeout=1)
-                    except subprocess.TimeoutExpired:
-                        # If we still can't wait, the process is probably gone or stuck
-                        pass
+                    # If we still can't wait, the process is probably gone or stuck
+                    pass
 
-            except Exception as e:
-                logger.warning(f"Error during process cleanup: {e}")
+        except Exception as e:
+            logger.warning(f"Error during process cleanup for route {route_path}: {e}")
+        
+        # Clean up tracking
+        self.processes.pop(route_path, None)
+        self.start_times.pop(route_path, None)
+        logger.info(f"ttyd process for route {route_path} stopped successfully")
+
+    def is_process_running(self, route_path: str) -> bool:
+        """
+        Check if ttyd process for a specific route is currently running.
+        
+        Args:
+            route_path: Route path to check
             
-            self.process = None
-            self._start_time = None
-            logger.info("ttyd process stopped successfully")
+        Returns:
+            True if process exists and is running
+        """
+        process = self.processes.get(route_path)
+        return bool(process and process.poll() is None)
 
-    @property
-    def is_running(self) -> bool:
-        """Check if ttyd process is currently running."""
-        return bool(self.process and self.process.poll() is None)
-
-    @property
-    def uptime(self) -> Optional[float]:
-        """Get process uptime in seconds, if running."""
-        if self._start_time and self.is_running:
-            return (datetime.now() - self._start_time).total_seconds()
+    def get_process_uptime(self, route_path: str) -> Optional[float]:
+        """
+        Get process uptime in seconds for a specific route.
+        
+        Args:
+            route_path: Route path to check
+            
+        Returns:
+            Uptime in seconds or None if process is not running
+        """
+        if self.is_process_running(route_path) and route_path in self.start_times:
+            return (datetime.now() - self.start_times[route_path]).total_seconds()
         return None
 
     def check_health(self) -> Dict[str, Any]:
         """
-        Get comprehensive health check information about the process.
+        Get comprehensive health check information about all processes.
         
         Returns:
             Dictionary containing process status, uptime, and configuration details
         """
+        processes_health = []
+        
+        for config in self.config.script_configs:
+            route_path = config.route_path
+            is_running = self.is_process_running(route_path)
+            
+            process_info = {
+                "route_path": route_path,
+                "script": str(config.client_script),
+                "status": "running" if is_running else "stopped",
+                "uptime": self.get_process_uptime(route_path),
+                "port": config.port,
+                "pid": self.processes.get(route_path).pid if is_running else None,
+                "title": config.title or self.config.title
+            }
+            
+            processes_health.append(process_info)
+            
         return {
-            "status": "running" if self.is_running else "stopped",
-            "uptime": self.uptime,
-            "pid": self.process.pid if self.process else None,
-            "mounting": "root" if self.config.is_root_mounted else "non-root",
-            "terminal_path": self.config.terminal_path,
+            "processes": processes_health,
             "ttyd_path": str(self._ttyd_path) if self._ttyd_path else None,
+            "is_multi_script": self.config.is_multi_script,
+            "process_count": len(self.processes),
+            "mounting": "root" if self.config.is_root_mounted else "non-root",
             **self.config.get_health_check_info()
         }
+    
+    def restart_process(self, route_path: str) -> None:
+        """
+        Restart a specific ttyd process.
+        
+        Args:
+            route_path: Route path of the process to restart
+            
+        Raises:
+            TTYDStartupError: If process fails to start
+        """
+        logger.info(f"Restarting ttyd process for route {route_path}")
+        
+        # Find the matching script config
+        script_config = None
+        for config in self.config.script_configs:
+            if config.route_path == route_path:
+                script_config = config
+                break
+                
+        if not script_config:
+            raise TTYDStartupError(f"No script configuration found for route {route_path}")
+        
+        # Stop the existing process
+        self.stop_process(route_path)
+        
+        # Start a new process
+        self.start_process(script_config)
 
     @asynccontextmanager
     async def lifespan(self, app: FastAPI):
         """
-        Manage ttyd process lifecycle within FastAPI application.
+        Manage ttyd processes lifecycle within FastAPI application.
         
-        This context manager ensures proper startup and cleanup of the ttyd
-        process during the application lifecycle.
+        This context manager ensures proper startup and cleanup of all ttyd
+        processes during the application lifecycle.
         
         Usage:
             app = FastAPI(lifespan=manager.lifespan)
@@ -329,4 +509,3 @@ class TTYDManager:
             yield
         finally:
             self.stop()
-

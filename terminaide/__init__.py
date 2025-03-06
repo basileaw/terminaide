@@ -5,6 +5,9 @@ This package provides tools to easily serve Python CLI applications through
 a browser-based terminal using ttyd. It handles binary installation and
 management automatically across supported platforms.
 
+The package now supports multi-script routing, allowing different scripts
+to be served on different routes.
+
 Supported Platforms:
 - Linux x86_64 (Docker containers)
 - macOS ARM64 (Apple Silicon)
@@ -12,7 +15,7 @@ Supported Platforms:
 
 import logging
 from .serve import serve_tty, _configure_app  # Import only definitions, no side effects
-from .core.settings import TTYDConfig
+from .core.settings import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
 from .installer import setup_ttyd, get_platform_info
 from .demos import run as demo_run
 from .exceptions import (
@@ -27,17 +30,25 @@ from .exceptions import (
     ClientScriptError,
     TemplateError,
     ProxyError,
-    ConfigurationError
+    ConfigurationError,
+    # New exceptions for multi-script support
+    RouteNotFoundError,
+    PortAllocationError,
+    ScriptConfigurationError,
+    DuplicateRouteError
 )
 
 # Configure package-level logging
 logging.getLogger("terminaide").addHandler(logging.NullHandler())
 
-__version__ = "0.2.0"  # Updated version number
+__version__ = "0.3.0"  # Updated version number for multi-script support
 __all__ = [
     # Main functionality
     "serve_tty",
     "TTYDConfig",
+    "ScriptConfig",
+    "ThemeConfig",
+    "TTYDOptions",
 
     # Binary management
     "setup_ttyd",
@@ -58,7 +69,12 @@ __all__ = [
     "ClientScriptError",
     "TemplateError",
     "ProxyError",
-    "ConfigurationError"
+    "ConfigurationError",
+    # New exceptions for multi-script support
+    "RouteNotFoundError",
+    "PortAllocationError",
+    "ScriptConfigurationError",
+    "DuplicateRouteError"
 ]
 
 # Optional: Provide a convenience alias if desired
