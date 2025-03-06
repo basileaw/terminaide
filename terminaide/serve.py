@@ -7,6 +7,9 @@ This module provides the core functionality for setting up a ttyd-based terminal
 service within a FastAPI application. It now supports multiple script configurations,
 allowing different scripts to be served on different routes.
 
+The implementation uses a middleware-based approach to ensure that user-defined routes
+take precedence over the demo, even when those routes are defined after calling serve_tty().
+
 All side effects (like spawning ttyd processes) happen only when the server truly starts.
 """
 
@@ -15,8 +18,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Union, Tuple, List
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, WebSocket
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Request, WebSocket, Depends
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -80,7 +83,7 @@ def _configure_routes(
         terminal_path = config.get_terminal_path_for_route(route_path)
         title = script_config.title or config.title
         
-        # HTML interface route
+        # Register HTML interface route for ALL paths, including root when explicitly configured
         @app.get(route_path, response_class=HTMLResponse)
         async def terminal_interface(
             request: Request, 
@@ -126,6 +129,66 @@ def _configure_routes(
             return await proxy_manager.proxy_http(request)
 
 
+def _create_script_configs(
+    client_script: Optional[Union[str, Path]],
+    script_routes: Optional[Dict[str, Union[str, Path]]] = None
+) -> List[ScriptConfig]:
+    """
+    Create script configurations from client_script and script_routes.
+    
+    Args:
+        client_script: Default script for the root path (can be None if script_routes provided)
+        script_routes: Dictionary mapping routes to script paths
+        
+    Returns:
+        List of ScriptConfig objects
+        
+    Raises:
+        ConfigurationError: If no valid script configuration is provided
+    """
+    script_configs = []
+    
+    # Check if root path is explicitly defined in script_routes
+    has_root_path = script_routes and "/" in script_routes
+    
+    # Add default client script for root path if provided and root not already defined
+    if client_script is not None and not has_root_path:
+        script_configs.append(
+            ScriptConfig(
+                route_path="/",
+                client_script=client_script
+            )
+        )
+    
+    # Add script routes
+    if script_routes:
+        for route_path, script_path in script_routes.items():
+            script_configs.append(
+                ScriptConfig(
+                    route_path=route_path,
+                    client_script=script_path
+                )
+            )
+    
+    # Always add the demo to root path if no explicit root is defined
+    # This ensures it's properly configured and started with other processes
+    if not has_root_path and client_script is None:
+        demo_path = Path(__file__).parent / "demos" / "instructions.py"
+        script_configs.append(
+            ScriptConfig(
+                route_path="/",
+                client_script=demo_path,
+                title="Terminaide Demo"
+            )
+        )
+    
+    # Ensure we have at least one script config
+    if not script_configs:
+        raise ConfigurationError("No valid script configuration provided")
+        
+    return script_configs
+
+
 def _configure_app(app: FastAPI, config: TTYDConfig):
     """
     Perform all TTYD setup: managers, routes, static files, etc.
@@ -149,6 +212,13 @@ def _configure_app(app: FastAPI, config: TTYDConfig):
     )
 
     templates, template_file = _setup_templates(config)
+    
+    # Store references in app.state for middleware access
+    app.state.terminaide_templates = templates
+    app.state.terminaide_template_file = template_file
+    app.state.terminaide_config = config
+    
+    # Configure routes for all explicit script configurations
     _configure_routes(app, config, ttyd_manager, proxy_manager, templates, template_file)
 
     # We'll return these managers so we can manage their lifecycle in a lifespan
@@ -183,49 +253,46 @@ async def _terminaide_lifespan(app: FastAPI, config: TTYDConfig):
         await proxy_manager.cleanup()
 
 
-def _create_script_configs(
-    client_script: Optional[Union[str, Path]],
-    script_routes: Optional[Dict[str, Union[str, Path]]] = None
-) -> List[ScriptConfig]:
+async def _demo_middleware(request: Request, call_next):
     """
-    Create script configurations from client_script and script_routes.
+    Middleware that serves the demo at the root path if no other route handles it.
     
-    Args:
-        client_script: Default script for the root path (can be None if script_routes provided)
-        script_routes: Dictionary mapping routes to script paths
-        
-    Returns:
-        List of ScriptConfig objects
-        
-    Raises:
-        ConfigurationError: If no valid script configuration is provided
+    This middleware lets users define their own root routes after calling serve_tty(),
+    while still providing the helpful demo when no user route is defined.
     """
-    script_configs = []
+    # First, let the request go through the normal routing process
+    response = await call_next(request)
     
-    # Add default client script for root path
-    if client_script is not None:
-        script_configs.append(
-            ScriptConfig(
-                route_path="/",
-                client_script=client_script
-            )
-        )
-    
-    # Add script routes
-    if script_routes:
-        for route_path, script_path in script_routes.items():
-            script_configs.append(
-                ScriptConfig(
-                    route_path=route_path,
-                    client_script=script_path
-                )
-            )
-    
-    # Ensure we have at least one script config
-    if not script_configs:
-        raise ConfigurationError("No valid script configuration provided")
+    # If the path is root and no route was found (404), serve the demo
+    if request.url.path == "/" and response.status_code == 404:
+        # Access stored templates and config from app.state
+        templates = request.app.state.terminaide_templates
+        template_file = request.app.state.terminaide_template_file
+        config = request.app.state.terminaide_config
         
-    return script_configs
+        # Get the terminal path for the root route
+        terminal_path = config.get_terminal_path_for_route("/")
+        
+        # Log that we're serving the demo via middleware
+        logger.info("No route matched root path, serving demo via middleware")
+        
+        # Serve the demo interface template
+        try:
+            return templates.TemplateResponse(
+                template_file,
+                {
+                    "request": request,
+                    "mount_path": terminal_path,
+                    "theme": config.theme.model_dump(),
+                    "title": "Terminaide Demo"
+                }
+            )
+        except Exception as e:
+            logger.error(f"Demo template rendering error: {e}")
+            # Let the original 404 pass through if template rendering fails
+    
+    # Return the original response for all other cases
+    return response
 
 
 def serve_tty(
@@ -267,30 +334,24 @@ def serve_tty(
             serve_tty(
                 app,
                 script_routes={
-                    "/": "default.py",
                     "/snake": "snake.py",
                     "/chat": "chat.py"
                 }
             )
+            
+        User can define their own routes after serve_tty():
+            serve_tty(app, script_routes={"/terminal": "app.py"})
+            
+            @app.get("/")
+            def custom_root():
+                return {"message": "Custom home page"}
     """
-    used_demo = False
-
-    # If neither client_script nor script_routes provided, use demo
-    if client_script is None and not script_routes:
-        # Use built-in demo if not provided
-        demo_path = Path(__file__).parent / "demos" / "instructions.py"
-        client_script = demo_path
-        used_demo = True
-        # If the title is default, change it
-        if title == "Terminal":
-            title = "Terminaide Demo"
-    
     # Create script configurations
     script_configs = _create_script_configs(client_script, script_routes)
     
     # Create TTYDConfig
     config = TTYDConfig(
-        client_script=script_configs[0].client_script,  # Use first script as default
+        client_script=script_configs[0].client_script if script_configs else Path(__file__).parent / "demos" / "instructions.py",
         mount_path=mount_path,
         port=port,
         theme=ThemeConfig(**(theme or {"background": "black"})),
@@ -307,15 +368,14 @@ def serve_tty(
         return
     setattr(app.state, sentinel_attr, True)
 
+    # Add our demo fallback middleware
+    app.middleware("http")(_demo_middleware)
+
     # We keep the original lifespan to merge it
     original_lifespan = app.router.lifespan_context
 
     @asynccontextmanager
     async def terminaide_merged_lifespan(_app: FastAPI):
-        # If user didn't provide a script, log once we are truly at startup
-        if used_demo:
-            logger.info("No client script provided, using built-in demo at startup")
-
         # Merge user's lifespan with terminaide's
         if original_lifespan is not None:
             async with original_lifespan(_app):
