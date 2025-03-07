@@ -1,14 +1,14 @@
-# example/client.py
+# tests/client.py
 
 """
 Example client script for terminaide.
 
-This script demonstrates how to use the built-in terminaide demo.
+This script demonstrates how to use the built-in terminaide demos.
 You can use this as a template for creating your own custom terminal applications.
 """
 
 import argparse
-from terminaide import demos
+from terminaide.demos import play_snake, play_pong
 
 def main():
     # Set up argument parser
@@ -27,10 +27,10 @@ def main():
     # Run the appropriate function based on arguments
     if args.alternate:
         print("Running alternate behavior...")
-        # Call your alternate function here
+        play_pong()  # Run the Pong game as the alternate demo
     else:
-        # Run the built-in demo
-        demos()  # Call the demo function directly
+        # Run the built-in demo (Snake game by default)
+        play_snake()
 
 if __name__ == "__main__":
     main()

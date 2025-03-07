@@ -1,7 +1,12 @@
-# pong_terminal.py
+# terminaide/demos/pong.py
+
 """
-Terminal-based Pong game with similar aesthetics to the Snake game.
+Pong game demo for terminaide.
+
+This module provides a playable Pong game in the terminal.
+It's one of the built-in demos for the terminaide package.
 """
+
 import curses
 import random
 import signal
@@ -302,17 +307,19 @@ def handle_exit(sig, frame):
     global exit_requested
     exit_requested = True
 
-if __name__ == "__main__":
-    try:
-        curses.wrapper(pong)
-    finally:
-        cleanup()
-
 def run_demo():
     """Entry point for running the demo from elsewhere."""
     try:
         curses.wrapper(pong)
     except Exception as e:
         print(f"\n\033[31mError in demo: {e}\033[0m")
+    finally:
+        cleanup()
+
+if __name__ == "__main__":
+    # Set cursor to invisible using ansi 
+    print("\033[?25l\033[2J\033[H", end="")
+    try:
+        curses.wrapper(pong)
     finally:
         cleanup()

@@ -1,8 +1,10 @@
-# terminaide/demo/core.py
+# terminaide/demos/snake.py
 
 """
-Core demo implementation for terminaide.
-Used by both the implicit default and the explicit demo module.
+Snake game demo for terminaide.
+
+This module provides a playable Snake game in the terminal.
+It's one of the built-in demos for the terminaide package.
 """
 
 import curses
@@ -207,17 +209,19 @@ def handle_exit(sig, frame):
     global _exit_requested
     _exit_requested = True
 
-if __name__ == "__main__":
-    try:
-        curses.wrapper(snake)
-    finally:
-        cleanup()
-
 def run_demo():
     """Entry point for running the demo from elsewhere."""
     try:
         curses.wrapper(snake)
     except Exception as e:
         print(f"\n\033[31mError in demo: {e}\033[0m")
+    finally:
+        cleanup()
+
+if __name__ == "__main__":
+    # Set cursor to invisible using ansi 
+    print("\033[?25l\033[2J\033[H", end="")
+    try:
+        curses.wrapper(snake)
     finally:
         cleanup()
