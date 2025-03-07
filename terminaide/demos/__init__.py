@@ -17,11 +17,13 @@ Example:
         demos.play_snake()
         demos.play_pong()
         demos.show_instructions()
+        demos.show_index()
 """
 
 from .snake import run_demo as _run_snake
 from .pong import run_demo as _run_pong
 from .instructions import run_demo as _show_instructions
+from .index import run_demo as _show_index
 
 def run():
     """
@@ -81,8 +83,23 @@ def show_instructions():
     """
     _show_instructions()
 
+def show_index():
+    """
+    Show the index menu.
+    
+    This function displays a menu of available demos that the user
+    can navigate and select from.
+    
+    Example:
+        from terminaide import demos
+        
+        if __name__ == "__main__":
+            demos.show_index()
+    """
+    _show_index()
+
 # Expose the run function directly for backward compatibility
 demos = run
 
 # Export all the demo functions
-__all__ = ["run", "play_snake", "play_pong", "show_instructions", "demos"]
+__all__ = ["run", "play_snake", "play_pong", "show_instructions", "show_index", "demos"]

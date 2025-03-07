@@ -8,29 +8,53 @@ You can use this as a template for creating your own custom terminal application
 """
 
 import argparse
-from terminaide.demos import play_snake, play_pong
+from terminaide.demos import play_snake, play_pong, show_instructions, show_index
 
 def main():
     # Set up argument parser
     parser = argparse.ArgumentParser(description="Example client script for terminaide.")
 
-    # Add arguments
-    parser.add_argument(
+    # Add arguments as mutually exclusive options
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--index",
+        action="store_true",
+        help="Show the demo index menu."
+    )
+    group.add_argument(
+        "--snake",
+        action="store_true",
+        help="Run the Snake game demo."
+    )
+    group.add_argument(
+        "--pong",
+        action="store_true",
+        help="Run the Pong game demo."
+    )
+    
+    # Keep the original alternate flag for backward compatibility
+    group.add_argument(
         "--alternate",
         action="store_true",
-        help="Run an alternate behavior instead of the default demo."
+        help="Run the Pong game (legacy option)."
     )
 
     # Parse arguments
     args = parser.parse_args()
 
     # Run the appropriate function based on arguments
-    if args.alternate:
-        print("Running alternate behavior...")
-        play_pong()  # Run the Pong game as the alternate demo
-    else:
-        # Run the built-in demo (Snake game by default)
+    if args.index:
+        # Show the index menu
+        show_index()
+    elif args.snake:
+        # Run the Snake game
         play_snake()
+    elif args.pong or args.alternate:
+        # Run the Pong game
+        play_pong()
+    else:
+        # By default, show the instructions
+        show_instructions()
 
 if __name__ == "__main__":
     main()

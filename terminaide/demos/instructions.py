@@ -13,6 +13,7 @@ import curses
 import time
 import signal
 import sys
+import os
 
 _stdscr = None
 _exit_requested = False  # Set by the SIGINT handler when Ctrl+C is pressed.
@@ -27,14 +28,8 @@ def cleanup():
     if _stdscr is not None:
         try:
             curses.endwin()
-            print("\033[?25l\033[2J\033[H", end="")  # Clear screen
-            try:
-                rows, cols = _stdscr.getmaxyx()
-            except:
-                rows, cols = 24, 80
-            msg = "terminaide instructions"
-            print("\033[2;{}H{}".format((cols - len(msg)) // 2, msg))
-            print("\033[3;{}H{}".format((cols - len("Goodbye!")) // 2, "Goodbye!"))
+            # Just make cursor visible again without changing background
+            print("\033[?25h", end="")
             sys.stdout.flush()
         except:
             pass
@@ -44,6 +39,11 @@ def instructions(stdscr):
     global _stdscr
     _stdscr = stdscr
     signal.signal(signal.SIGINT, handle_exit)
+    
+    # Setup terminal - force transparent background
+    curses.start_color()
+    curses.use_default_colors()  # Use terminal's default colors
+    curses.init_pair(1, curses.COLOR_WHITE, -1)  # -1 means transparent background
     
     # Ensure the cursor is invisible
     curses.curs_set(0)
@@ -72,19 +72,25 @@ def instructions(stdscr):
     start_y = 2
 
     try:
+        # Clear the screen without changing background
+        stdscr.clear()
+        
         # Print each line with a tiny delay for a "type-in" effect
         for i, line in enumerate(instructions):
+            if _exit_requested:
+                break
+                
             # Calculate the x offset to center horizontally
             x = max((width - len(line)) // 2, 0)
-            stdscr.addstr(start_y + i, x, line)
+            
+            # Use the transparent color pair
+            stdscr.addstr(start_y + i, x, line, curses.color_pair(1))
             stdscr.refresh()
             time.sleep(0.05)
             
-            if _exit_requested:
-                break
-
         # Wait for user to press any key before exiting
         if not _exit_requested:
+            stdscr.nodelay(False)  # Make getch blocking
             stdscr.getch()
 
     except KeyboardInterrupt:
@@ -97,6 +103,10 @@ def instructions(stdscr):
 def run_demo():
     """Entry point for running the demo from elsewhere."""
     try:
+        # Set environment variable to disable background fill
+        os.environ.setdefault('NCURSES_NO_SETBUF', '1')
+        
+        # Use curses wrapper with custom flags
         curses.wrapper(instructions)
     except Exception as e:
         print(f"\n\033[31mError in instructions demo: {e}\033[0m")
@@ -104,8 +114,13 @@ def run_demo():
         cleanup()
 
 if __name__ == "__main__":
-    # Set cursor to invisible using ansi 
-    print("\033[?25l\033[2J\033[H", end="")
+    # Set cursor to invisible, but don't change background
+    print("\033[?25l", end="")
+    
+    import os
+    # Set environment variable to disable background fill
+    os.environ.setdefault('NCURSES_NO_SETBUF', '1')
+    
     try:
         curses.wrapper(instructions)
     finally:
