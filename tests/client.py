@@ -8,7 +8,7 @@ You can use this as a template for creating your own custom terminal application
 """
 
 import argparse
-from terminaide.demos import play_snake, play_pong, show_instructions, show_index
+from terminaide.demos import play_snake, play_pong, play_tetris, show_instructions, show_index
 
 def main():
     # Set up argument parser
@@ -31,6 +31,11 @@ def main():
         action="store_true",
         help="Run the Pong game demo."
     )
+    group.add_argument(
+        "--tetris",
+        action="store_true",
+        help="Run the Tetris game demo."
+    )
     
     # Keep the original alternate flag for backward compatibility
     group.add_argument(
@@ -52,6 +57,9 @@ def main():
     elif args.pong or args.alternate:
         # Run the Pong game
         play_pong()
+    elif args.tetris:
+        # Run the Tetris game
+        play_tetris()
     else:
         # By default, show the instructions
         show_instructions()

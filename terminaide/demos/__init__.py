@@ -16,12 +16,14 @@ Example:
         # Or explicitly choose a demo
         demos.play_snake()
         demos.play_pong()
+        demos.play_tetris()
         demos.show_instructions()
         demos.show_index()
 """
 
 from .snake import run_demo as _run_snake
 from .pong import run_demo as _run_pong
+from .tetris import run_demo as _run_tetris
 from .instructions import run_demo as _show_instructions
 from .index import run_demo as _show_index
 
@@ -68,6 +70,20 @@ def play_pong():
     """
     _run_pong()
 
+def play_tetris():
+    """
+    Run the Tetris game demo.
+    
+    This function executes the Tetris game demo in the terminal.
+    
+    Example:
+        from terminaide import demos
+        
+        if __name__ == "__main__":
+            demos.play_tetris()
+    """
+    _run_tetris()
+
 def show_instructions():
     """
     Show the default instructions screen.
@@ -102,4 +118,4 @@ def show_index():
 demos = run
 
 # Export all the demo functions
-__all__ = ["run", "play_snake", "play_pong", "show_instructions", "show_index", "demos"]
+__all__ = ["run", "play_snake", "play_pong", "play_tetris", "show_instructions", "show_index", "demos"]
