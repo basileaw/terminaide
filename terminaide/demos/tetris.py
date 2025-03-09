@@ -12,6 +12,7 @@ import random
 import signal
 import sys
 import time
+import os  # Added for system-level screen clearing
 from collections import deque
 
 _stdscr = None
@@ -63,6 +64,12 @@ def tetris(stdscr):
     global _stdscr
     _stdscr = stdscr
     signal.signal(signal.SIGINT, handle_exit)
+    
+    # Ensure full screen clearing to remove any previous content
+    stdscr.clear()
+    stdscr.refresh()
+    os.system('clear' if os.name == 'posix' else 'cls')  # Extra system-level clear
+    
     setup_terminal(stdscr)
 
     max_y, max_x = stdscr.getmaxyx()
@@ -336,18 +343,10 @@ def draw_game(stdscr, game_win, next_win, board, current_piece, current_pos,
     game_win.box()
     next_win.box()
     
-    title = "TERMINAIDE TETRIS"
+    title = "TETRIS"
     w = game_win.getmaxyx()[1]
     if w > len(title) + 4:
         game_win.addstr(0, (w - len(title)) // 2, title, curses.A_BOLD | curses.color_pair(9))
-        
-    # Add subtitle to indicate "client script only mode"
-    subtitle = "Client Script Only Mode"
-    if w > len(subtitle) + 4 and game_win.getmaxyx()[0] > board_height + 1:
-        try:
-            game_win.addstr(game_win.getmaxyx()[0]-1, (w - len(subtitle)) // 2, subtitle, curses.A_BOLD | curses.color_pair(6))
-        except curses.error:
-            pass
     
     next_win.addstr(0, 1, "NEXT", curses.A_BOLD | curses.color_pair(9))
     
@@ -396,7 +395,7 @@ def draw_game(stdscr, game_win, next_win, board, current_piece, current_pos,
         except curses.error:
             pass
     
-    # Draw score and other info - use the safe_addstr function
+    # Draw score and other info
     safe_addstr(stdscr, 0, 0, " " * max_x)
     score_text = f" Score: {score} "
     level_text = f" Level: {level} "
@@ -411,23 +410,10 @@ def draw_game(stdscr, game_win, next_win, board, current_piece, current_pos,
     high_x = min(stdscr_width - len(high_text) - 1, max_x - len(high_text) - 2)
     safe_addstr(stdscr, 0, high_x, high_text, curses.color_pair(9) | curses.A_BOLD)
     
-    # Simple centered information at the bottom of the screen
-    max_y_std, max_x_std = stdscr.getmaxyx()
-    
-    # Clear the lines at the bottom of the screen where we'll put text
-    for y in range(max_y_std-4, max_y_std-1):
-        safe_addstr(stdscr, y, 0, " " * (max_x_std-1))
-    
-    # Add centered information text - position at absolute bottom of screen, not relative to board
-    info_text = "Terminaide: Serving terminal apps in browsers"
-    safe_addstr(stdscr, max_y_std-4, (max_x_std - len(info_text)) // 2, info_text, curses.color_pair(6) | curses.A_BOLD)
-    
-    mode_text = "Client Script Only Mode demonstration"
-    safe_addstr(stdscr, max_y_std-3, (max_x_std - len(mode_text)) // 2, mode_text, curses.color_pair(6))
-    
+    # Simple controls at the bottom
     controls = "↑:Rotate  ←→:Move  ↓:Drop  Space:Hard Drop  Q:Quit"
-    safe_addstr(stdscr, max_y_std-2, (max_x_std - len(controls)) // 2, controls)
-
+    if stdscr.getmaxyx()[0] > board_height + 3:
+        safe_addstr(stdscr, board_height + 3, (max_x - len(controls)) // 2, controls)
     
     # Refresh all windows
     stdscr.noutrefresh()
@@ -441,14 +427,11 @@ def show_game_over(stdscr, score, high_score, max_y, max_x):
     cy = max_y // 2
     
     data = [
-        ("TERMINAIDE TETRIS", -4, curses.A_BOLD | curses.color_pair(5)),
-        ("GAME OVER", -2, curses.A_BOLD | curses.color_pair(3)),
-        (f"Your Score: {score}", 0, curses.color_pair(9)),
-        (f"High Score: {high_score}", 1, curses.color_pair(9)),
-        ("Terminaide serves terminal applications in web browsers", 3, curses.A_BOLD | curses.color_pair(6)),
-        ("This is an example of Client Script Only Mode", 4, curses.color_pair(6)),
-        ("Press 'r' to restart", 6, 0),
-        ("Press 'q' to quit", 7, 0),
+        ("GAME OVER", -3, curses.A_BOLD | curses.color_pair(3)),
+        (f"Your Score: {score}", -1, curses.color_pair(9)),
+        (f"High Score: {high_score}", 0, curses.color_pair(9)),
+        ("Press 'r' to restart", 2, 0),
+        ("Press 'q' to quit", 3, 0),
     ]
     
     for txt, yo, attr in data:
@@ -475,25 +458,9 @@ def cleanup():
                 rows, cols = _stdscr.getmaxyx()
             except:
                 rows, cols = 24, 80
-            
-            # Title line with Terminaide branding
-            title = "Terminaide Tetris Demo"
-            print("\033[2;{}H{}".format((cols - len(title)) // 2, title))
-            
-            # Show what terminaide does
-            info_msg = "Terminaide: Serving terminal applications in web browsers"
-            print("\033[3;{}H{}".format((cols - len(info_msg)) // 2, info_msg))
-            
-            # Show it's demonstrating client script only mode
-            mode_msg = "This demonstrated 'Client Script Only Mode'"
-            print("\033[4;{}H{}".format((cols - len(mode_msg)) // 2, mode_msg))
-            
-            # Thank you message
-            msg = "Thanks for playing!"
-            print("\033[6;{}H{}".format((cols - len(msg)) // 2, msg))
-            
-            # Goodbye
-            print("\033[7;{}H{}".format((cols - len("Goodbye!")) // 2, "Goodbye!"))
+            msg = "Thanks for playing Tetris!"
+            print("\033[2;{}H{}".format((cols - len(msg)) // 2, msg))
+            print("\033[3;{}H{}".format((cols - len("Goodbye!")) // 2, "Goodbye!"))
             sys.stdout.flush()
         except:
             pass
@@ -506,6 +473,11 @@ def handle_exit(sig, frame):
 def run_demo():
     """Entry point for running the demo from elsewhere."""
     try:
+        # Clear the entire terminal before launching
+        os.system('clear' if os.name == 'posix' else 'cls')
+        print("\033[2J\033[H", end="")  # ANSI escape sequence for clearing screen
+        sys.stdout.flush()
+        
         curses.wrapper(tetris)
     except Exception as e:
         print(f"\n\033[31mError in demo: {e}\033[0m")
@@ -513,8 +485,11 @@ def run_demo():
         cleanup()
 
 if __name__ == "__main__":
-    # Set cursor to invisible using ansi 
+    # Set cursor to invisible using ansi and clear screen completely
     print("\033[?25l\033[2J\033[H", end="")
+    sys.stdout.flush()
+    os.system('clear' if os.name == 'posix' else 'cls')  # Extra system-level clear
+    
     try:
         curses.wrapper(tetris)
     finally:
