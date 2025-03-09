@@ -2,26 +2,23 @@
 # tests/server.py
 
 """
-Test server for terminaide that supports multiple configuration permutations.
+Test server for terminaide that supports multiple configuration patterns.
 
-This script allows testing different ways of configuring terminaide to understand
-how each permutation behaves, particularly regarding root path handling.
+This script demonstrates four key ways of configuring terminaide to understand
+how each pattern works in practice:
 
 Usage:
-    python server.py --mode single
-    python server.py --mode demo
-    python server.py --mode multi_no_root
-    python server.py --mode multi_with_root
-    python server.py --mode combined
-    python server.py --mode user_root_after
-    python server.py --mode user_root_before
+    python server.py                  # Default mode - shows instructions demo
+    python server.py --mode single    # Single client script (Tetris) at root
+    python server.py --mode multi     # Multiple script routes with index at root
+    python server.py --mode mixed     # HTML page at root, scripts at other routes
 """
 
 import argparse
 import logging
 import os
 import sys
-import json  # <-- Added
+import json
 from pathlib import Path
 from typing import Dict, Optional, List
 
@@ -108,7 +105,7 @@ def create_custom_root_endpoint(app: FastAPI):
             <h1>Terminaide Terminal Games</h1>
             
             <div class="card">
-                This demo shows how a single client script can run different games based on command-line arguments.
+                This demo shows how HTML pages and terminal applications can be combined in one server.
             </div>
             
             <div class="terminal-box">
@@ -118,6 +115,7 @@ def create_custom_root_endpoint(app: FastAPI):
             <div class="links">
                 <a href="/terminal1" class="terminal-link">Snake Game</a>
                 <a href="/terminal2" class="terminal-link">Pong Game</a>
+                <a href="/terminal3" class="terminal-link">Tetris Game</a>
             </div>
             
             <a href="/info" class="info-link">Server Configuration Info</a>
@@ -129,22 +127,24 @@ def create_custom_root_endpoint(app: FastAPI):
 
 def create_info_endpoint(app: FastAPI, mode: str, description: str):
     """Add an info endpoint that explains the current configuration."""
-    @app.get("/info", response_class=HTMLResponse)  # <-- Changed to HTMLResponse
+    @app.get("/info", response_class=HTMLResponse)
     async def info(request: Request):
         info_dict = {
             "mode": mode,
             "description": description,
             "client_script": str(CLIENT_SCRIPT),
-            "permutations": {
-                "single": "Single script basic usage - client.py runs at root",
-                "demo": "No script specified - demo runs at root",
-                "multi_no_root": "Multiple scripts without root - demo at root, other scripts at paths",
-                "multi_with_root": "Multiple scripts with root - client.py at root, other paths defined",
-                "combined": "Combined approaches - explicit client_script and script_routes",
-                "user_root_after": "User defines root AFTER terminaide - user route wins",
-                "user_root_before": "User defines root BEFORE terminaide - user route wins"
+            "modes": {
+                "default": "Default configuration - shows instructions demo",
+                "single": "Single script at root - Tetris game",
+                "multi": "Multiple scripts with index.py at root, games at other routes",
+                "mixed": "HTML page at root, games at other routes"
             },
-            "usage": "Change mode by running with --mode [mode_name]"
+            "usage": "Change mode by running with --mode [mode_name]",
+            "notes": [
+                "Route priority: User-defined routes take precedence over terminaide routes",
+                "Order of route definition matters",
+                "Custom routes can be defined before or after serve_tty() with different results"
+            ]
         }
         return f"""<!DOCTYPE html>
 <html>
@@ -164,99 +164,91 @@ def create_app() -> FastAPI:
 
     Reads the mode from the environment instead of a global variable so that
     watchfiles reload can re-import this factory.
+    
+    Important notes about terminaide configuration:
+    
+    1. Route Priority: When both a custom route and a terminaide route target 
+       the same path, the one defined FIRST in the code takes precedence.
+    
+    2. Root Path Handling: If you want your own content at the root path (/),
+       either define your route BEFORE calling serve_tty() or don't specify
+       a client_script or root path in script_routes when calling serve_tty().
+    
+    3. Configuration Interactions: 
+       - If client_script is provided, it runs at the root path (/)
+       - If script_routes includes "/", it overrides the default behavior
+       - If neither is specified, terminaide shows its instructions demo
+    
+    4. FastAPI Integration: Terminaide works seamlessly with existing FastAPI
+       applications, but be mindful of route conflicts and priorities.
     """
-    mode = os.environ.get("TERMINAIDE_MODE", "demo")
+    # Get mode from environment or use default
+    mode = os.environ.get("TERMINAIDE_MODE", "default")
     app = FastAPI(title=f"Terminaide Test - {mode.upper()} Mode")
 
     # We declare a local variable to describe the current configuration
     description = ""
 
-    # First add HTML root endpoint for all modes except when root is explicitly handled
-    if mode not in ["single", "multi_with_root", "combined"]:
-        # Define HTML root endpoint BEFORE serve_tty (except for user_root_after)
-        if mode != "user_root_after":
-            create_custom_root_endpoint(app)
-
     # Mode-specific configuration
-    if mode == "single":
-        description = "Single script at root path - client.py runs at /"
+    if mode == "default":
+        # Default mode: no client script, no script routes
+        # Important: In this configuration, terminaide will show its built-in instructions demo
+        description = "Default configuration - shows instructions demo"
         serve_tty(
             app,
-            client_script=CLIENT_SCRIPT,
+            title="Default Mode",
+            debug=True
+        )
+        
+    elif mode == "single":
+        # Single mode: just one client script at root
+        # This demonstrates running a standalone terminal application
+        description = "Single script at root - Tetris game"
+        serve_tty(
+            app,
+            client_script=[CLIENT_SCRIPT, "--tetris"],
             title="Single Script Mode",
             debug=True
         )
         
-    elif mode == "demo":
-        description = "HTML page at root path, no script specified"
-        serve_tty(
-            app,
-            title="Demo Mode with HTML Root",
-            debug=True
-        )
-        
-    elif mode == "multi_no_root":
-        description = "HTML page at root, scripts with different game demos at other paths"
-        serve_tty(
-            app,
-            script_routes={
-                "/terminal1": [CLIENT_SCRIPT, "--snake"],  # Snake game
-                "/terminal2": [CLIENT_SCRIPT, "--pong"]    # Pong game
-            },
-            title="Multi-Script With HTML Root",
-            debug=True
-        )
-        
-    elif mode == "multi_with_root":
-        description = "Multiple scripts with root - client.py at /, others at different game demos"
-        serve_tty(
-            app,
-            script_routes={
-                "/": CLIENT_SCRIPT,                        # Instructions
-                "/terminal1": [CLIENT_SCRIPT, "--snake"],  # Snake game
-                "/terminal2": [CLIENT_SCRIPT, "--pong"]    # Pong game
-            },
-            title="Multi-Script With Root",
-            debug=True
-        )
-        
-    elif mode == "combined":
-        description = "Combined approaches - client_script (index) at root, other routes with games"
+    elif mode == "multi":
+        # Multi mode: client script (index) at root + script routes for games
+        # This demonstrates a central menu with links to other terminal applications
+        description = "Multiple scripts with index.py at root, games at other routes"
         serve_tty(
             app,
             client_script=[CLIENT_SCRIPT, "--index"],      # Index menu at root
             script_routes={
                 "/terminal1": [CLIENT_SCRIPT, "--snake"],  # Snake game
-                "/terminal2": [CLIENT_SCRIPT, "--pong"]    # Pong game
+                "/terminal2": [CLIENT_SCRIPT, "--pong"],   # Pong game
+                "/terminal3": [CLIENT_SCRIPT, "--tetris"]  # Tetris game
             },
-            title="Combined Approach",
+            title="Multi-Script Mode",
             debug=True
         )
         
-    elif mode == "user_root_after":
-        description = "User defines root AFTER terminaide - user route wins"
+    elif mode == "mixed":
+        # Mixed mode: HTML page at root + script routes for games
+        # This demonstrates how terminaide can be integrated with regular web pages
+        description = "HTML page at root, games at other routes"
+        
+        # Define custom HTML root BEFORE serve_tty
+        # Note: Order matters! The first route defined for a path takes precedence.
+        # If we were to call serve_tty() before defining this route, and if serve_tty 
+        # tried to assign a route to "/", terminaide's route would take precedence.
+        # This demonstrates an important principle: route definition order determines priority.
+        create_custom_root_endpoint(app)
+        
+        # When serve_tty is called, it will NOT override our custom root route
+        # because we defined it first.
         serve_tty(
             app,
             script_routes={
                 "/terminal1": [CLIENT_SCRIPT, "--snake"],  # Snake game
-                "/terminal2": [CLIENT_SCRIPT, "--pong"]    # Pong game
+                "/terminal2": [CLIENT_SCRIPT, "--pong"],   # Pong game
+                "/terminal3": [CLIENT_SCRIPT, "--tetris"]  # Tetris game
             },
-            title="User Root After",
-            debug=True
-        )
-        # Define custom root AFTER serve_tty
-        create_custom_root_endpoint(app)
-        
-    elif mode == "user_root_before":
-        description = "User defines root BEFORE terminaide - user route wins"
-        create_custom_root_endpoint(app)
-        serve_tty(
-            app,
-            script_routes={
-                "/terminal1": [CLIENT_SCRIPT, "--snake"],  # Snake game
-                "/terminal2": [CLIENT_SCRIPT, "--pong"]    # Pong game
-            },
-            title="User Root Before",
+            title="Mixed Mode",
             debug=True
         )
         
@@ -272,14 +264,13 @@ def create_app() -> FastAPI:
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Test server for terminaide with different configuration permutations."
+        description="Test server for terminaide with different configuration patterns."
     )
     parser.add_argument(
         "--mode",
-        choices=["single", "demo", "multi_no_root", "multi_with_root",
-                 "combined", "user_root_after", "user_root_before"],
-        default="demo",
-        help="Which configuration permutation to test (default: demo)"
+        choices=["default", "single", "multi", "mixed"],
+        default="default",
+        help="Which configuration pattern to test (default: default)"
     )
     parser.add_argument(
         "--port",
@@ -305,17 +296,21 @@ def main():
     logger.info(f"Visit http://localhost:{args.port} to see the main interface")
     logger.info(f"Visit http://localhost:{args.port}/info for configuration details")
 
-    if args.mode not in ["single", "demo"]:
-        logger.info("Available terminal routes:")
-        if args.mode not in ["user_root_after", "user_root_before"]:
-            if args.mode == "multi_with_root":
-                logger.info("  / - Terminal running client.py (Instructions)")
-            elif args.mode == "combined":
-                logger.info("  / - Terminal running client.py --index (Demo Index)")
-            else:
-                logger.info("  / - Custom HTML page")
-        logger.info("  /terminal1 - Terminal running client.py --snake (Snake Game)")
-        logger.info("  /terminal2 - Terminal running client.py --pong (Pong Game)")
+    # Mode-specific information
+    if args.mode == "default":
+        logger.info("Default mode - showing built-in instructions demo")
+    elif args.mode == "single":
+        logger.info("Single mode - Tetris game running at root path (/)")
+    elif args.mode == "multi":
+        logger.info("Multi mode - index.py menu at root with links to:")
+        logger.info("  /terminal1 - Snake Game")
+        logger.info("  /terminal2 - Pong Game")
+        logger.info("  /terminal3 - Tetris Game")
+    elif args.mode == "mixed":
+        logger.info("Mixed mode - HTML page at root with links to:")
+        logger.info("  /terminal1 - Snake Game")
+        logger.info("  /terminal2 - Pong Game")
+        logger.info("  /terminal3 - Tetris Game")
 
     uvicorn.run(
         "tests.server:create_app",
