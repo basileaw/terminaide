@@ -3,11 +3,11 @@
 # terminaide/demos/index.py
 
 """
-Index demo for terminaide.
+Termin-Arcade menu for terminaide.
 
-This module displays a simple menu-based interface that serves as an index
-for the available demos. It's designed to be a terminal-based equivalent 
-of a web page with links to other demo terminals.
+This module displays a simple menu-based interface that serves as an entry point
+for the available arcade games. When a user selects a game, it directly launches
+that game.
 """
 
 import curses
@@ -89,75 +89,108 @@ def index_menu(stdscr):
     
     # Define menu options
     options = [
-        "Terminal 1 (Snake Game)",
-        "Terminal 2 (Pong Game)",
-        "Show Instructions",
-        "Exit"
+        "Snake",
+        "Tetris",
+        "Pong"
     ]
     
     current_option = 0
+    prev_option = 0  # Track previous selection for optimized redrawing
     
+    # Initial full draw
+    stdscr.clear()
+    
+    # Get screen dimensions
+    max_y, max_x = stdscr.getmaxyx()
+    
+    # Draw ASCII art title
+    title_lines = [
+        "████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗      █████╗ ██████╗  ██████╗ █████╗ ██████╗ ███████╗",
+        "╚══██╔══╝██╔════╝██╔══██╗████╗ ████║██║████╗  ██║     ██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔════╝",
+        "   ██║   █████╗  ██████╔╝██╔████╔██║██║██╔██╗ ██║     ███████║██████╔╝██║     ███████║██║  ██║█████╗  ",
+        "   ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║██║██║╚██╗██║     ██╔══██║██╔══██╗██║     ██╔══██║██║  ██║██╔══╝  ",
+        "   ██║   ███████╗██║  ██║██║ ╚═╝ ██║██║██║ ╚████║     ██║  ██║██║  ██║╚██████╗██║  ██║██████╔╝███████╗",
+        "   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝     ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝"
+    ]
+    
+    # Simpler ASCII art title for smaller terminals
+    simple_title_lines = [
+        " _____              _         _                   _      ",
+        "|_   _|__ _ __ _ __ (_)_ __   /_\\  _ __ ___ __ _  _| | ___ ",
+        "  | |/ _ \\ '__| '_ \\| | '_ \\ //_\\\\| '__/ __/ _` |/ _` |/ _ \\",
+        "  | |  __/ |  | | | | | | | /  _ \\ | | (_| (_| | (_| |  __/",
+        "  |_|\\___|_|  |_| |_|_|_| |_\\_/ \\_\\_|  \\___\\__,_|\\__,_|\\___|"
+    ]
+    
+    # Simplest ASCII art title for very small terminals
+    very_simple_title = [
+        "==============================",
+        "||     TERMIN-ARCADE       ||",
+        "=============================="
+    ]
+    
+    # Choose which title to display based on terminal width
+    if max_x >= 90:
+        title_to_use = title_lines
+    elif max_x >= 60:
+        title_to_use = simple_title_lines
+    else:
+        title_to_use = very_simple_title
+        
+    # Draw the title
+    for i, line in enumerate(title_to_use):
+        if len(line) <= max_x:
+            safe_addstr(stdscr, 1 + i, (max_x - len(line)) // 2, line, curses.color_pair(1) | curses.A_BOLD)
+    
+    start_y = 2 + len(title_to_use)
+    
+    # Simple instructions
+    instruction = "Use ↑/↓ to navigate, Enter to select, Q to quit"
+    safe_addstr(stdscr, start_y + 2, (max_x - len(instruction)) // 2, instruction, curses.color_pair(2))
+    
+    # Calculate the length of the longest option for consistent button widths
+    max_option_length = max(len(option) for option in options)
+    
+    # Draw initial buttons
+    option_y = start_y + 5
+    for i, option in enumerate(options):
+        option_style = curses.color_pair(5) if i == current_option else curses.color_pair(4)
+        # Calculate padding needed to make all buttons the same width
+        padding = " " * 3
+        # Center the text within a fixed-width area based on the longest option
+        space_needed = max_option_length - len(option)
+        left_space = space_needed // 2
+        right_space = space_needed - left_space
+        button_text = f"{padding}{' ' * left_space}{option}{' ' * right_space}{padding}"
+        safe_addstr(stdscr, option_y + i*2, (max_x - len(button_text)) // 2, button_text, option_style | curses.A_BOLD)
+    
+    # Main loop
     while True:
         if _exit_requested:
             break
             
-        stdscr.clear()
-        
-        # Get screen dimensions
-        max_y, max_x = stdscr.getmaxyx()
-        
-        # Draw title
-        title = "Terminaide Test Server"
-        safe_addstr(stdscr, 1, (max_x - len(title)) // 2, title, curses.color_pair(1) | curses.A_BOLD)
-        title_line = "=" * len(title)
-        safe_addstr(stdscr, 2, (max_x - len(title_line)) // 2, title_line, curses.color_pair(1))
-        
-        # Draw card
-        card_width = min(max_x - 4, 70)
-        card_y = 4
-        card_x = (max_x - card_width) // 2
-        
-        # Draw card background
-        for i in range(5):  # Card height
-            draw_horizontal_line(stdscr, card_y + i, card_x, card_width, curses.color_pair(2) | curses.A_REVERSE)
-        
-        # Add blue border to left side of card
-        for i in range(5):
-            safe_addstr(stdscr, card_y + i, card_x, "│", curses.color_pair(1) | curses.A_BOLD)
+        # Only update the buttons that changed
+        if current_option != prev_option:
+            # Update the previously selected button with consistent width
+            option_style = curses.color_pair(4) | curses.A_BOLD
+            space_needed = max_option_length - len(options[prev_option])
+            left_space = space_needed // 2
+            right_space = space_needed - left_space
+            prev_button_text = f"{padding}{' ' * left_space}{options[prev_option]}{' ' * right_space}{padding}"
+            safe_addstr(stdscr, option_y + prev_option*2, (max_x - len(prev_button_text)) // 2, 
+                      prev_button_text, option_style)
             
-        # Card content
-        card_title = "Custom Terminal Index"
-        safe_addstr(stdscr, card_y, card_x + 2, card_title, curses.color_pair(3) | curses.A_BOLD)
-        safe_addstr(stdscr, card_y + 2, card_x + 2, "This is a terminal-based menu for accessing different demos.", curses.color_pair(2))
-        safe_addstr(stdscr, card_y + 3, card_x + 2, "Use arrow keys to navigate and Enter to select an option.", curses.color_pair(2))
-        
-        # Draw options (buttons)
-        option_y = card_y + 7
-        for i, option in enumerate(options):
-            option_style = curses.color_pair(5) if i == current_option else curses.color_pair(4)
-            padding = " " * 3
-            button_text = f"{padding}{option}{padding}"
-            safe_addstr(stdscr, option_y + i*2, (max_x - len(button_text)) // 2, button_text, option_style | curses.A_BOLD)
-        
-        # Check if there's enough room for the info box
-        info_y = option_y + len(options)*2 + 2
-        if info_y + 3 < max_y:
-            # Draw info box
-            info_width = min(max_x - 4, 70)
-            info_x = (max_x - info_width) // 2
+            # Update the newly selected button with consistent width
+            option_style = curses.color_pair(5) | curses.A_BOLD
+            space_needed = max_option_length - len(options[current_option])
+            left_space = space_needed // 2
+            right_space = space_needed - left_space
+            new_button_text = f"{padding}{' ' * left_space}{options[current_option]}{' ' * right_space}{padding}"
+            safe_addstr(stdscr, option_y + current_option*2, (max_x - len(new_button_text)) // 2, 
+                      new_button_text, option_style)
             
-            # Draw info box background
-            for i in range(3):  # Info box height
-                draw_horizontal_line(stdscr, info_y + i, info_x, info_width, curses.color_pair(6) | curses.A_REVERSE)
-            
-            # Info box content
-            info_text = "Press 'q' to quit at any time"
-            safe_addstr(stdscr, info_y + 1, (max_x - len(info_text)) // 2, info_text, curses.color_pair(6) | curses.A_REVERSE | curses.A_BOLD)
-        
-        # Draw instructions at the bottom if there's room
-        if max_y > 3:
-            nav_text = "↑/↓: Navigate   Enter: Select"
-            safe_addstr(stdscr, max_y - 2, (max_x - len(nav_text)) // 2, nav_text)
+            # Update prev_option for next iteration
+            prev_option = current_option
         
         # Refresh the screen
         stdscr.refresh()
@@ -176,14 +209,12 @@ def index_menu(stdscr):
                 current_option += 1
                 
             elif key in [curses.KEY_ENTER, ord('\n'), ord('\r')]:
-                if current_option == 0:  # Terminal 1 (Snake)
+                if current_option == 0:      # Snake
                     return "snake"
-                elif current_option == 1:  # Terminal 2 (Pong)
+                elif current_option == 1:    # Tetris
+                    return "tetris"
+                elif current_option == 2:    # Pong
                     return "pong"
-                elif current_option == 2:  # Instructions
-                    return "instructions"
-                elif current_option == 3:  # Exit
-                    break
                     
         except KeyboardInterrupt:
             break
@@ -193,23 +224,37 @@ def index_menu(stdscr):
 def run_demo():
     """Entry point for running the index demo."""
     try:
+        # Get the user's choice from the menu
         choice = curses.wrapper(index_menu)
         
-        # Based on the choice, we can give a hint about what to run next
+        # If the user chose to exit, just show the goodbye message
+        if choice == "exit":
+            cleanup()
+            return
+            
+        # Reset the terminal before launching a new game
+        if _stdscr is not None:
+            curses.endwin()
+        
+        # Import and run the selected demo
         if choice == "snake":
-            print("\n\033[1;34mTo run the Snake game, use:\033[0m")
-            print("from terminaide.demos import play_snake; play_snake()")
+            # Import here to avoid circular imports
+            from terminaide.demos import play_snake
+            play_snake()
+        elif choice == "tetris":
+            from terminaide.demos import play_tetris
+            play_tetris()
         elif choice == "pong":
-            print("\n\033[1;34mTo run the Pong game, use:\033[0m")
-            print("from terminaide.demos import play_pong; play_pong()")
-        elif choice == "instructions":
-            print("\n\033[1;34mTo show the instructions, use:\033[0m")
-            print("from terminaide.demos import show_instructions; show_instructions()")
+            from terminaide.demos import play_pong
+            play_pong()
         
     except Exception as e:
         print(f"\n\033[31mError in index demo: {e}\033[0m")
     finally:
-        cleanup()
+        # We only call cleanup if there was an error or unexpected exit
+        # For normal navigation to other games, the cleanup is handled by those games
+        if choice == "exit":
+            cleanup()
 
 if __name__ == "__main__":
     # Set cursor to invisible using ansi 
