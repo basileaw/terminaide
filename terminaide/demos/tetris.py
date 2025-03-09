@@ -103,7 +103,7 @@ def run_game(stdscr, max_y, max_x, high_score=0):
     global _exit_requested
     
     # Game board dimensions (playable area)
-    board_height = min(20, max_y - 4)
+    board_height = min(20, max_y - 7)  # Leave more room at bottom for messages
     board_width = min(10, max_x // 2 - 2)
     
     # Start position for the board (centered)
@@ -336,10 +336,18 @@ def draw_game(stdscr, game_win, next_win, board, current_piece, current_pos,
     game_win.box()
     next_win.box()
     
-    title = "TETRIS"
+    title = "TERMINAIDE TETRIS"
     w = game_win.getmaxyx()[1]
     if w > len(title) + 4:
         game_win.addstr(0, (w - len(title)) // 2, title, curses.A_BOLD | curses.color_pair(9))
+        
+    # Add subtitle to indicate "client script only mode"
+    subtitle = "Client Script Only Mode"
+    if w > len(subtitle) + 4 and game_win.getmaxyx()[0] > board_height + 1:
+        try:
+            game_win.addstr(game_win.getmaxyx()[0]-1, (w - len(subtitle)) // 2, subtitle, curses.A_BOLD | curses.color_pair(6))
+        except curses.error:
+            pass
     
     next_win.addstr(0, 1, "NEXT", curses.A_BOLD | curses.color_pair(9))
     
@@ -403,10 +411,23 @@ def draw_game(stdscr, game_win, next_win, board, current_piece, current_pos,
     high_x = min(stdscr_width - len(high_text) - 1, max_x - len(high_text) - 2)
     safe_addstr(stdscr, 0, high_x, high_text, curses.color_pair(9) | curses.A_BOLD)
     
-    # Controls reminder at the bottom - use safe_addstr
-    controls = "↑:Rotate  ←→:Move  ↓:Soft Drop  Space:Hard Drop  Q:Quit"
-    if stdscr.getmaxyx()[0] > board_height + 3:
-        safe_addstr(stdscr, board_height + 3, (max_x - len(controls)) // 2, controls)
+    # Simple centered information at the bottom of the screen
+    max_y_std, max_x_std = stdscr.getmaxyx()
+    
+    # Clear the lines at the bottom of the screen where we'll put text
+    for y in range(max_y_std-4, max_y_std-1):
+        safe_addstr(stdscr, y, 0, " " * (max_x_std-1))
+    
+    # Add centered information text - position at absolute bottom of screen, not relative to board
+    info_text = "Terminaide: Serving terminal apps in browsers"
+    safe_addstr(stdscr, max_y_std-4, (max_x_std - len(info_text)) // 2, info_text, curses.color_pair(6) | curses.A_BOLD)
+    
+    mode_text = "Client Script Only Mode demonstration"
+    safe_addstr(stdscr, max_y_std-3, (max_x_std - len(mode_text)) // 2, mode_text, curses.color_pair(6))
+    
+    controls = "↑:Rotate  ←→:Move  ↓:Drop  Space:Hard Drop  Q:Quit"
+    safe_addstr(stdscr, max_y_std-2, (max_x_std - len(controls)) // 2, controls)
+
     
     # Refresh all windows
     stdscr.noutrefresh()
@@ -420,11 +441,14 @@ def show_game_over(stdscr, score, high_score, max_y, max_x):
     cy = max_y // 2
     
     data = [
-        ("GAME OVER", -3, curses.A_BOLD | curses.color_pair(3)),
-        (f"Your Score: {score}", -1, curses.color_pair(9)),
-        (f"High Score: {high_score}", 0, curses.color_pair(9)),
-        ("Press 'r' to restart", 2, 0),
-        ("Press 'q' to quit", 3, 0),
+        ("TERMINAIDE TETRIS", -4, curses.A_BOLD | curses.color_pair(5)),
+        ("GAME OVER", -2, curses.A_BOLD | curses.color_pair(3)),
+        (f"Your Score: {score}", 0, curses.color_pair(9)),
+        (f"High Score: {high_score}", 1, curses.color_pair(9)),
+        ("Terminaide serves terminal applications in web browsers", 3, curses.A_BOLD | curses.color_pair(6)),
+        ("This is an example of Client Script Only Mode", 4, curses.color_pair(6)),
+        ("Press 'r' to restart", 6, 0),
+        ("Press 'q' to quit", 7, 0),
     ]
     
     for txt, yo, attr in data:
@@ -451,9 +475,25 @@ def cleanup():
                 rows, cols = _stdscr.getmaxyx()
             except:
                 rows, cols = 24, 80
-            msg = "Thanks for playing Tetris!"
-            print("\033[2;{}H{}".format((cols - len(msg)) // 2, msg))
-            print("\033[3;{}H{}".format((cols - len("Goodbye!")) // 2, "Goodbye!"))
+            
+            # Title line with Terminaide branding
+            title = "Terminaide Tetris Demo"
+            print("\033[2;{}H{}".format((cols - len(title)) // 2, title))
+            
+            # Show what terminaide does
+            info_msg = "Terminaide: Serving terminal applications in web browsers"
+            print("\033[3;{}H{}".format((cols - len(info_msg)) // 2, info_msg))
+            
+            # Show it's demonstrating client script only mode
+            mode_msg = "This demonstrated 'Client Script Only Mode'"
+            print("\033[4;{}H{}".format((cols - len(mode_msg)) // 2, mode_msg))
+            
+            # Thank you message
+            msg = "Thanks for playing!"
+            print("\033[6;{}H{}".format((cols - len(msg)) // 2, msg))
+            
+            # Goodbye
+            print("\033[7;{}H{}".format((cols - len("Goodbye!")) // 2, "Goodbye!"))
             sys.stdout.flush()
         except:
             pass
