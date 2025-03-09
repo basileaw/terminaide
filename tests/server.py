@@ -2,16 +2,15 @@
 # tests/server.py
 
 """
-Test server for terminaide that supports multiple configuration patterns.
+Test server for terminaide that demonstrates three key configuration patterns.
 
-This script demonstrates four key ways of configuring terminaide to understand
+This script demonstrates the primary ways of configuring terminaide to understand
 how each pattern works in practice:
 
 Usage:
     python server.py                  # Default mode - shows instructions demo
-    python server.py --mode single    # Single client script (Tetris) at root
-    python server.py --mode multi     # Multiple script routes with index at root
-    python server.py --mode mixed     # HTML page at root, scripts at other routes
+    python server.py --mode single    # Single application with Termin-Arcade menu
+    python server.py --mode multi     # HTML page at root, terminal games at routes
 """
 
 import argparse
@@ -48,7 +47,7 @@ def create_custom_root_endpoint(app: FastAPI):
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Terminaide</title>
+            <title>Termin-Arcade</title>
             <link rel="icon" type="image/x-icon" href="{request.url_for('static', path='favicon.ico')}">
             <style>
                 body {{
@@ -102,10 +101,11 @@ def create_custom_root_endpoint(app: FastAPI):
             </style>
         </head>
         <body>
-            <h1>Terminaide Terminal Games</h1>
+            <h1>Termin-Arcade</h1>
             
             <div class="card">
                 This demo shows how HTML pages and terminal applications can be combined in one server.
+                Each game runs in its own terminal instance.
             </div>
             
             <div class="terminal-box">
@@ -113,9 +113,9 @@ def create_custom_root_endpoint(app: FastAPI):
             </div>
             
             <div class="links">
-                <a href="/terminal1" class="terminal-link">Snake Game</a>
-                <a href="/terminal2" class="terminal-link">Pong Game</a>
-                <a href="/terminal3" class="terminal-link">Tetris Game</a>
+                <a href="/snake" class="terminal-link">Snake</a>
+                <a href="/tetris" class="terminal-link">Tetris</a>
+                <a href="/pong" class="terminal-link">Pong</a>
             </div>
             
             <a href="/info" class="info-link">Server Configuration Info</a>
@@ -135,9 +135,8 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
             "client_script": str(CLIENT_SCRIPT),
             "modes": {
                 "default": "Default configuration - shows instructions demo",
-                "single": "Single script at root - Tetris game",
-                "multi": "Multiple scripts with index.py at root, games at other routes",
-                "mixed": "HTML page at root, games at other routes"
+                "single": "Single application with Termin-Arcade menu",
+                "multi": "HTML page at root, terminal games at separate routes"
             },
             "usage": "Change mode by running with --mode [mode_name]",
             "notes": [
@@ -201,54 +200,34 @@ def create_app() -> FastAPI:
         )
         
     elif mode == "single":
-        # Single mode: just one client script at root
-        # This demonstrates running a standalone terminal application
-        description = "Single script at root - Tetris game"
+        # Single mode: One cohesive application with internal navigation
+        # The index.py script serves as a menu that can launch different games
+        description = "Single application with Termin-Arcade menu"
         serve_tty(
             app,
-            client_script=[CLIENT_SCRIPT, "--tetris"],
-            title="Single Script Mode",
+            client_script=[CLIENT_SCRIPT, "--index"],
+            title="Termin-Arcade",
             debug=True
         )
         
     elif mode == "multi":
-        # Multi mode: client script (index) at root + script routes for games
-        # This demonstrates a central menu with links to other terminal applications
-        description = "Multiple scripts with index.py at root, games at other routes"
-        serve_tty(
-            app,
-            client_script=[CLIENT_SCRIPT, "--index"],      # Index menu at root
-            script_routes={
-                "/terminal1": [CLIENT_SCRIPT, "--snake"],  # Snake game
-                "/terminal2": [CLIENT_SCRIPT, "--pong"],   # Pong game
-                "/terminal3": [CLIENT_SCRIPT, "--tetris"]  # Tetris game
-            },
-            title="Multi-Script Mode",
-            debug=True
-        )
-        
-    elif mode == "mixed":
-        # Mixed mode: HTML page at root + script routes for games
+        # Multi mode: HTML page at root + separate terminal routes for games
         # This demonstrates how terminaide can be integrated with regular web pages
-        description = "HTML page at root, games at other routes"
+        description = "HTML page at root, terminal games at separate routes"
         
         # Define custom HTML root BEFORE serve_tty
         # Note: Order matters! The first route defined for a path takes precedence.
-        # If we were to call serve_tty() before defining this route, and if serve_tty 
-        # tried to assign a route to "/", terminaide's route would take precedence.
-        # This demonstrates an important principle: route definition order determines priority.
         create_custom_root_endpoint(app)
         
-        # When serve_tty is called, it will NOT override our custom root route
-        # because we defined it first.
+        # Configure separate routes for each game
         serve_tty(
             app,
             script_routes={
-                "/terminal1": [CLIENT_SCRIPT, "--snake"],  # Snake game
-                "/terminal2": [CLIENT_SCRIPT, "--pong"],   # Pong game
-                "/terminal3": [CLIENT_SCRIPT, "--tetris"]  # Tetris game
+                "/snake": [CLIENT_SCRIPT, "--snake"],
+                "/tetris": [CLIENT_SCRIPT, "--tetris"],
+                "/pong": [CLIENT_SCRIPT, "--pong"]
             },
-            title="Mixed Mode",
+            title="Termin-Arcade Games",
             debug=True
         )
         
@@ -268,7 +247,7 @@ def parse_args():
     )
     parser.add_argument(
         "--mode",
-        choices=["default", "single", "multi", "mixed"],
+        choices=["default", "single", "multi"],
         default="default",
         help="Which configuration pattern to test (default: default)"
     )
@@ -300,17 +279,13 @@ def main():
     if args.mode == "default":
         logger.info("Default mode - showing built-in instructions demo")
     elif args.mode == "single":
-        logger.info("Single mode - Tetris game running at root path (/)")
+        logger.info("Single mode - Termin-Arcade menu at root path (/)")
+        logger.info("Menu provides access to Snake, Tetris, and Pong games")
     elif args.mode == "multi":
-        logger.info("Multi mode - index.py menu at root with links to:")
-        logger.info("  /terminal1 - Snake Game")
-        logger.info("  /terminal2 - Pong Game")
-        logger.info("  /terminal3 - Tetris Game")
-    elif args.mode == "mixed":
-        logger.info("Mixed mode - HTML page at root with links to:")
-        logger.info("  /terminal1 - Snake Game")
-        logger.info("  /terminal2 - Pong Game")
-        logger.info("  /terminal3 - Tetris Game")
+        logger.info("Multi mode - HTML page at root with links to:")
+        logger.info("  /snake - Snake Game")
+        logger.info("  /tetris - Tetris Game")
+        logger.info("  /pong - Pong Game")
 
     uvicorn.run(
         "tests.server:create_app",
