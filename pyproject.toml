@@ -22,18 +22,20 @@ pydantic = ">=2.4.2"
 readchar = "^4.2.1"
 uvicorn = ">=0.24.0"
 
-# [tool.poetry.group.test.dependencies]
-# uvicorn = ">=0.24.0"
-
 [tool.poetry.group.dev.dependencies]
 docker = "^7.1.0"
 poethepoet = "^0.33.0"
 
-[tool.poe.tasks]
-serve = { cmd = "python tests/server.py", help = "Run the server in default mode" }
-serve-single = { cmd = "python tests/server.py --mode single", help = "Run in single mode" }
-serve-multi = { cmd = "python tests/server.py --mode multi", help = "Run in multi mode" }
-serve-container = { cmd = "python tests/container.py", help = "Run in container mode" }
+[tool.poe.tasks.serve]
+cmd = "python tests/server.py ${args}"
+help = """
+Run example server in one of 4 modes (also supports --port flag):
+
+  default   - No client_script, script_routes, or server routes (shows instructions by default).
+  single    - Client_script launches all games from root (no script_routes/server routes).
+  multi     - Serves HTML menu at root, with separate routes for different games.
+  container - Runs multi-mode inside a Docker container.
+"""
 
 [tool.poe.tasks.release]
 args = ["type"]

@@ -29,10 +29,10 @@ from .index import run_demo as _show_index
 
 def run():
     """
-    Run the default terminaide demo (snake game).
+    Display the default terminaide instructions (snake game).
     
     This function executes the default terminaide demo,
-    showing a snake game in the terminal.
+    showing config instructions in the terminal.
     
     Example:
         from terminaide import demos
@@ -40,7 +40,7 @@ def run():
         if __name__ == "__main__":
             demos.run()
     """
-    _run_snake()
+    _show_instructions()
 
 def play_snake():
     """

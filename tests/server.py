@@ -7,25 +7,30 @@ Test server for terminaide that supports multiple configuration patterns.
 This script demonstrates key ways of configuring and running terminaide:
 
 Usage:
-    python server.py                        # Default mode - shows instructions demo
-    python server.py --mode single          # Single application with Termin-Arcade menu
-    python server.py --mode multi           # HTML page at root, terminal games at routes
-    python server.py --mode container       # Run the server in a Docker container
+    python server.py                    # Default mode - shows instructions demo
+    python server.py single             # Single application with Termin-Arcade menu
+    python server.py multi              # HTML page at root, terminal games at routes
+    python server.py container          # Run the server in a Docker container
+    
+    # You can also use flags for compatibility:
+    python server.py --mode single      # Same as "python server.py single"
+    
+    # Both styles support the port flag:
+    python server.py --port 8888        # Default mode on port 8888
+    python server.py single --port 8888 # Single mode on port 8888
 """
 
-import argparse
-import logging
 import os
 import sys
 import json
 import shutil
+import logging
+import argparse
 import tempfile
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional, List
-
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from terminaide import serve_tty
 
 import uvicorn
@@ -46,11 +51,16 @@ def create_custom_root_endpoint(app: FastAPI):
     """Add a custom root endpoint to the app that returns HTML."""
     @app.get("/", response_class=HTMLResponse)
     async def custom_root(request: Request):
+        # --- BEGIN CHANGE FOR CONTAINER TITLE ---
+        # If CONTAINER_MODE is set, we show "Container" instead of "Multi"
+        title_mode = "Container" if os.environ.get("CONTAINER_MODE") == "true" else "Multi"
+        # --- END CHANGE FOR CONTAINER TITLE ---
+
         html_content = f"""
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Termin-Arcade</title>
+            <title>Termin-Arcade ({title_mode})</title>
             <link rel="icon" type="image/x-icon" href="{request.url_for('static', path='favicon.ico')}">
             <style>
                 body {{
@@ -112,7 +122,7 @@ def create_custom_root_endpoint(app: FastAPI):
             </div>
             
             <div class="terminal-box">
-                Available Terminal Games
+                Available Games
             </div>
             
             <div class="links">
@@ -142,7 +152,7 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
                 "multi": "HTML page at root, terminal games at separate routes",
                 "container": "Run server in a Docker container"
             },
-            "usage": "Change mode by running with --mode [mode_name]",
+            "usage": "Run with: python server.py [mode] or python server.py --mode [mode]",
             "notes": [
                 "Route priority: User-defined routes take precedence over terminaide routes",
                 "Order of route definition matters",
@@ -210,7 +220,7 @@ def create_app() -> FastAPI:
         serve_tty(
             app,
             client_script=[CLIENT_SCRIPT, "--index"],
-            title="Termin-Arcade",
+            title="Termin-Arcade (Single)",
             debug=True
         )
         
@@ -231,7 +241,6 @@ def create_app() -> FastAPI:
                 "/tetris": [CLIENT_SCRIPT, "--tetris"],
                 "/pong": [CLIENT_SCRIPT, "--pong"]
             },
-            title="Termin-Arcade Games",
             debug=True
         )
         
@@ -259,7 +268,7 @@ def generate_requirements_txt(pyproject_path, temp_dir):
         logger.info("Generating requirements.txt from pyproject.toml (including all except dev dependencies)")
         req_path = Path(temp_dir) / "requirements.txt"
         
-        # Use poetry to export dependencies, excluding dev dependencies
+        # Use poetry to export dependencies, including main and all other groups except dev
         result = subprocess.run(
             ["poetry", "export", "--without", "dev", "--format", "requirements.txt"],
             cwd=pyproject_path.parent,
@@ -267,6 +276,7 @@ def generate_requirements_txt(pyproject_path, temp_dir):
             text=True,
             check=True
         )
+        
         with open(req_path, "w") as f:
             f.write(result.stdout)
             
@@ -378,14 +388,17 @@ CMD ["python", "tests/server.py", "--mode", "multi"]
         except docker.errors.NotFound:
             pass
         
-        # Run the container
+        # --- BEGIN CHANGE FOR CONTAINER TITLE ---
+        # Pass an environment variable so we know we are inside a container
         logger.info(f"Starting container {container_name} on port {port}")
         container = client.containers.run(
             image.id,
             name=container_name,
             ports={f"8000/tcp": port},
-            detach=True
+            detach=True,
+            environment={"CONTAINER_MODE": "true"}
         )
+        # --- END CHANGE FOR CONTAINER TITLE ---
         
         logger.info(f"Container started with ID: {container.id[:12]}")
         logger.info(f"Access the terminal at: http://localhost:{port}")
@@ -412,57 +425,82 @@ CMD ["python", "tests/server.py", "--mode", "multi"]
 
 
 def parse_args():
-    """Parse command line arguments."""
+    """Parse command line arguments with support for both positional and flag-based mode selection."""
     parser = argparse.ArgumentParser(
         description="Test server for terminaide with different configuration patterns."
     )
+    
+    # Add positional argument for mode (optional, defaults to "default")
+    parser.add_argument(
+        "mode_pos",
+        nargs="?",  # Makes this an optional positional argument
+        choices=["default", "single", "multi", "container"],
+        default="default",
+        help="Server mode (positional argument)"
+    )
+    
+    # Keep --mode flag for backward compatibility
     parser.add_argument(
         "--mode",
         choices=["default", "single", "multi", "container"],
-        default="default",
-        help="Which configuration pattern to test (default: default)"
+        help="Server mode (overrides positional argument if provided)"
     )
+    
     parser.add_argument(
         "--port",
         type=int,
         default=8000,
         help="Port to run the server on (default: 8000)"
     )
-    return parser.parse_args()
+    
+    args = parser.parse_args()
+    
+    # Determine which mode to use (flag has precedence over positional)
+    if args.mode is not None:
+        mode = args.mode
+    else:
+        mode = args.mode_pos
+    
+    # Add the resolved mode back to args for convenience
+    args.actual_mode = mode
+    
+    return args
 
 
 def main():
     """
     Main function that handles all modes including container mode.
-    We store --mode in an environment variable for create_app() to use
+    We store the mode in an environment variable for create_app() to use
     when running in non-container modes.
     """
     args = parse_args()
 
+    # Get the resolved mode
+    mode = args.actual_mode
+    
     # Set mode in an env variable so create_app() sees it on reload
-    os.environ["TERMINAIDE_MODE"] = args.mode
+    os.environ["TERMINAIDE_MODE"] = mode
 
-    # Common log message about port for all modes
-    logger.info(f"Using port {args.port} for all operations")
+    # Common log message for all modes
+    logger.info(f"Starting server in {mode.upper()} mode on port {args.port}")
 
     # Handle special container mode
-    if args.mode == "container":
-        logger.info(f"Starting container mode")
+    if mode == "container":
+        logger.info("Running in container mode")
         build_and_run_container(port=args.port)
         return
 
-    # Normal server modes
-    logger.info(f"Starting server in {args.mode.upper()} mode")
+    # For regular server modes
     logger.info(f"Visit http://localhost:{args.port} to see the main interface")
     logger.info(f"Visit http://localhost:{args.port}/info for configuration details")
 
     # Mode-specific information
-    if args.mode == "default":
+    if mode == "default":
         logger.info("Default mode - showing built-in instructions demo")
-    elif args.mode == "single":
+    elif mode == "single":
         logger.info("Single mode - Termin-Arcade menu at root path (/)")
         logger.info("Menu provides access to Snake, Tetris, and Pong games")
-    elif args.mode == "multi":
+    elif mode == "multi":
         logger.info("Multi mode - HTML page at root with links to:")
         logger.info("  /snake - Snake Game")
         logger.info("  /tetris - Tetris Game")

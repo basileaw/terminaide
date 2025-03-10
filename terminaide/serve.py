@@ -202,7 +202,7 @@ def _create_script_configs(
             ScriptConfig(
                 route_path="/",
                 client_script=demo_path,
-                title="Terminaide Demo"
+                title="Terminaide (Instructions)"
             )
         )
     
@@ -308,7 +308,7 @@ async def _demo_middleware(request: Request, call_next):
                     "request": request,
                     "mount_path": terminal_path,
                     "theme": config.theme.model_dump(),
-                    "title": "Terminaide Demo"
+                    "title": "Terminaide (Instructions)"
                 }
             )
         except Exception as e:
