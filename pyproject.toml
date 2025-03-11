@@ -27,7 +27,7 @@ docker = "^7.1.0"
 poethepoet = "^0.33.0"
 
 [tool.poe.tasks.serve]
-cmd = "python tests/server.py ${args}"
+cmd = "python example/server.py ${args}"
 help = """
 Run example server in one of 4 modes (also supports --port flag):
 

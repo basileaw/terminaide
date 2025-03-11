@@ -1,4 +1,4 @@
-# tests/client.py
+# example/client.py
 
 """
 Example client script for terminaide.
