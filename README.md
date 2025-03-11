@@ -12,11 +12,11 @@ pip install terminaide
 
 ```python
 from fastapi import FastAPI
-from terminaide import serve_tty
+from terminaide import serve_terminal
 
 app = FastAPI()
 
-serve_tty(app, client_script="path/to/your/script.py")
+serve_terminal(app, client_script="path/to/your/script.py")
 ```
 
 ## Development

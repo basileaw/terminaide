@@ -8,7 +8,7 @@ service within a FastAPI application. It now supports multiple script configurat
 allowing different scripts to be served on different routes.
 
 The implementation uses a middleware-based approach to ensure that user-defined routes
-take precedence over the demo, even when those routes are defined after calling serve_tty().
+take precedence over the demo, even when those routes are defined after calling serve_terminal().
 
 All side effects (like spawning ttyd processes) happen only when the server truly starts.
 """
@@ -326,7 +326,7 @@ async def _demo_middleware(request: Request, call_next):
     """
     Middleware that serves the demo at the root path if no other route handles it.
     
-    This middleware lets users define their own root routes after calling serve_tty(),
+    This middleware lets users define their own root routes after calling serve_terminal(),
     while still providing the helpful demo when no user route is defined.
     """
     # First, let the request go through the normal routing process
@@ -364,7 +364,7 @@ async def _demo_middleware(request: Request, call_next):
     return response
 
 
-def serve_tty(
+def serve_terminal(
     app: FastAPI,
     client_script: Optional[Union[str, Path]] = None,
     *,
@@ -400,10 +400,10 @@ def serve_tty(
         
     Example:
         Single script:
-            serve_tty(app, client_script="script.py")
+            serve_terminal(app, client_script="script.py")
             
         Multiple scripts:
-            serve_tty(
+            serve_terminal(
                 app,
                 terminal_routes={
                     "/snake": "snake.py",
@@ -412,7 +412,7 @@ def serve_tty(
             )
             
         Multiple scripts with custom titles:
-            serve_tty(
+            serve_terminal(
                 app,
                 terminal_routes={
                     "/snake": {
@@ -423,8 +423,8 @@ def serve_tty(
                 }
             )
             
-        User can define their own routes after serve_tty():
-            serve_tty(app, terminal_routes={"/terminal": "app.py"})
+        User can define their own routes after serve_terminal():
+            serve_terminal(app, terminal_routes={"/terminal": "app.py"})
             
             @app.get("/")
             def custom_root():

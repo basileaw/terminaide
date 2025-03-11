@@ -14,7 +14,7 @@ Supported Platforms:
 """
 
 import logging
-from .serve import serve_tty, _configure_app  # Import only definitions, no side effects
+from .serve import serve_terminal, _configure_app  # Import only definitions, no side effects
 from .core.settings import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
 from .installer import setup_ttyd, get_platform_info
 from .demos import run as demo_run
@@ -44,7 +44,7 @@ logging.getLogger("terminaide").addHandler(logging.NullHandler())
 __version__ = "0.3.0"  # Updated version number for multi-script support
 __all__ = [
     # Main functionality
-    "serve_tty",
+    "serve_terminal",
     "TTYDConfig",
     "ScriptConfig",
     "ThemeConfig",

@@ -31,7 +31,7 @@ import subprocess
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from terminaide import serve_tty
+from terminaide import serve_terminal
 
 import uvicorn
 
@@ -156,7 +156,7 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
             "notes": [
                 "Route priority: User-defined routes take precedence over terminaide routes",
                 "Order of route definition matters",
-                "Custom routes can be defined before or after serve_tty() with different results"
+                "Custom routes can be defined before or after serve_terminal() with different results"
             ]
         }
         return f"""<!DOCTYPE html>
@@ -184,8 +184,8 @@ def create_app() -> FastAPI:
        the same path, the one defined FIRST in the code takes precedence.
     
     2. Root Path Handling: If you want your own content at the root path (/),
-       either define your route BEFORE calling serve_tty() or don't specify
-       a client_script or root path in terminal_routes when calling serve_tty().
+       either define your route BEFORE calling serve_terminal() or don't specify
+       a client_script or root path in terminal_routes when calling serve_terminal().
     
     3. Configuration Interactions: 
        - If client_script is provided, it runs at the root path (/)
@@ -207,7 +207,7 @@ def create_app() -> FastAPI:
         # Default mode: no client script, no terminal routes
         # Important: In this configuration, terminaide will show its built-in instructions demo
         description = "Default configuration - shows instructions demo"
-        serve_tty(
+        serve_terminal(
             app,
             title="Default Mode",
             debug=True
@@ -217,7 +217,7 @@ def create_app() -> FastAPI:
         # Single mode: One cohesive application with internal navigation
         # The index.py script serves as a menu that can launch different games
         description = "Single application with Termin-Arcade menu"
-        serve_tty(
+        serve_terminal(
             app,
             client_script=[CLIENT_SCRIPT, "--index"],
             title="Termin-Arcade (Single)",
@@ -229,12 +229,12 @@ def create_app() -> FastAPI:
         # This demonstrates how terminaide can be integrated with regular web pages
         description = "HTML page at root, terminal games at separate routes"
         
-        # Define custom HTML root BEFORE serve_tty
+        # Define custom HTML root BEFORE serve_terminal
         # Note: Order matters! The first route defined for a path takes precedence.
         create_custom_root_endpoint(app)
         
         # Configure separate routes for each game
-        serve_tty(
+        serve_terminal(
             app,
             terminal_routes={
                 "/snake": {
@@ -508,7 +508,7 @@ def main():
         logger.info("Default mode - showing built-in instructions demo")
     elif mode == "single":
         logger.info("Single mode - Termin-Arcade menu at root path (/)")
-        logger.info("Menu provides access to Snake, Tetris, and Pong games")
+        logger.info("Menu provides access to Snake, Tetris, and Pong demos")
     elif mode == "multi":
         logger.info("Multi mode - HTML page at root with links to:")
         logger.info("  /snake - Snake Game")

@@ -1,7 +1,7 @@
 # terminaide/demos/pong.py
 
 """
-Pong game demo for terminaide.
+Pong demo for terminaide.
 
 This module provides a playable Pong game in the terminal.
 It's one of the built-in demos for the terminaide package.
@@ -17,7 +17,7 @@ _stdscr = None
 exit_requested = False  # Set by the SIGINT handler when Ctrl+C is pressed.
 
 def pong(stdscr):
-    """Main entry point for the Pong game."""
+    """Main entry point for the Pong demo."""
     global _stdscr
     _stdscr = stdscr
     signal.signal(signal.SIGINT, handle_exit)

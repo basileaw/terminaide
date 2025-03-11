@@ -14,11 +14,11 @@ Example:
         demos.run()
         
         # Or explicitly choose a demo
+        demos.show_index()
         demos.play_snake()
         demos.play_pong()
         demos.play_tetris()
         demos.show_instructions()
-        demos.show_index()
 """
 
 from .snake import run_demo as _run_snake
@@ -44,7 +44,7 @@ def run():
 
 def play_snake():
     """
-    Run the Snake game demo.
+    Run the Snake demo.
     
     This function executes the Snake game demo in the terminal.
     
@@ -58,9 +58,9 @@ def play_snake():
 
 def play_pong():
     """
-    Run the Pong game demo.
+    Run the Pong demo.
     
-    This function executes the Pong game demo in the terminal.
+    This function executes the Pong demo in the terminal.
     
     Example:
         from terminaide import demos

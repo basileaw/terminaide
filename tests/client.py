@@ -29,19 +29,19 @@ def main():
     group.add_argument(
         "--pong",
         action="store_true",
-        help="Run the Pong game demo."
+        help="Run the Pong demo."
     )
     group.add_argument(
         "--tetris",
         action="store_true",
-        help="Run the Tetris game demo."
+        help="Run the Tetris demo."
     )
     
     # Keep the original alternate flag for backward compatibility
     group.add_argument(
         "--alternate",
         action="store_true",
-        help="Run the Pong game (legacy option)."
+        help="Run the Pong (legacy option)."
     )
 
     # Parse arguments
@@ -52,13 +52,13 @@ def main():
         # Show the index menu
         show_index()
     elif args.snake:
-        # Run the Snake game
+        # Run the Snake demo
         play_snake()
     elif args.pong or args.alternate:
-        # Run the Pong game
+        # Run the Pong demo
         play_pong()
     elif args.tetris:
-        # Run the Tetris game
+        # Run the Tetris demo
         play_tetris()
     else:
         # By default, show the instructions
