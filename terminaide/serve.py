@@ -131,7 +131,7 @@ def _configure_routes(
 
 def _create_script_configs(
     client_script: Optional[Union[str, Path, List]],
-    script_routes: Optional[Dict[str, Union[str, Path, List]]] = None
+    script_routes: Optional[Dict[str, Union[str, Path, List, Dict[str, Any]]]] = None
 ) -> List[ScriptConfig]:
     """
     Create script configurations from client_script and script_routes.
@@ -143,6 +143,7 @@ def _create_script_configs(
         script_routes: Dictionary mapping routes to script configurations. Values can be:
             - A string or Path object pointing to the script
             - A list where the first element is the script path and remaining elements are arguments
+            - A dict with keys like "client_script" (required), "title", "args" (optional)
         
     Returns:
         List of ScriptConfig objects
@@ -177,22 +178,66 @@ def _create_script_configs(
     # Add script routes
     if script_routes:
         for route_path, script_spec in script_routes.items():
-            # Handle case where script_spec is a list [script_path, arg1, arg2, ...]
-            if isinstance(script_spec, list) and len(script_spec) > 0:
+            # Handle different script_spec formats
+            
+            # Case 1: script_spec is a dictionary with configuration options
+            if isinstance(script_spec, dict) and "client_script" in script_spec:
+                # Get the script path and args
+                script_value = script_spec["client_script"]
+                
+                if isinstance(script_value, list) and len(script_value) > 0:
+                    script_path = script_value[0]
+                    args = script_value[1:] if len(script_value) > 1 else []
+                else:
+                    script_path = script_value
+                    args = []
+                
+                # Use explicit args if provided
+                if "args" in script_spec:
+                    args = script_spec["args"]
+                
+                # Create config with all available fields
+                config_kwargs = {
+                    "route_path": route_path,
+                    "client_script": script_path,
+                    "args": args
+                }
+                
+                # Add optional title if provided
+                if "title" in script_spec:
+                    config_kwargs["title"] = script_spec["title"]
+                
+                # Add optional port if provided
+                if "port" in script_spec:
+                    config_kwargs["port"] = script_spec["port"]
+                
+                script_configs.append(ScriptConfig(**config_kwargs))
+            
+            # Case 2: script_spec is a list [script_path, arg1, arg2, ...]
+            elif isinstance(script_spec, list) and len(script_spec) > 0:
                 script_path = script_spec[0]
                 args = script_spec[1:] if len(script_spec) > 1 else []
+                
+                script_configs.append(
+                    ScriptConfig(
+                        route_path=route_path,
+                        client_script=script_path,
+                        args=args
+                    )
+                )
+                
+            # Case 3: script_spec is a string or Path object
             else:
-                # Traditional case - just a script path
                 script_path = script_spec
                 args = []
                 
-            script_configs.append(
-                ScriptConfig(
-                    route_path=route_path,
-                    client_script=script_path,
-                    args=args
+                script_configs.append(
+                    ScriptConfig(
+                        route_path=route_path,
+                        client_script=script_path,
+                        args=args
+                    )
                 )
-            )
     
     # Always add the demo to root path if no explicit root is defined
     # This ensures it's properly configured and started with other processes
@@ -323,7 +368,7 @@ def serve_tty(
     app: FastAPI,
     client_script: Optional[Union[str, Path]] = None,
     *,
-    script_routes: Optional[Dict[str, Union[str, Path]]] = None,
+    script_routes: Optional[Dict[str, Union[str, Path, List, Dict[str, Any]]]] = None,
     mount_path: str = "/",
     port: int = 7681,
     theme: Optional[Dict[str, Any]] = None,
@@ -341,7 +386,10 @@ def serve_tty(
     Args:
         app: FastAPI application to attach the lifespan to
         client_script: Path to the script to run in the terminal (for single script)
-        script_routes: Dictionary mapping routes to script paths (for multi-script)
+        script_routes: Dictionary mapping routes to script configurations. Values can be:
+            - A string or Path object pointing to the script
+            - A list where the first element is the script path and remaining elements are arguments
+            - A dict with keys like "client_script" (required), "title", "args" (optional)
         mount_path: Base path where terminal will be mounted
         port: Base port for ttyd processes
         theme: Terminal theme configuration
@@ -359,6 +407,18 @@ def serve_tty(
                 app,
                 script_routes={
                     "/snake": "snake.py",
+                    "/chat": "chat.py"
+                }
+            )
+            
+        Multiple scripts with custom titles:
+            serve_tty(
+                app,
+                script_routes={
+                    "/snake": {
+                        "client_script": ["snake.py", "--level", "easy"],
+                        "title": "Snake Game"
+                    },
                     "/chat": "chat.py"
                 }
             )

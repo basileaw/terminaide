@@ -237,9 +237,18 @@ def create_app() -> FastAPI:
         serve_tty(
             app,
             script_routes={
-                "/snake": [CLIENT_SCRIPT, "--snake"],
-                "/tetris": [CLIENT_SCRIPT, "--tetris"],
-                "/pong": [CLIENT_SCRIPT, "--pong"]
+                "/snake": {
+                    "client_script": [CLIENT_SCRIPT, "--snake"],
+                    "title": "Termin-Arcade (Snake)"
+                },
+                "/tetris": {
+                    "client_script": [CLIENT_SCRIPT, "--tetris"],
+                    "title": "Termin-Arcade (Tetris)"
+                },
+                "/pong": {
+                    "client_script": [CLIENT_SCRIPT, "--pong"],
+                    "title": "Termin-Arcade (Pong)"
+                }
             },
             debug=True
         )

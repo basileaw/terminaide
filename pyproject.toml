@@ -31,15 +31,16 @@ cmd = "python tests/server.py ${args}"
 help = """
 Run example server in one of 4 modes (also supports --port flag):
 
-  default   - No client_script, script_routes, or server routes (shows instructions by default).
-  single    - Client_script launches all games from root (no script_routes/server routes).
-  multi     - Serves HTML menu at root, with separate routes for different games.
-  container - Runs multi-mode inside a Docker container.
+default   - No client_script/script_routes/server routes (serves instructions by default).
+single    - Client_script launches all games from root (no script_routes/server routes).
+multi     - Serves HTML menu at root, with separate routes for different games.
+container - Runs multi-mode inside a Docker container.
+​
 """
 
 [tool.poe.tasks.release]
-args = ["type"]
 help = "Release a new version (patch/minor/major)"
+args = ["type"]
 sequence = [
   { cmd = "poetry version ${type}" },
   { cmd = "git add pyproject.toml" },
