@@ -11,7 +11,6 @@ import curses
 import random
 import signal
 import sys
-import time
 
 _stdscr = None
 exit_requested = False  # Set by the SIGINT handler when Ctrl+C is pressed.
@@ -240,7 +239,7 @@ def draw_screen(stdscr, win, left_y, right_y, left_x, right_x, paddle_height,
 def draw_border(win):
     """Draw border around the game window."""
     win.box()
-    title = "PONG GAME"
+    title = "PLAY PONG"
     w = win.getmaxyx()[1]
     if w > len(title) + 4:
         win.addstr(0, (w - len(title)) // 2, title, curses.A_BOLD | curses.color_pair(5))

@@ -29,7 +29,7 @@ from .index import run_demo as _show_index
 
 def run():
     """
-    Display the default terminaide instructions (snake game).
+    Display the default terminaide instructions.
     
     This function executes the default terminaide demo,
     showing config instructions in the terminal.
