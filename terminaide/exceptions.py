@@ -159,7 +159,7 @@ class PortAllocationError(ConfigurationError):
 class ScriptConfigurationError(ConfigurationError):
     """Raised when there are issues with script configurations."""
     def __init__(self, message: str, route_path: Optional[str] = None):
-        field = f"script_routes[{route_path}]" if route_path else "script_routes"
+        field = f"terminal_routes[{route_path}]" if route_path else "terminal_routes"
         super().__init__(message, field=field)
         self.route_path = route_path
 

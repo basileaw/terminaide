@@ -57,7 +57,7 @@ class ThemeConfig(BaseModel):
 
 class ScriptConfig(BaseModel):
     """
-    Configuration for a single script route.
+    Configuration for a single terminal route.
     
     Each script configuration represents a unique terminal endpoint with its own
     script, port, and optional custom title. Scripts can now receive command-line

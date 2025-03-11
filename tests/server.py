@@ -185,11 +185,11 @@ def create_app() -> FastAPI:
     
     2. Root Path Handling: If you want your own content at the root path (/),
        either define your route BEFORE calling serve_tty() or don't specify
-       a client_script or root path in script_routes when calling serve_tty().
+       a client_script or root path in terminal_routes when calling serve_tty().
     
     3. Configuration Interactions: 
        - If client_script is provided, it runs at the root path (/)
-       - If script_routes includes "/", it overrides the default behavior
+       - If terminal_routes includes "/", it overrides the default behavior
        - If neither is specified, terminaide shows its instructions demo
     
     4. FastAPI Integration: Terminaide works seamlessly with existing FastAPI
@@ -204,7 +204,7 @@ def create_app() -> FastAPI:
 
     # Mode-specific configuration
     if mode == "default":
-        # Default mode: no client script, no script routes
+        # Default mode: no client script, no terminal routes
         # Important: In this configuration, terminaide will show its built-in instructions demo
         description = "Default configuration - shows instructions demo"
         serve_tty(
@@ -236,7 +236,7 @@ def create_app() -> FastAPI:
         # Configure separate routes for each game
         serve_tty(
             app,
-            script_routes={
+            terminal_routes={
                 "/snake": {
                     "client_script": [CLIENT_SCRIPT, "--snake"],
                     "title": "Termin-Arcade (Snake)"

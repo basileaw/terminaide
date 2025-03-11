@@ -131,16 +131,16 @@ def _configure_routes(
 
 def _create_script_configs(
     client_script: Optional[Union[str, Path, List]],
-    script_routes: Optional[Dict[str, Union[str, Path, List, Dict[str, Any]]]] = None
+    terminal_routes: Optional[Dict[str, Union[str, Path, List, Dict[str, Any]]]] = None
 ) -> List[ScriptConfig]:
     """
-    Create script configurations from client_script and script_routes.
+    Create script configurations from client_script and terminal_routes.
     
     Args:
         client_script: Default script for the root path. Can be:
             - A string or Path object pointing to the script
             - A list where the first element is the script path and remaining elements are arguments
-        script_routes: Dictionary mapping routes to script configurations. Values can be:
+        terminal_routes: Dictionary mapping routes to script configurations. Values can be:
             - A string or Path object pointing to the script
             - A list where the first element is the script path and remaining elements are arguments
             - A dict with keys like "client_script" (required), "title", "args" (optional)
@@ -153,8 +153,8 @@ def _create_script_configs(
     """
     script_configs = []
     
-    # Check if root path is explicitly defined in script_routes
-    has_root_path = script_routes and "/" in script_routes
+    # Check if root path is explicitly defined in terminal_routes
+    has_root_path = terminal_routes and "/" in terminal_routes
     
     # Add default client script for root path if provided and root not already defined
     if client_script is not None and not has_root_path:
@@ -175,9 +175,9 @@ def _create_script_configs(
             )
         )
     
-    # Add script routes
-    if script_routes:
-        for route_path, script_spec in script_routes.items():
+    # Add terminal routes
+    if terminal_routes:
+        for route_path, script_spec in terminal_routes.items():
             # Handle different script_spec formats
             
             # Case 1: script_spec is a dictionary with configuration options
@@ -368,7 +368,7 @@ def serve_tty(
     app: FastAPI,
     client_script: Optional[Union[str, Path]] = None,
     *,
-    script_routes: Optional[Dict[str, Union[str, Path, List, Dict[str, Any]]]] = None,
+    terminal_routes: Optional[Dict[str, Union[str, Path, List, Dict[str, Any]]]] = None,
     mount_path: str = "/",
     port: int = 7681,
     theme: Optional[Dict[str, Any]] = None,
@@ -386,7 +386,7 @@ def serve_tty(
     Args:
         app: FastAPI application to attach the lifespan to
         client_script: Path to the script to run in the terminal (for single script)
-        script_routes: Dictionary mapping routes to script configurations. Values can be:
+        terminal_routes: Dictionary mapping routes to script configurations. Values can be:
             - A string or Path object pointing to the script
             - A list where the first element is the script path and remaining elements are arguments
             - A dict with keys like "client_script" (required), "title", "args" (optional)
@@ -405,7 +405,7 @@ def serve_tty(
         Multiple scripts:
             serve_tty(
                 app,
-                script_routes={
+                terminal_routes={
                     "/snake": "snake.py",
                     "/chat": "chat.py"
                 }
@@ -414,7 +414,7 @@ def serve_tty(
         Multiple scripts with custom titles:
             serve_tty(
                 app,
-                script_routes={
+                terminal_routes={
                     "/snake": {
                         "client_script": ["snake.py", "--level", "easy"],
                         "title": "Snake Game"
@@ -424,14 +424,14 @@ def serve_tty(
             )
             
         User can define their own routes after serve_tty():
-            serve_tty(app, script_routes={"/terminal": "app.py"})
+            serve_tty(app, terminal_routes={"/terminal": "app.py"})
             
             @app.get("/")
             def custom_root():
                 return {"message": "Custom home page"}
     """
     # Create script configurations
-    script_configs = _create_script_configs(client_script, script_routes)
+    script_configs = _create_script_configs(client_script, terminal_routes)
     
     # Create TTYDConfig
     config = TTYDConfig(

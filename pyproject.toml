@@ -31,8 +31,8 @@ cmd = "python tests/server.py ${args}"
 help = """
 Run example server in one of 4 modes (also supports --port flag):
 
-default   - No client_script/script_routes/server routes (serves instructions by default).
-single    - Client_script launches all games from root (no script_routes/server routes).
+default   - No client_script/terminal_routes/server routes (serves instructions by default).
+single    - Client_script launches all games from root (no terminal_routes/server routes).
 multi     - Serves HTML menu at root, with separate routes for different games.
 container - Runs multi-mode inside a Docker container.
 ​
