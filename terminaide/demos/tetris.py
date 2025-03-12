@@ -3,11 +3,12 @@
 import curses, random, signal, sys, time, os
 from collections import deque
 
-_stdscr=None
-_exit_requested=False
+_stdscr = None
+_exit_requested = False
+_back_to_menu = False  # New flag to track back-to-menu requests
 
-TETROMINOS=[
- [ [(0,0),(0,1),(0,2),(0,3)],[(0,0),(1,0),(2,0),(3,0)] ],
+TETROMINOS = [
+ [ [(0,0),(0,1),(0,2),(0,3)], [(0,0),(1,0),(2,0),(3,0)] ],
  [ [(0,0),(0,1),(1,0),(1,1)] ],
  [ [(0,1),(1,0),(1,1),(1,2)],
    [(0,0),(1,0),(1,1),(2,0)],
@@ -26,7 +27,7 @@ TETROMINOS=[
  [ [(0,0),(0,1),(1,1),(1,2)],
    [(0,1),(1,0),(1,1),(2,0)] ]
 ]
-TETROMINO_COLORS=[
+TETROMINO_COLORS = [
  curses.COLOR_CYAN,
  curses.COLOR_YELLOW,
  curses.COLOR_MAGENTA,
@@ -36,24 +37,55 @@ TETROMINO_COLORS=[
  curses.COLOR_RED
 ]
 
-def tetris(stdscr):
-    global _stdscr
-    _stdscr=stdscr
-    signal.signal(signal.SIGINT,handle_exit)
-    stdscr.clear();stdscr.refresh()
-    os.system('clear' if os.name=='posix' else 'cls')
+def tetris(stdscr, from_index=False):
+    """Main tetris game function.
+    
+    Args:
+        stdscr: The curses window.
+        from_index: Whether the game was launched from index.py.
+        
+    Returns:
+        str: "back_to_menu" if we should return to menu, None otherwise.
+    """
+    global _stdscr, _exit_requested, _back_to_menu
+    _stdscr = stdscr
+    _exit_requested = False
+    _back_to_menu = False
+    
+    signal.signal(signal.SIGINT, handle_exit)
+    stdscr.clear()
+    stdscr.refresh()
+    os.system('clear' if os.name == 'posix' else 'cls')
     setup_terminal(stdscr)
-    max_y,max_x=stdscr.getmaxyx()
-    high_score=0
+    max_y, max_x = stdscr.getmaxyx()
+    high_score = 0
+    
     while True:
         if _exit_requested:
-            cleanup();return
-        score=run_game(stdscr,max_y,max_x,high_score)
+            # Check if we're returning to menu or exiting completely
+            if _back_to_menu and from_index:
+                cleanup()
+                return "back_to_menu"
+            else:
+                cleanup()
+                return None
+                
+        score = run_game(stdscr, max_y, max_x, high_score, from_index)
+        
         if _exit_requested:
-            cleanup();return
-        high_score=max(high_score,score)
-        if show_game_over(stdscr,score,high_score,max_y,max_x):
+            # Check again after game has run
+            if _back_to_menu and from_index:
+                cleanup()
+                return "back_to_menu"
+            else:
+                cleanup()
+                return None
+                
+        high_score = max(high_score, score)
+        if show_game_over(stdscr, score, high_score, max_y, max_x):
             break
+    
+    return None
 
 def setup_terminal(stdscr):
     curses.curs_set(0)
@@ -63,220 +95,296 @@ def setup_terminal(stdscr):
     curses.use_env(False)
     curses.start_color()
     curses.use_default_colors()
-    for i,c in enumerate(TETROMINO_COLORS):
-        curses.init_pair(i+1,c,-1)
-    curses.init_pair(8,curses.COLOR_WHITE,-1)
-    curses.init_pair(9,curses.COLOR_YELLOW,-1)
+    for i, c in enumerate(TETROMINO_COLORS):
+        curses.init_pair(i+1, c, -1)
+    curses.init_pair(8, curses.COLOR_WHITE, -1)
+    curses.init_pair(9, curses.COLOR_YELLOW, -1)
 
-def run_game(stdscr, max_y, max_x, high_score=0):
-    global _exit_requested
-    board_height=min(20,max_y-7)
-    board_width=min(10,max_x//2-2)
-    start_y=2
-    start_x=(max_x-board_width*2)//2
-    board=[[0 for _ in range(board_width)]for _ in range(board_height)]
-    score=0
-    level=1
-    lines_cleared=0
-    game_speed=500
-    game_win=curses.newwin(board_height+2,board_width*2+2,start_y,start_x)
+def run_game(stdscr, max_y, max_x, high_score=0, from_index=False):
+    """Run the main tetris game loop.
+    
+    Args:
+        stdscr: The curses window.
+        max_y, max_x: Maximum y and x coordinates.
+        high_score: Current high score.
+        from_index: Whether the game was launched from index.py.
+        
+    Returns:
+        int: The final score.
+    """
+    global _exit_requested, _back_to_menu
+    
+    board_height = min(20, max_y-7)
+    board_width = min(10, max_x//2-2)
+    start_y = 2
+    start_x = (max_x-board_width*2)//2
+    board = [[0 for _ in range(board_width)] for _ in range(board_height)]
+    score = 0
+    level = 1
+    lines_cleared = 0
+    game_speed = 500
+    game_win = curses.newwin(board_height+2, board_width*2+2, start_y, start_x)
     game_win.keypad(True)
     game_win.timeout(game_speed)
-    piece_type=random.randint(0,len(TETROMINOS)-1)
-    rotation=0
-    pos=[0,board_width//2-1]
-    next_piece=random.randint(0,len(TETROMINOS)-1)
-    next_win=curses.newwin(6,10,start_y,board_width*2+start_x+4)
-    fall_time=0
-    last_move=time.time()
+    piece_type = random.randint(0, len(TETROMINOS)-1)
+    rotation = 0
+    pos = [0, board_width//2-1]
+    next_piece = random.randint(0, len(TETROMINOS)-1)
+    next_win = curses.newwin(6, 10, start_y, board_width*2+start_x+4)
+    fall_time = 0
+    last_move = time.time()
+    
     while True:
-        if _exit_requested:return score
-        now=time.time()
-        delta=now-last_move
-        last_move=now
-        fall_time+=delta*1000
-        key=game_win.getch()
-        if key in (ord('q'),27):return score
-        if key in[curses.KEY_LEFT,ord('a'),ord('A')]:
-            np=[pos[0],pos[1]-1]
-            if is_valid_position(board,TETROMINOS[piece_type][rotation],np):pos=np
-        elif key in[curses.KEY_RIGHT,ord('d'),ord('D')]:
-            np=[pos[0],pos[1]+1]
-            if is_valid_position(board,TETROMINOS[piece_type][rotation],np):pos=np
-        elif key in[curses.KEY_DOWN,ord('s'),ord('S')]:
-            np=[pos[0]+1,pos[1]]
-            if is_valid_position(board,TETROMINOS[piece_type][rotation],np):
-                pos=np
-                score+=1
-                fall_time=0
-        elif key in[curses.KEY_UP,ord('w'),ord('W')]:
-            r=(rotation+1)%len(TETROMINOS[piece_type])
-            if is_valid_position(board,TETROMINOS[piece_type][r],pos):rotation=r
-        elif key==ord(' '):
-            while is_valid_position(board,TETROMINOS[piece_type][rotation],[pos[0]+1,pos[1]]):
-                pos[0]+=1
-                score+=2
-            fall_time=game_speed+1
-        if fall_time>=game_speed:
-            np=[pos[0]+1,pos[1]]
-            if is_valid_position(board,TETROMINOS[piece_type][rotation],np):
-                pos=np
+        if _exit_requested:
+            return score
+            
+        now = time.time()
+        delta = now-last_move
+        last_move = now
+        fall_time += delta*1000
+        
+        key = game_win.getch()
+        
+        # Check for exit key
+        if key in (ord('q'), 27):  # q or ESC
+            return score
+            
+        # Check for back-to-menu keys (backspace, delete) if launched from index
+        if from_index and key in (curses.KEY_BACKSPACE, 8, 127, curses.KEY_DC, 330):
+            _back_to_menu = True
+            _exit_requested = True
+            return score
+            
+        if key in [curses.KEY_LEFT, ord('a'), ord('A')]:
+            np = [pos[0], pos[1]-1]
+            if is_valid_position(board, TETROMINOS[piece_type][rotation], np):
+                pos = np
+        elif key in [curses.KEY_RIGHT, ord('d'), ord('D')]:
+            np = [pos[0], pos[1]+1]
+            if is_valid_position(board, TETROMINOS[piece_type][rotation], np):
+                pos = np
+        elif key in [curses.KEY_DOWN, ord('s'), ord('S')]:
+            np = [pos[0]+1, pos[1]]
+            if is_valid_position(board, TETROMINOS[piece_type][rotation], np):
+                pos = np
+                score += 1
+                fall_time = 0
+        elif key in [curses.KEY_UP, ord('w'), ord('W')]:
+            r = (rotation+1)%len(TETROMINOS[piece_type])
+            if is_valid_position(board, TETROMINOS[piece_type][r], pos):
+                rotation = r
+        elif key == ord(' '):
+            while is_valid_position(board, TETROMINOS[piece_type][rotation], [pos[0]+1, pos[1]]):
+                pos[0] += 1
+                score += 2
+            fall_time = game_speed+1
+            
+        if fall_time >= game_speed:
+            np = [pos[0]+1, pos[1]]
+            if is_valid_position(board, TETROMINOS[piece_type][rotation], np):
+                pos = np
             else:
-                place_tetromino(board,TETROMINOS[piece_type][rotation],pos,piece_type+1)
-                c=clear_lines(board)
-                if c>0:
-                    lines_cleared+=c
-                    score+=calculate_score(c,level)
-                    level=lines_cleared//10+1
-                    game_speed=max(100,500-(level-1)*50)
+                place_tetromino(board, TETROMINOS[piece_type][rotation], pos, piece_type+1)
+                c = clear_lines(board)
+                if c > 0:
+                    lines_cleared += c
+                    score += calculate_score(c, level)
+                    level = lines_cleared//10+1
+                    game_speed = max(100, 500-(level-1)*50)
                     game_win.timeout(game_speed)
-                piece_type=next_piece
-                rotation=0
-                pos=[0,board_width//2-1]
-                next_piece=random.randint(0,len(TETROMINOS)-1)
-                if not is_valid_position(board,TETROMINOS[piece_type][rotation],pos):
+                piece_type = next_piece
+                rotation = 0
+                pos = [0, board_width//2-1]
+                next_piece = random.randint(0, len(TETROMINOS)-1)
+                if not is_valid_position(board, TETROMINOS[piece_type][rotation], pos):
                     return score
-            fall_time=0
-        draw_game(stdscr,game_win,next_win,board,TETROMINOS[piece_type][rotation],pos,piece_type,
-                  next_piece,score,level,lines_cleared,high_score,board_height,board_width,
-                  max_x,start_y,start_x)
+            fall_time = 0
+            
+        draw_game(stdscr, game_win, next_win, board, TETROMINOS[piece_type][rotation], pos, piece_type,
+                  next_piece, score, level, lines_cleared, high_score, board_height, board_width,
+                  max_x, start_y, start_x)
 
-def is_valid_position(board,piece,pos):
-    bh=len(board);bw=len(board[0])
-    for y,x in piece:
-        ny=pos[0]+y;nx=pos[1]+x
-        if nx<0 or nx>=bw or ny>=bh:return False
-        if ny>=0 and board[ny][nx]!=0:return False
+def is_valid_position(board, piece, pos):
+    bh = len(board)
+    bw = len(board[0])
+    for y, x in piece:
+        ny = pos[0]+y
+        nx = pos[1]+x
+        if nx < 0 or nx >= bw or ny >= bh:
+            return False
+        if ny >= 0 and board[ny][nx] != 0:
+            return False
     return True
 
-def place_tetromino(board,piece,pos,t):
-    for y,x in piece:
-        ny=pos[0]+y;nx=pos[1]+x
-        if ny>=0:board[ny][nx]=t
+def place_tetromino(board, piece, pos, t):
+    for y, x in piece:
+        ny = pos[0]+y
+        nx = pos[1]+x
+        if ny >= 0:
+            board[ny][nx] = t
 
 def clear_lines(board):
-    bh=len(board);bw=len(board[0])
-    c=0;y=bh-1
-    while y>=0:
-        if all(board[y][x]!=0 for x in range(bw)):
-            for y2 in range(y,0,-1):
-                for x in range(bw):board[y2][x]=board[y2-1][x]
-            for x in range(bw):board[0][x]=0
-            c+=1
-        else:y-=1
+    bh = len(board)
+    bw = len(board[0])
+    c = 0
+    y = bh-1
+    while y >= 0:
+        if all(board[y][x] != 0 for x in range(bw)):
+            for y2 in range(y, 0, -1):
+                for x in range(bw):
+                    board[y2][x] = board[y2-1][x]
+            for x in range(bw):
+                board[0][x] = 0
+            c += 1
+        else:
+            y -= 1
     return c
 
-def calculate_score(lines,level):
-    s=[0,100,300,500,800]
-    return s[min(lines,4)]*level
+def calculate_score(lines, level):
+    s = [0, 100, 300, 500, 800]
+    return s[min(lines, 4)]*level
 
-def safe_addstr(stdscr,y,x,text,attr=0):
-    h,w=stdscr.getmaxyx()
-    if y<0 or y>=h or x<0 or x>=w:return
-    ml=w-x
-    if ml<=0:return
-    t=text[:ml]
-    try:stdscr.addstr(y,x,t,attr)
-    except:curses.error
+def safe_addstr(stdscr, y, x, text, attr=0):
+    h, w = stdscr.getmaxyx()
+    if y < 0 or y >= h or x < 0 or x >= w:
+        return
+    ml = w - x
+    if ml <= 0:
+        return
+    t = text[:ml]
+    try:
+        stdscr.addstr(y, x, t, attr)
+    except:
+        curses.error
 
-def draw_game(stdscr,gw,nw,board,piece,pos,ptype,ntype,score,level,lines,high_score,bh,bw,mx,sy,sx):
-    gw.erase();nw.erase()
-    gw.box();nw.box()
-    t="PLAY TETRIS"
-    ww=gw.getmaxyx()[1]
-    if ww>len(t)+4:gw.addstr(0,(ww-len(t))//2,t,curses.A_BOLD|curses.color_pair(9))
-    nw.addstr(0,1,"NEXT",curses.A_BOLD|curses.color_pair(9))
+def draw_game(stdscr, gw, nw, board, piece, pos, ptype, ntype, score, level, lines, high_score, bh, bw, mx, sy, sx):
+    gw.erase()
+    nw.erase()
+    gw.box()
+    nw.box()
+    t = "PLAY TETRIS"
+    ww = gw.getmaxyx()[1]
+    if ww > len(t)+4:
+        gw.addstr(0, (ww-len(t))//2, t, curses.A_BOLD|curses.color_pair(9))
+    nw.addstr(0, 1, "NEXT", curses.A_BOLD|curses.color_pair(9))
     for y in range(bh):
         for x in range(bw):
-            c=board[y][x]
-            if c!=0:
-                try:gw.addstr(y+1,x*2+1,"[]",curses.color_pair(c)|curses.A_BOLD)
-                except:curses.error
-    for y,x in piece:
-        ny=pos[0]+y;nx=pos[1]+x
-        if ny>=0:
-            try:gw.addstr(ny+1,nx*2+1,"[]",curses.color_pair(ptype+1)|curses.A_BOLD)
-            except:curses.error
-    nt=TETROMINOS[ntype][0]
-    minx=min(a for _,a in nt);maxx=max(a for _,a in nt)
-    miny=min(a for a,_ in nt);maxy=max(a for a,_ in nt)
-    cy=3;cx=5
-    for yy,xx in nt:
-        dy=cy+yy-(miny+maxy)//2
-        dx=cx+(xx-(minx+maxx)//2)*2
-        try:nw.addstr(dy,dx,"[]",curses.color_pair(ntype+1)|curses.A_BOLD)
-        except:curses.error
-    safe_addstr(stdscr,0,0," "*mx)
-    st=f" Score: {score} "
-    lt=f" Level: {level} "
-    hi=f" High: {high_score} "
-    safe_addstr(stdscr,0,2,st,curses.color_pair(9)|curses.A_BOLD)
-    safe_addstr(stdscr,0,2+len(st)+2,lt,curses.color_pair(9)|curses.A_BOLD)
-    sw=stdscr.getmaxyx()[1]
-    hx=min(sw-len(hi)-1,mx-len(hi)-2)
-    safe_addstr(stdscr,0,hx,hi,curses.color_pair(9)|curses.A_BOLD)
+            c = board[y][x]
+            if c != 0:
+                try:
+                    gw.addstr(y+1, x*2+1, "[]", curses.color_pair(c)|curses.A_BOLD)
+                except:
+                    curses.error
+    for y, x in piece:
+        ny = pos[0]+y
+        nx = pos[1]+x
+        if ny >= 0:
+            try:
+                gw.addstr(ny+1, nx*2+1, "[]", curses.color_pair(ptype+1)|curses.A_BOLD)
+            except:
+                curses.error
+    nt = TETROMINOS[ntype][0]
+    minx = min(a for _, a in nt)
+    maxx = max(a for _, a in nt)
+    miny = min(a for a, _ in nt)
+    maxy = max(a for a, _ in nt)
+    cy = 3
+    cx = 5
+    for yy, xx in nt:
+        dy = cy+yy-(miny+maxy)//2
+        dx = cx+(xx-(minx+maxx)//2)*2
+        try:
+            nw.addstr(dy, dx, "[]", curses.color_pair(ntype+1)|curses.A_BOLD)
+        except:
+            curses.error
+    safe_addstr(stdscr, 0, 0, " "*mx)
+    st = f" Score: {score} "
+    lt = f" Level: {level} "
+    hi = f" High: {high_score} "
+    safe_addstr(stdscr, 0, 2, st, curses.color_pair(9)|curses.A_BOLD)
+    safe_addstr(stdscr, 0, 2+len(st)+2, lt, curses.color_pair(9)|curses.A_BOLD)
+    sw = stdscr.getmaxyx()[1]
+    hx = min(sw-len(hi)-1, mx-len(hi)-2)
+    safe_addstr(stdscr, 0, hx, hi, curses.color_pair(9)|curses.A_BOLD)
     # --------------------------------------------------------------------
     # Center the controls BELOW the board window:
-    ctrl="↑:Rotate  ←→:Move  ↓:Drop  Space:Hard Drop  Q:Quit"
+    ctrl = "↑:Rotate  ←→:Move  ↓:Drop  Space:Hard Drop  Q:Quit"
     controls_row = sy + bh + 3  # Just a few lines below bottom of game board
     controls_col = sx + ((bw*2 + 2) - len(ctrl))//2
-    safe_addstr(stdscr,controls_row,controls_col,ctrl)
+    safe_addstr(stdscr, controls_row, controls_col, ctrl)
     # --------------------------------------------------------------------
     stdscr.noutrefresh()
     gw.noutrefresh()
     nw.noutrefresh()
     curses.doupdate()
 
-def show_game_over(stdscr,score,high_score,my,mx):
-    stdscr.clear();cy=my//2
-    data=[
-        ("GAME OVER",-3,curses.A_BOLD|curses.color_pair(3)),
-        (f"Your Score: {score}",-1,curses.color_pair(9)),
-        (f"High Score: {high_score}",0,curses.color_pair(9)),
-        ("Press 'r' to restart",2,0),
-        ("Press 'q' to quit",3,0),
+def show_game_over(stdscr, score, high_score, my, mx):
+    stdscr.clear()
+    cy = my//2
+    data = [
+        ("GAME OVER", -3, curses.A_BOLD|curses.color_pair(3)),
+        (f"Your Score: {score}", -1, curses.color_pair(9)),
+        (f"High Score: {high_score}", 0, curses.color_pair(9)),
+        ("Press 'r' to restart", 2, 0),
+        ("Press 'q' to quit", 3, 0),
     ]
-    for txt,yo,attr in data:
-        stdscr.addstr(cy+yo,mx//2-len(txt)//2,txt,attr)
-    stdscr.noutrefresh();curses.doupdate()
+    for txt, yo, attr in data:
+        stdscr.addstr(cy+yo, mx//2-len(txt)//2, txt, attr)
+    stdscr.noutrefresh()
+    curses.doupdate()
     stdscr.nodelay(False)
     while True:
-        k=stdscr.getch()
-        if k==ord('q'):return True
-        if k==ord('r'):return False
+        k = stdscr.getch()
+        if k == ord('q'):
+            return True
+        if k == ord('r'):
+            return False
 
 def cleanup():
     if _stdscr:
         try:
             curses.endwin()
-            print("\033[?25l\033[2J\033[H",end="")
-            try:rows,cols=_stdscr.getmaxyx()
-            except:rows,cols=24,80
-            msg="Thanks for playing Tetris!"
-            print("\033[2;{}H{}".format((cols-len(msg))//2,msg))
-            print("\033[3;{}H{}".format((cols-len("Goodbye!"))//2,"Goodbye!"))
+            print("\033[?25l\033[2J\033[H", end="")
+            try:
+                rows, cols = _stdscr.getmaxyx()
+            except:
+                rows, cols = 24, 80
+            msg = "Thanks for playing Tetris!"
+            print("\033[2;{}H{}".format((cols-len(msg))//2, msg))
+            print("\033[3;{}H{}".format((cols-len("Goodbye!"))//2, "Goodbye!"))
             sys.stdout.flush()
-        except:pass
+        except:
+            pass
 
-def handle_exit(sig,frame):
+def handle_exit(sig, frame):
+    """Handle SIGINT (Ctrl+C) for program exit."""
     global _exit_requested
-    _exit_requested=True
+    _exit_requested = True
 
-def run_demo():
+def run_demo(from_index=False):
+    """Run the tetris game demo.
+    
+    Args:
+        from_index: Whether the game was launched from index.py.
+        
+    Returns:
+        str: "back_to_menu" if we should return to menu, None otherwise.
+    """
     try:
-        os.system('clear' if os.name=='posix' else 'cls')
-        print("\033[2J\033[H",end="")
+        os.system('clear' if os.name == 'posix' else 'cls')
+        print("\033[2J\033[H", end="")
         sys.stdout.flush()
-        curses.wrapper(tetris)
+        result = curses.wrapper(lambda stdscr: tetris(stdscr, from_index))
+        return result
     except Exception as e:
         print(f"\n\033[31mError in demo: {e}\033[0m")
     finally:
         cleanup()
 
-if __name__=="__main__":
-    print("\033[?25l\033[2J\033[H",end="")
+if __name__ == "__main__":
+    print("\033[?25l\033[2J\033[H", end="")
     sys.stdout.flush()
-    os.system('clear' if os.name=='posix' else 'cls')
+    os.system('clear' if os.name == 'posix' else 'cls')
     try:
         curses.wrapper(tetris)
     finally:
