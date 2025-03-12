@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 # terminaide/demos/instructions.py
 
 """
@@ -52,7 +50,7 @@ def instructions(stdscr):
         "DEFAULT CLIENT SCRIPT",
         "====================",
         "",
-        "You're seeing this message because no custom client script was configured.",
+        "You're seeing this message because no custom client script (or other root path) was configured.",
         "",
         "To use your own client script, provide a path to your script when calling",
         "serve_terminal(), for tests:",
