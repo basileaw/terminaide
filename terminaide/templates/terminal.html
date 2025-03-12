@@ -131,14 +131,49 @@
                 }
             }
 
+            function focusTerminal() {
+                try {
+                    const terminal = document.getElementById('terminal');
+
+                    // Focus the iframe
+                    terminal.focus();
+
+                    // Try to focus the terminal element inside the iframe
+                    const terminalDoc = terminal.contentDocument || terminal.contentWindow.document;
+
+                    // Find focusable elements in the iframe - first try terminal-specific elements
+                    const terminalElement = terminalDoc.querySelector('.xterm-helper-textarea') ||
+                        terminalDoc.querySelector('.xterm-textarea') ||
+                        terminalDoc.querySelector('.terminal');
+
+                    if (terminalElement) {
+                        terminalElement.focus();
+                    }
+                } catch (err) {
+                    console.warn('Could not auto-focus terminal:', err);
+                }
+            }
+
             document.getElementById('terminal').onload = function () {
                 tryInject();
 
                 // Just a short delay to avoid cursor flash, then fade in
                 setTimeout(function () {
-                    document.getElementById('terminal').classList.add('loaded');
+                    const terminal = document.getElementById('terminal');
+                    terminal.classList.add('loaded');
+
+                    // Focus the terminal after it's fully loaded and visible
+                    setTimeout(focusTerminal, 500);
                 }, 300); // Short delay before fade-in
             };
+
+            // Additional focus events
+            window.addEventListener('focus', focusTerminal);
+            document.addEventListener('click', function (e) {
+                if (e.target.closest('#terminal')) {
+                    focusTerminal();
+                }
+            });
 
             document.getElementById('terminal').onerror = function () {
                 const error = document.createElement('div');
