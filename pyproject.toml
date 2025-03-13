@@ -39,8 +39,10 @@ container - Runs multi-mode inside a Docker container.
 """
 
 [tool.poe.tasks.release]
-help = "Release a new version (patch/minor/major)"
-args = ["type"]
+help = "Release a new version"
+args = [
+  { name = "type", positional = true, help = "Version increment type (patch/minor/major)" },
+]
 sequence = [
   { cmd = "poetry version ${type}" },
   { cmd = "git add pyproject.toml" },
