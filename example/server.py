@@ -7,7 +7,7 @@ Test server for terminaide that supports multiple configuration patterns.
 This script demonstrates key ways of configuring and running terminaide:
 
 Usage:
-    python server.py                    # Default mode - shows instructions demo
+    python server.py                    # Default mode - shows getting started interface
     python server.py single             # Single application with Termin-Arcade menu
     python server.py multi              # HTML page at root, terminal games at routes
     python server.py container          # Run the server in a Docker container
@@ -147,7 +147,7 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
             "description": description,
             "client_script": str(CLIENT_SCRIPT),
             "modes": {
-                "default": "Default configuration - shows instructions demo",
+                "default": "Default configuration - shows getting started interface",
                 "single": "Single application with Termin-Arcade menu",
                 "multi": "HTML page at root, terminal games at separate routes",
                 "container": "Run server in a Docker container"
@@ -190,7 +190,7 @@ def create_app() -> FastAPI:
     3. Configuration Interactions: 
        - If client_script is provided, it runs at the root path (/)
        - If terminal_routes includes "/", it overrides the default behavior
-       - If neither is specified, terminaide shows its instructions demo
+       - If neither is specified, terminaide shows its getting started interface
     
     4. FastAPI Integration: Terminaide works seamlessly with existing FastAPI
        applications, but be mindful of route conflicts and priorities.
@@ -205,8 +205,8 @@ def create_app() -> FastAPI:
     # Mode-specific configuration
     if mode == "default":
         # Default mode: no client script, no terminal routes
-        # Important: In this configuration, terminaide will show its built-in instructions demo
-        description = "Default configuration - shows instructions demo"
+        # Important: In this configuration, terminaide will show its built-in getting started interface
+        description = "Default configuration - shows getting started interface"
         serve_terminal(
             app,
             title="Default Mode",
@@ -505,7 +505,7 @@ def main():
 
     # Mode-specific information
     if mode == "default":
-        logger.info("Default mode - showing built-in instructions demo")
+        logger.info("Default mode - showing built-in getting started interface")
     elif mode == "single":
         logger.info("Single mode - Termin-Arcade menu at root path (/)")
         logger.info("Menu provides access to Snake, Tetris, and Pong demos")
