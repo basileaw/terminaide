@@ -107,7 +107,7 @@ serve_terminal(
 
 ### Examples
 
-The `example/` directory demonstrates these configurations with several ready-to-use examples:
+The `demo/` directory demonstrates these configurations with several ready-to-use demos:
 
 ```bash
 poe serve              # Default mode with instructions
@@ -120,7 +120,7 @@ poe serve container    # Run in Docker container
 
 - Python 3.12+
 - Linux or macOS (Windows support on roadmap)
-- Docker/Poe for examples
+- Docker/Poe for demos
 
 ## Limitations
 

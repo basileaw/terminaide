@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# example/server.py
+# demo/server.py
 
 """
 Test server for terminaide that supports multiple configuration patterns.
@@ -335,7 +335,7 @@ def build_and_run_container(port=8000):
             
             # Copy required directories to the temporary directory
             logger.info("Preparing build context...")
-            for directory in ["terminaide", "example"]:
+            for directory in ["terminaide", "demo"]:
                 src_dir = project_root / directory
                 dst_dir = temp_path / directory
                 if src_dir.exists():
@@ -355,7 +355,7 @@ WORKDIR /app
 
 # Copy only what's needed
 COPY terminaide/ ./terminaide/
-COPY example/ ./example/
+COPY demo/ ./demo/
 COPY requirements.txt ./
 
 # Install dependencies
@@ -363,7 +363,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8000
 
-CMD ["python", "example/server.py", "--mode", "multi"]
+CMD ["python", "demo/server.py", "--mode", "multi"]
 """
             dockerfile_path = temp_path / "Dockerfile"
             with open(dockerfile_path, "w") as f:
@@ -516,7 +516,7 @@ def main():
         logger.info("  /pong - Pong Game")
 
     uvicorn.run(
-        "example.server:create_app",
+        "demo.server:create_app",
         factory=True,
         host="0.0.0.0",
         port=args.port,

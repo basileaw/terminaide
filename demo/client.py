@@ -1,4 +1,4 @@
-# example/client.py
+# demo/client.py
 """Example client script for terminaide.
 
 This script demonstrates how to use terminaide's built-in games.
