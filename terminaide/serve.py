@@ -375,7 +375,8 @@ def serve_terminal(
     ttyd_options: Optional[Dict[str, Any]] = None,
     template_override: Optional[Union[str, Path]] = None,
     title: str = "Terminal",
-    debug: bool = False
+    debug: bool = False,
+    trust_proxy_headers: bool = True  # New parameter with default True
 ) -> None:
     """
     Attach a custom lifespan to the app for serving terminal interfaces.
@@ -397,39 +398,20 @@ def serve_terminal(
         template_override: Custom template path
         title: Default title for terminal interface
         debug: Enable debug mode
-        
-    Example:
-        Single script:
-            serve_terminal(app, client_script="script.py")
-            
-        Multiple scripts:
-            serve_terminal(
-                app,
-                terminal_routes={
-                    "/snake": "snake.py",
-                    "/chat": "chat.py"
-                }
-            )
-            
-        Multiple scripts with custom titles:
-            serve_terminal(
-                app,
-                terminal_routes={
-                    "/snake": {
-                        "client_script": ["snake.py", "--level", "easy"],
-                        "title": "Snake Game"
-                    },
-                    "/chat": "chat.py"
-                }
-            )
-            
-        User can define their own routes after serve_terminal():
-            serve_terminal(app, terminal_routes={"/terminal": "app.py"})
-            
-            @app.get("/")
-            def custom_root():
-                return {"message": "Custom home page"}
+        trust_proxy_headers: Whether to trust X-Forwarded-Proto and similar headers
+                            for HTTPS detection (default: True)
     """
+    # Add ProxyHeaderMiddleware for HTTPS detection if enabled
+    if trust_proxy_headers:
+        try:
+            from .middleware import ProxyHeaderMiddleware
+            # Check if middleware is already added to avoid duplicates
+            if not any(m.cls.__name__ == "ProxyHeaderMiddleware" for m in getattr(app, "user_middleware", [])):
+                app.add_middleware(ProxyHeaderMiddleware)
+                logger.info("Added proxy header middleware for HTTPS detection")
+        except Exception as e:
+            logger.warning(f"Failed to add proxy header middleware: {e}")
+    
     # Create script configurations
     script_configs = _create_script_configs(client_script, terminal_routes)
     
