@@ -1,12 +1,3 @@
-# terminaide/demos/instructions.py
-
-"""
-Instructions demo for terminaide.
-
-This module shows the default instructions that appear when no
-client script is specified. It can also be run directly as a demo.
-"""
-
 import curses
 import time
 import signal
@@ -17,106 +8,141 @@ _stdscr = None
 _exit_requested = False  # Set by the SIGINT handler when Ctrl+C is pressed.
 
 def handle_exit(sig, frame):
-    """Set exit flag on Ctrl+C instead of raising KeyboardInterrupt."""
     global _exit_requested
     _exit_requested = True
 
 def cleanup():
-    """Restore terminal state and print goodbye message."""
     if _stdscr is not None:
         try:
             curses.endwin()
-            # Just make cursor visible again without changing background
+            # Make cursor visible again
             print("\033[?25h", end="")
             sys.stdout.flush()
         except:
             pass
 
 def instructions(stdscr):
-    """Main entry point for the instructions screen."""
     global _stdscr
     _stdscr = stdscr
     signal.signal(signal.SIGINT, handle_exit)
     
-    # Setup terminal - force transparent background
     curses.start_color()
-    curses.use_default_colors()  # Use terminal's default colors
-    curses.init_pair(1, curses.COLOR_WHITE, -1)  # -1 means transparent background
-    
-    # Ensure the cursor is invisible
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_WHITE, -1)
     curses.curs_set(0)
 
-    instructions = [
-        "DEFAULT CLIENT SCRIPT",
-        "====================",
-        "",
-        "You're seeing this message because no custom client script (or other root path) was configured.",
-        "",
-        "To use your own client script, provide a path to your script when calling",
-        "serve_terminal(), for tests:",
-        "",
-        "serve_terminal(client_script='/path/to/your/script.py')",
-        "",
-        "Your client script should contain the logic you want to run in the",
-        "terminal session.",
-        "",
-        "Press any key (or Ctrl+C) to exit..."
+    ascii_banner = [
+        "████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗ █████╗ ██╗██████╗ ███████╗",
+        "╚══██╔══╝██╔════╝██╔══██╗████╗ ████║██║████╗  ██║██╔══██╗██║██╔══██╗██╔════╝",
+        "   ██║   █████╗  ██████╔╝██╔████╔██║██║██╔██╗ ██║███████║██║██║  ██║█████╗  ",
+        "   ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║██║██║╚██╗██║██╔══██║██║██║  ██║██╔══╝  ",
+        "   ██║   ███████╗██║  ██║██║ ╚═╝ ██║██║██║ ╚████║██║  ██║██║██████╔╝███████╗",
+        "   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝╚═════╝ ╚══════╝",
     ]
 
-    # Get terminal dimensions
-    height, width = stdscr.getmaxyx()
+    instructions_before = [
+        "You're seeing this message because no client script, terminal routes, or server routes were configured.",
+        "To serve a Python app with Terminaide, provide a path to your app when calling serve_terminal().",
+        "Your client script should contain the logic you want to run in the terminal session. Like this:",
+        ""
+    ]
 
-    # We'll anchor near the top, but horizontally center each line
+    # Code snippet lines
+    code_snippet = [
+        "",
+        "serve_terminal(",
+        "    app,",
+        '    client_script="script_1.py"',
+        "    terminal_routes={",
+        '        "/cli2": "script2.py",',
+        '        "/cli3": ["script3.py", "--arg1", "value"],',
+        '        "/cli4": {',
+        '            "client_script": "script4.py",',
+        '            "title": "Advanced CLI"',
+        "        }",
+        ")",
+        "",
+    ]
+
+    instructions_after = [
+        ""
+    ]
+
+    height, width = stdscr.getmaxyx()
     start_y = 2
 
     try:
-        # Clear the screen without changing background
         stdscr.clear()
         
-        # Print each line with a tiny delay for a "type-in" effect
-        for i, line in enumerate(instructions):
+        # Print banner, centering each banner line
+        for i, line in enumerate(ascii_banner):
+            x = max((width - len(line)) // 2, 0)
+            stdscr.addstr(start_y + i, x, line, curses.color_pair(1))
+        start_y += len(ascii_banner) + 1
+        
+        # Print "before" lines, centering them individually:
+        for i, line in enumerate(instructions_before):
             if _exit_requested:
                 break
-                
-            # Calculate the x offset to center horizontally
             x = max((width - len(line)) // 2, 0)
-            
-            # Use the transparent color pair
             stdscr.addstr(start_y + i, x, line, curses.color_pair(1))
             stdscr.refresh()
-            time.sleep(0.05)
-            
-        # Wait for user to press any key before exiting
+            time.sleep(0.02)
+        start_y += len(instructions_before)
+
+        #
+        # 1) Build the ASCII box around the snippet
+        #
+        max_snippet_len = max(len(line) for line in code_snippet)  # find widest line
+        top_border = "+" + "-" * (max_snippet_len + 2) + "+"       # e.g. +----------+
+        bottom_border = top_border                                 # same as top
+
+        # 2) The total width for this "box" is the length of top_border
+        box_width = len(top_border)
+
+        # 3) Calculate offset so entire box is centered
+        snippet_offset_x = max((width - box_width) // 2, 0)
+
+        # 4) Print the top border
+        stdscr.addstr(start_y, snippet_offset_x, top_border, curses.color_pair(1))
+        start_y += 1
+
+        # 5) Print each snippet line inside the box
+        for snippet_line in code_snippet:
+            if _exit_requested:
+                break
+            # Pad each line so they match max_snippet_len
+            line_with_spaces = snippet_line + " " * (max_snippet_len - len(snippet_line))
+            box_line = "| " + line_with_spaces + " |"
+            stdscr.addstr(start_y, snippet_offset_x, box_line, curses.color_pair(1))
+            stdscr.refresh()
+            time.sleep(0.02)
+            start_y += 1
+
+        # 6) Print bottom border
+        stdscr.addstr(start_y, snippet_offset_x, bottom_border, curses.color_pair(1))
+        start_y += 2  # leave a blank line after the box
+
+        # Print "after" lines, centered line by line
+        for i, line in enumerate(instructions_after):
+            if _exit_requested:
+                break
+            x = max((width - len(line)) // 2, 0)
+            stdscr.addstr(start_y + i, x, line, curses.color_pair(1))
+            stdscr.refresh()
+            time.sleep(0.02)
+
         if not _exit_requested:
-            stdscr.nodelay(False)  # Make getch blocking
+            stdscr.nodelay(False)
             stdscr.getch()
 
     except KeyboardInterrupt:
-        # Graceful exit if Ctrl+C is pressed
         pass
-    finally:
-        # Make sure cleanup happens
-        cleanup()
-
-def run_demo():
-    """Entry point for running the demo from elsewhere."""
-    try:
-        # Set environment variable to disable background fill
-        os.environ.setdefault('NCURSES_NO_SETBUF', '1')
-        
-        # Use curses wrapper with custom flags
-        curses.wrapper(instructions)
-    except Exception as e:
-        print(f"\n\033[31mError in instructions demo: {e}\033[0m")
     finally:
         cleanup()
 
 if __name__ == "__main__":
-    # Set cursor to invisible, but don't change background
-    print("\033[?25l", end="")
-    
-    import os
-    # Set environment variable to disable background fill
+    print("\033[?25l", end="")  # Hide cursor
     os.environ.setdefault('NCURSES_NO_SETBUF', '1')
     
     try:
