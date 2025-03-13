@@ -1,60 +1,46 @@
 # example/client.py
-"""
-Example client script for terminaide.
-This script demonstrates how to use the built-in terminaide demos.
-You can use this as a template for creating your own custom terminal applications.
+"""Example client script for terminaide.
+
+This script demonstrates how to use terminaide's built-in games.
 """
 import argparse
-from terminaide.demos import play_snake, play_pong, play_tetris, show_index
+from terminaide.games import play_snake, play_pong, play_tetris, show_index
+
 
 def main():
-    # Set up argument parser
-    parser = argparse.ArgumentParser(description="Example client script for terminaide.")
-    # Add arguments as mutually exclusive options
+    """Parse command-line arguments and run the selected game."""
+    parser = argparse.ArgumentParser(description="Terminaide games client")
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
-        "--index",
-        action="store_true",
-        help="Show the demo index menu."
-    )
+        "--index", 
+        action="store_true", 
+        help="Show the games menu"
+        )
     group.add_argument(
-        "--snake",
-        action="store_true",
-        help="Run the Snake game demo."
-    )
+        "--snake", 
+        action="store_true", 
+        help="Play Snake"
+        )
     group.add_argument(
-        "--pong",
-        action="store_true",
-        help="Run the Pong demo."
-    )
+        "--pong", 
+        action="store_true", 
+        help="Play Pong"
+        )
     group.add_argument(
-        "--tetris",
-        action="store_true",
-        help="Run the Tetris demo."
-    )
-    # Keep the original alternate flag for backward compatibility
-    group.add_argument(
-        "--alternate",
-        action="store_true",
-        help="Run the Pong (legacy option)."
-    )
-    # Parse arguments
+        "--tetris", 
+        action="store_true", 
+        help="Play Tetris"
+        )
+    
     args = parser.parse_args()
-    # Run the appropriate function based on arguments
-    if args.index:
-        # Show the index menu
-        show_index()
-    elif args.snake:
-        # Run the Snake demo
+    
+    if args.snake:
         play_snake()
-    elif args.pong or args.alternate:
-        # Run the Pong demo
+    elif args.pong:
         play_pong()
     elif args.tetris:
-        # Run the Tetris demo
         play_tetris()
     else:
-        # By default, show the index
         show_index()
 
 if __name__ == "__main__":

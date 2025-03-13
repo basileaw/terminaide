@@ -1,26 +1,29 @@
-# terminaide/demos/snake.py
+# terminaide/games/snake.py
 
-import curses, random, signal, sys
+import curses
+import random
+import signal
+import sys
 from collections import deque
 
-_stdscr = None
-_exit_requested = False
-_back_to_menu = False  # New flag to track if we should return to menu
+stdscr = None
+exit_requested = False
+back_to_menu = False  # Flag to track if we should return to menu
 
-def snake(stdscr, from_index=False):
-    """Main snake game function.
+def _snake_game_loop(stdscr_param, from_index=False):
+    """Main snake game function that handles the game loop.
     
     Args:
-        stdscr: The curses window.
+        stdscr_param: The curses window.
         from_index: Whether the game was launched from index.py.
         
     Returns:
         str: "back_to_menu" if we should return to menu, None otherwise.
     """
-    global _stdscr, _exit_requested, _back_to_menu
-    _stdscr = stdscr
-    _exit_requested = False
-    _back_to_menu = False
+    global stdscr, exit_requested, back_to_menu
+    stdscr = stdscr_param
+    exit_requested = False
+    back_to_menu = False
     
     signal.signal(signal.SIGINT, handle_exit)
     setup_terminal(stdscr)
@@ -29,9 +32,9 @@ def snake(stdscr, from_index=False):
     high_score = 0
     
     while True:
-        if _exit_requested:
+        if exit_requested:
             # Check if we're returning to menu or exiting completely
-            if _back_to_menu and from_index:
+            if back_to_menu and from_index:
                 cleanup()
                 return "back_to_menu"
             else:
@@ -40,9 +43,9 @@ def snake(stdscr, from_index=False):
         
         score = run_game(stdscr, max_y, max_x, ph, pw, high_score, from_index)
         
-        if _exit_requested:
+        if exit_requested:
             # Check again after game has run
-            if _back_to_menu and from_index:
+            if back_to_menu and from_index:
                 cleanup()
                 return "back_to_menu"
             else:
@@ -57,6 +60,7 @@ def snake(stdscr, from_index=False):
     return None
 
 def setup_terminal(stdscr):
+    """Configure terminal settings for the game."""
     curses.curs_set(0)
     curses.noecho()
     curses.cbreak()
@@ -83,7 +87,7 @@ def run_game(stdscr, my, mx, ph, pw, high_score=0, from_index=False):
     Returns:
         int: The final score.
     """
-    global _exit_requested, _back_to_menu
+    global exit_requested, back_to_menu
     
     score = 0
     speed = 100
@@ -98,7 +102,7 @@ def run_game(stdscr, my, mx, ph, pw, high_score=0, from_index=False):
     draw_screen(stdscr, win, s, food, score, high_score, mx)
     
     while True:
-        if _exit_requested:
+        if exit_requested:
             cleanup()
             return score
         
@@ -111,8 +115,8 @@ def run_game(stdscr, my, mx, ph, pw, high_score=0, from_index=False):
         
         # Check for back-to-menu keys (backspace, delete) if launched from index
         if from_index and key in (curses.KEY_BACKSPACE, 8, 127, curses.KEY_DC, 330):
-            _back_to_menu = True
-            _exit_requested = True
+            back_to_menu = True
+            exit_requested = True
             return score
         
         new_dir = process_input(key, direction)
@@ -141,6 +145,7 @@ def run_game(stdscr, my, mx, ph, pw, high_score=0, from_index=False):
     return score
 
 def draw_screen(stdscr, win, snake, food, score, high_score, mx):
+    """Draw the game screen with all elements."""
     win.erase()
     draw_border(win)
     try:
@@ -154,6 +159,7 @@ def draw_screen(stdscr, win, snake, food, score, high_score, mx):
     curses.doupdate()
 
 def draw_border(win):
+    """Draw the game border with title."""
     win.box()
     title = "PLAY SNAKE"
     w = win.getmaxyx()[1]
@@ -161,6 +167,7 @@ def draw_border(win):
         win.addstr(0, (w-len(title))//2, title, curses.A_BOLD|curses.color_pair(5))
 
 def draw_snake(win, snake):
+    """Draw the snake on the game window."""
     try:
         y, x = snake[0]
         win.addch(y+1, x+1, ord('O'), curses.color_pair(1)|curses.A_BOLD)
@@ -170,12 +177,22 @@ def draw_snake(win, snake):
         curses.error
 
 def draw_score(stdscr, score, high_score, mx):
+    """Draw the score display at the top of the screen."""
     stdscr.addstr(0, 0, " " * mx)
     stdscr.addstr(0, 2, f" Score: {score} ", curses.color_pair(5)|curses.A_BOLD)
     txt = f" High Score: {high_score} "
     stdscr.addstr(0, mx-len(txt)-2, txt, curses.color_pair(5)|curses.A_BOLD)
 
 def process_input(key, cur_dir):
+    """Process keyboard input for snake movement.
+    
+    Args:
+        key: The key pressed.
+        cur_dir: Current direction.
+        
+    Returns:
+        The new direction or None if no valid key was pressed.
+    """
     if key in [curses.KEY_UP, ord('w'), ord('W')] and cur_dir != curses.KEY_DOWN:
         return curses.KEY_UP
     if key in [curses.KEY_DOWN, ord('s'), ord('S')] and cur_dir != curses.KEY_UP:
@@ -184,8 +201,18 @@ def process_input(key, cur_dir):
         return curses.KEY_LEFT
     if key in [curses.KEY_RIGHT, ord('d'), ord('D')] and cur_dir != curses.KEY_LEFT:
         return curses.KEY_RIGHT
+    return None
 
 def move_head(y, x, d):
+    """Calculate new head position based on direction.
+    
+    Args:
+        y, x: Current head position.
+        d: Direction to move.
+        
+    Returns:
+        tuple: New head position (y, x).
+    """
     if d == curses.KEY_UP:
         return (y-1, x)
     if d == curses.KEY_DOWN:
@@ -195,6 +222,16 @@ def move_head(y, x, d):
     return (y, x+1)
 
 def is_collision(head, snake, h, w):
+    """Check if the snake has collided with wall or itself.
+    
+    Args:
+        head: Snake head position.
+        snake: Snake body positions.
+        h, w: Game board height and width.
+        
+    Returns:
+        bool: True if collision detected, False otherwise.
+    """
     y, x = head
     if y < 0 or y >= h or x < 0 or x >= w:
         return True
@@ -203,6 +240,15 @@ def is_collision(head, snake, h, w):
     return False
 
 def new_food(snake, h, w):
+    """Generate new food position.
+    
+    Args:
+        snake: Current snake body positions.
+        h, w: Game board height and width.
+        
+    Returns:
+        tuple: New food position (y, x).
+    """
     while True:
         fy = random.randint(0, h-1)
         fx = random.randint(0, w-1)
@@ -210,6 +256,11 @@ def new_food(snake, h, w):
             return (fy, fx)
 
 def show_game_over(stdscr, score, high_score, my, mx):
+    """Show game over screen and handle restart/quit options.
+    
+    Returns:
+        bool: True if user chooses to quit, False to restart.
+    """
     stdscr.clear()
     cy = my//2
     data = [
@@ -232,12 +283,13 @@ def show_game_over(stdscr, score, high_score, my, mx):
             return False
 
 def cleanup():
-    if _stdscr:
+    """Clean up terminal state when exiting."""
+    if stdscr:
         try:
             curses.endwin()
             print("\033[?25l\033[2J\033[H", end="")
             try:
-                rows, cols = _stdscr.getmaxyx()
+                rows, cols = stdscr.getmaxyx()
             except:
                 rows, cols = 24, 80
             msg = "Thanks for playing Snake!"
@@ -249,11 +301,13 @@ def cleanup():
 
 def handle_exit(sig, frame):
     """Handle SIGINT (Ctrl+C) for program exit."""
-    global _exit_requested
-    _exit_requested = True
+    global exit_requested
+    exit_requested = True
 
-def run_demo(from_index=False):
-    """Run the snake game demo.
+def play_snake(from_index=False):
+    """Run the snake game from command line.
+    
+    This is the main public-facing function for launching the snake game.
     
     Args:
         from_index: Whether the game was launched from index.py.
@@ -262,16 +316,16 @@ def run_demo(from_index=False):
         str: "back_to_menu" if we should return to menu, None otherwise.
     """
     try:
-        result = curses.wrapper(lambda stdscr: snake(stdscr, from_index))
+        result = curses.wrapper(lambda stdscr_param: _snake_game_loop(stdscr_param, from_index))
         return result
     except Exception as e:
-        print(f"\n\033[31mError in demo: {e}\033[0m")
+        print(f"\n\033[31mError in snake game: {e}\033[0m")
     finally:
         cleanup()
 
 if __name__ == "__main__":
     print("\033[?25l\033[2J\033[H", end="")
     try:
-        curses.wrapper(snake)
+        play_snake()
     finally:
         cleanup()

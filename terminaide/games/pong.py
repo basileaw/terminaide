@@ -1,28 +1,31 @@
-# terminaide/demos/pong.py
+# terminaide/games/pong.py
 
-import curses, random, signal, sys
+import curses
+import random
+import signal
+import sys
 
-_stdscr = None
+stdscr = None
 exit_requested = False
-_back_to_menu = False  # New flag to track back-to-menu requests
+back_to_menu = False  # Flag to track back-to-menu requests
 
-def pong(stdscr, from_index=False):
-    """Main pong game function.
+def _pong_game_loop(stdscr_param, from_index=False):
+    """Main pong game function that handles the game loop.
     
     This function manages the overall game flow, including initial setup,
     game loop, and handling exit conditions.
     
     Args:
-        stdscr: The curses window.
+        stdscr_param: The curses window.
         from_index: Whether the game was launched from index.py.
         
     Returns:
         str: "back_to_menu" if we should return to menu, None otherwise.
     """
-    global _stdscr, exit_requested, _back_to_menu
-    _stdscr = stdscr
+    global stdscr, exit_requested, back_to_menu
+    stdscr = stdscr_param
     exit_requested = False
-    _back_to_menu = False
+    back_to_menu = False
     
     signal.signal(signal.SIGINT, handle_exit)
     setup_terminal(stdscr)
@@ -34,7 +37,7 @@ def pong(stdscr, from_index=False):
     while True:
         if exit_requested:
             # Check if we're returning to menu or exiting completely
-            if _back_to_menu and from_index:
+            if back_to_menu and from_index:
                 cleanup()
                 return "back_to_menu"
             else:
@@ -45,7 +48,7 @@ def pong(stdscr, from_index=False):
         
         if exit_requested:
             # Check again after game has run
-            if _back_to_menu and from_index:
+            if back_to_menu and from_index:
                 cleanup()
                 return "back_to_menu"
             else:
@@ -92,7 +95,7 @@ def run_game(stdscr, my, mx, ph, pw, ls, rs, high, from_index=False):
     Returns:
         tuple: (left score, right score, winner)
     """
-    global exit_requested, _back_to_menu
+    global exit_requested, back_to_menu
     
     speed = 80
     inc = 5
@@ -131,7 +134,7 @@ def run_game(stdscr, my, mx, ph, pw, ls, rs, high, from_index=False):
             
         # Check for back-to-menu keys (backspace, delete) if launched from index
         if from_index and key in (curses.KEY_BACKSPACE, 8, 127, curses.KEY_DC, 330):
-            _back_to_menu = True
+            back_to_menu = True
             exit_requested = True
             return ls, rs, winner
             
@@ -282,12 +285,12 @@ def show_game_over(stdscr, ls, rs, hi, my, mx, winner):
 
 def cleanup():
     """Clean up terminal state when exiting."""
-    if _stdscr:
+    if stdscr:
         try:
             curses.endwin()
             print("\033[?25l\033[2J\033[H", end="")
             try:
-                rows, cols = _stdscr.getmaxyx()
+                rows, cols = stdscr.getmaxyx()
             except:
                 rows, cols = 24, 80
             msg = "Thanks for playing Pong!"
@@ -302,11 +305,10 @@ def handle_exit(sig, frame):
     global exit_requested
     exit_requested = True
 
-def run_demo(from_index=False):
-    """Run the pong game demo.
+def play_pong(from_index=False):
+    """Run the pong game.
     
-    This function serves as the main entry point for running the Pong game.
-    It handles exceptions and cleanup to ensure proper terminal state.
+    This is the main public-facing function for launching the pong game.
     
     Args:
         from_index: Whether the game was launched from index.py.
@@ -315,16 +317,16 @@ def run_demo(from_index=False):
         str: "back_to_menu" if we should return to menu, None otherwise.
     """
     try:
-        result = curses.wrapper(lambda stdscr: pong(stdscr, from_index))
+        result = curses.wrapper(lambda stdscr_param: _pong_game_loop(stdscr_param, from_index))
         return result
     except Exception as e:
-        print(f"\n\033[31mError: {e}\033[0m")
+        print(f"\n\033[31mError in pong game: {e}\033[0m")
     finally:
         cleanup()
 
 if __name__ == "__main__":
     print("\033[?25l\033[2J\033[H", end="")
     try:
-        curses.wrapper(pong)
+        play_pong()
     finally:
         cleanup()

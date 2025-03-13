@@ -1,24 +1,26 @@
-# terminaide/demos/index.py
+# terminaide/games/index.py
 
-import curses, signal, sys
+import curses
+import signal
+import sys
 import importlib
 
-_stdscr = None
-_exit_requested = False
+stdscr = None
+exit_requested = False
 
 def handle_exit(sig, frame):
     """Handle SIGINT (Ctrl+C) for clean program exit."""
-    global _exit_requested
-    _exit_requested = True
+    global exit_requested
+    exit_requested = True
 
 def cleanup():
     """Restore terminal state and print goodbye message."""
-    if _stdscr:
+    if stdscr:
         try:
             curses.endwin()
             print("\033[?25l\033[2J\033[H", end="")
             try:
-                rows, cols = _stdscr.getmaxyx()
+                rows, cols = stdscr.getmaxyx()
             except:
                 rows, cols = 24, 80
             msg = "Thank you for using terminaide"
@@ -28,9 +30,9 @@ def cleanup():
         except:
             pass
 
-def safe_addstr(stdscr, y, x, text, attr=0):
+def safe_addstr(win, y, x, text, attr=0):
     """Safely add a string to the screen, handling boundary conditions."""
-    h, w = stdscr.getmaxyx()
+    h, w = win.getmaxyx()
     if y < 0 or y >= h or x < 0 or x >= w:
         return
     ml = w - x
@@ -38,20 +40,27 @@ def safe_addstr(stdscr, y, x, text, attr=0):
         return
     t = text[:ml]
     try:
-        stdscr.addstr(y, x, t, attr)
+        win.addstr(y, x, t, attr)
     except:
         curses.error
 
-def draw_horizontal_line(stdscr, y, x, width, attr=0):
+def draw_horizontal_line(win, y, x, width, attr=0):
     """Draw a horizontal line on the screen."""
     for i in range(width):
-        safe_addstr(stdscr, y, x+i, " ", attr)
+        safe_addstr(win, y, x+i, " ", attr)
 
-def index_menu(stdscr):
-    """Main menu interface."""
-    global _stdscr, _exit_requested
-    _stdscr = stdscr
-    _exit_requested = False
+def _index_menu_loop(stdscr_param):
+    """Main menu interface.
+    
+    Args:
+        stdscr_param: The curses window.
+        
+    Returns:
+        str: Game to run ("snake", "tetris", "pong", or "exit").
+    """
+    global stdscr, exit_requested
+    stdscr = stdscr_param
+    exit_requested = False
     
     # Set up signal handler for SIGINT (Ctrl+C)
     signal.signal(signal.SIGINT, handle_exit)
@@ -71,8 +80,8 @@ def index_menu(stdscr):
     # Setup screen
     stdscr.clear()
     options = ["Snake", "Tetris", "Pong"]
-    co = 0  # Current option
-    po = 0  # Previous option
+    current_option = 0  # Current option
+    previous_option = 0  # Previous option
     
     # Get screen dimensions
     my, mx = stdscr.getmaxyx()
@@ -129,7 +138,7 @@ def index_menu(stdscr):
     
     # Initial draw of menu options
     for i, o in enumerate(options):
-        st = curses.color_pair(5) if i == co else curses.color_pair(4)
+        st = curses.color_pair(5) if i == current_option else curses.color_pair(4)
         pad = " " * 3
         sp = mol - len(o)
         ls = sp // 2
@@ -139,28 +148,28 @@ def index_menu(stdscr):
     
     # Main menu loop
     while True:
-        if _exit_requested:
+        if exit_requested:
             break
             
         # Update menu selection if changed
-        if co != po:
+        if current_option != previous_option:
             # Redraw previous selection (unselected)
             st = curses.color_pair(4)|curses.A_BOLD
-            sp = mol - len(options[po])
+            sp = mol - len(options[previous_option])
             ls = sp // 2
             rs = sp - ls
-            pbt = f"{' ' * 3}{' ' * ls}{options[po]}{' ' * rs}{' ' * 3}"
-            safe_addstr(stdscr, oy+po*2, (mx-len(pbt))//2, pbt, st)
+            pbt = f"{' ' * 3}{' ' * ls}{options[previous_option]}{' ' * rs}{' ' * 3}"
+            safe_addstr(stdscr, oy+previous_option*2, (mx-len(pbt))//2, pbt, st)
             
             # Redraw current selection (selected)
             st = curses.color_pair(5)|curses.A_BOLD
-            sp = mol - len(options[co])
+            sp = mol - len(options[current_option])
             ls = sp // 2
             rs = sp - ls
-            nbt = f"{' ' * 3}{' ' * ls}{options[co]}{' ' * rs}{' ' * 3}"
-            safe_addstr(stdscr, oy+co*2, (mx-len(nbt))//2, nbt, st)
+            nbt = f"{' ' * 3}{' ' * ls}{options[current_option]}{' ' * rs}{' ' * 3}"
+            safe_addstr(stdscr, oy+current_option*2, (mx-len(nbt))//2, nbt, st)
             
-            po = co
+            previous_option = current_option
             
         stdscr.refresh()
         
@@ -170,16 +179,16 @@ def index_menu(stdscr):
             
             if k in [ord('q'), ord('Q'), 27]:  # q, Q, or ESC
                 break
-            elif k == curses.KEY_UP and co > 0:
-                co -= 1
-            elif k == curses.KEY_DOWN and co < len(options) - 1:
-                co += 1
+            elif k == curses.KEY_UP and current_option > 0:
+                current_option -= 1
+            elif k == curses.KEY_DOWN and current_option < len(options) - 1:
+                current_option += 1
             elif k in [curses.KEY_ENTER, ord('\n'), ord('\r')]:
-                if co == 0:
+                if current_option == 0:
                     return "snake"
-                elif co == 1:
+                elif current_option == 1:
                     return "tetris"
-                elif co == 2:
+                elif current_option == 2:
                     return "pong"
         except KeyboardInterrupt:
             break
@@ -187,7 +196,14 @@ def index_menu(stdscr):
     return "exit"
 
 def reload_module(module_name):
-    """Force reload a module to ensure we get a fresh instance."""
+    """Force reload a module to ensure we get a fresh instance.
+    
+    Args:
+        module_name: Name of the module to reload.
+        
+    Returns:
+        The reloaded module.
+    """
     # Import the module if needed
     if module_name not in sys.modules:
         return importlib.import_module(module_name)
@@ -198,41 +214,50 @@ def reload_module(module_name):
 def run_game(game_name):
     """Run a game with fresh module state.
     
+    Args:
+        game_name: Name of the game to run ("snake", "tetris", "pong").
+        
     Returns:
-        bool: True if we should return to menu, False if we should exit completely
+        bool: True if we should return to menu, False if we should exit completely.
     """
     # Force reload the appropriate module
     if game_name == "snake":
         # Force reload the module to get a fresh instance
-        snake_module = reload_module("terminaide.demos.snake")
+        snake_module = reload_module("terminaide.games.snake")
         # Reset module-level state
-        snake_module._exit_requested = False
-        snake_module._stdscr = None
+        snake_module.exit_requested = False
+        snake_module.stdscr = None
         # Run the game with the from_index flag
-        result = snake_module.run_demo(from_index=True)
+        result = snake_module.play_snake(from_index=True)
         # Return True if we should go back to menu
         return result == "back_to_menu"
         
     elif game_name == "tetris":
-        tetris_module = reload_module("terminaide.demos.tetris")
-        tetris_module._exit_requested = False
-        tetris_module._stdscr = None
-        result = tetris_module.run_demo(from_index=True)
+        tetris_module = reload_module("terminaide.games.tetris")
+        tetris_module.exit_requested = False
+        tetris_module.stdscr = None
+        result = tetris_module.play_tetris(from_index=True)
         return result == "back_to_menu"
         
     elif game_name == "pong":
-        pong_module = reload_module("terminaide.demos.pong")
+        pong_module = reload_module("terminaide.games.pong")
         pong_module.exit_requested = False
-        pong_module._stdscr = None
-        result = pong_module.run_demo(from_index=True)
+        pong_module.stdscr = None
+        result = pong_module.play_pong(from_index=True)
         return result == "back_to_menu"
     
     # Default: don't return to menu
     return False
 
-def run_demo():
-    """Main entry point for the demo."""
-    global _exit_requested
+def show_index():
+    """Main entry point for the game menu.
+    
+    This is the main public-facing function for showing the game menu.
+    
+    Returns:
+        None
+    """
+    global exit_requested
     
     # Set up signal handler for clean exit
     signal.signal(signal.SIGINT, handle_exit)
@@ -240,15 +265,15 @@ def run_demo():
     try:
         while True:
             # Show menu
-            choice = curses.wrapper(index_menu)
+            choice = curses.wrapper(_index_menu_loop)
             
             # Exit if requested
-            if choice == "exit" or _exit_requested:
+            if choice == "exit" or exit_requested:
                 cleanup()
                 return
                 
             # End curses mode before running games
-            if _stdscr:
+            if stdscr:
                 curses.endwin()
                 
             # Run the selected game with fresh module state
@@ -261,14 +286,14 @@ def run_demo():
             # Otherwise continue the loop (show menu again)
             
     except Exception as e:
-        print(f"\n\033[31mError in index demo: {e}\033[0m")
+        print(f"\n\033[31mError in index: {e}\033[0m")
     finally:
-        _exit_requested = True
+        exit_requested = True
         cleanup()
 
 if __name__ == "__main__":
     print("\033[?25l\033[2J\033[H", end="")
     try:
-        run_demo()
+        show_index()
     finally:
         cleanup()

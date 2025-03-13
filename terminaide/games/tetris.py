@@ -1,11 +1,16 @@
-# terminiade/demos/tetris.py
+# terminaide/games/tetris.py
 
-import curses, random, signal, sys, time, os
+import curses
+import random
+import signal
+import sys
+import time
+import os
 from collections import deque
 
-_stdscr = None
-_exit_requested = False
-_back_to_menu = False  # New flag to track back-to-menu requests
+stdscr = None
+exit_requested = False
+back_to_menu = False  # Flag to track back-to-menu requests
 
 TETROMINOS = [
  [ [(0,0),(0,1),(0,2),(0,3)], [(0,0),(1,0),(2,0),(3,0)] ],
@@ -37,20 +42,20 @@ TETROMINO_COLORS = [
  curses.COLOR_RED
 ]
 
-def tetris(stdscr, from_index=False):
-    """Main tetris game function.
+def _tetris_game_loop(stdscr_param, from_index=False):
+    """Main tetris game function that handles the game loop.
     
     Args:
-        stdscr: The curses window.
+        stdscr_param: The curses window.
         from_index: Whether the game was launched from index.py.
         
     Returns:
         str: "back_to_menu" if we should return to menu, None otherwise.
     """
-    global _stdscr, _exit_requested, _back_to_menu
-    _stdscr = stdscr
-    _exit_requested = False
-    _back_to_menu = False
+    global stdscr, exit_requested, back_to_menu
+    stdscr = stdscr_param
+    exit_requested = False
+    back_to_menu = False
     
     signal.signal(signal.SIGINT, handle_exit)
     stdscr.clear()
@@ -61,9 +66,9 @@ def tetris(stdscr, from_index=False):
     high_score = 0
     
     while True:
-        if _exit_requested:
+        if exit_requested:
             # Check if we're returning to menu or exiting completely
-            if _back_to_menu and from_index:
+            if back_to_menu and from_index:
                 cleanup()
                 return "back_to_menu"
             else:
@@ -72,9 +77,9 @@ def tetris(stdscr, from_index=False):
                 
         score = run_game(stdscr, max_y, max_x, high_score, from_index)
         
-        if _exit_requested:
+        if exit_requested:
             # Check again after game has run
-            if _back_to_menu and from_index:
+            if back_to_menu and from_index:
                 cleanup()
                 return "back_to_menu"
             else:
@@ -88,6 +93,7 @@ def tetris(stdscr, from_index=False):
     return None
 
 def setup_terminal(stdscr):
+    """Configure terminal settings for the game."""
     curses.curs_set(0)
     curses.noecho()
     curses.cbreak()
@@ -112,7 +118,7 @@ def run_game(stdscr, max_y, max_x, high_score=0, from_index=False):
     Returns:
         int: The final score.
     """
-    global _exit_requested, _back_to_menu
+    global exit_requested, back_to_menu
     
     board_height = min(20, max_y-7)
     board_width = min(10, max_x//2-2)
@@ -135,7 +141,7 @@ def run_game(stdscr, max_y, max_x, high_score=0, from_index=False):
     last_move = time.time()
     
     while True:
-        if _exit_requested:
+        if exit_requested:
             return score
             
         now = time.time()
@@ -151,8 +157,8 @@ def run_game(stdscr, max_y, max_x, high_score=0, from_index=False):
             
         # Check for back-to-menu keys (backspace, delete) if launched from index
         if from_index and key in (curses.KEY_BACKSPACE, 8, 127, curses.KEY_DC, 330):
-            _back_to_menu = True
-            _exit_requested = True
+            back_to_menu = True
+            exit_requested = True
             return score
             
         if key in [curses.KEY_LEFT, ord('a'), ord('A')]:
@@ -205,6 +211,16 @@ def run_game(stdscr, max_y, max_x, high_score=0, from_index=False):
                   max_x, start_y, start_x)
 
 def is_valid_position(board, piece, pos):
+    """Check if the tetromino position is valid.
+    
+    Args:
+        board: Game board state.
+        piece: Tetromino piece shape.
+        pos: Position [y, x] to check.
+        
+    Returns:
+        bool: True if position is valid, False otherwise.
+    """
     bh = len(board)
     bw = len(board[0])
     for y, x in piece:
@@ -217,6 +233,14 @@ def is_valid_position(board, piece, pos):
     return True
 
 def place_tetromino(board, piece, pos, t):
+    """Place a tetromino on the board.
+    
+    Args:
+        board: Game board state.
+        piece: Tetromino piece shape.
+        pos: Position [y, x] to place.
+        t: Tetromino type (for color).
+    """
     for y, x in piece:
         ny = pos[0]+y
         nx = pos[1]+x
@@ -224,6 +248,14 @@ def place_tetromino(board, piece, pos, t):
             board[ny][nx] = t
 
 def clear_lines(board):
+    """Clear completed lines and calculate score.
+    
+    Args:
+        board: Game board state.
+        
+    Returns:
+        int: Number of lines cleared.
+    """
     bh = len(board)
     bw = len(board[0])
     c = 0
@@ -241,10 +273,27 @@ def clear_lines(board):
     return c
 
 def calculate_score(lines, level):
+    """Calculate score based on lines cleared and level.
+    
+    Args:
+        lines: Number of lines cleared at once.
+        level: Current level.
+        
+    Returns:
+        int: Score to add.
+    """
     s = [0, 100, 300, 500, 800]
     return s[min(lines, 4)]*level
 
 def safe_addstr(stdscr, y, x, text, attr=0):
+    """Safely add a string to the screen, handling boundary conditions.
+    
+    Args:
+        stdscr: The screen to draw on.
+        y, x: Coordinates to start drawing.
+        text: Text to draw.
+        attr: Text attributes.
+    """
     h, w = stdscr.getmaxyx()
     if y < 0 or y >= h or x < 0 or x >= w:
         return
@@ -258,6 +307,25 @@ def safe_addstr(stdscr, y, x, text, attr=0):
         curses.error
 
 def draw_game(stdscr, gw, nw, board, piece, pos, ptype, ntype, score, level, lines, high_score, bh, bw, mx, sy, sx):
+    """Draw the game screen with all elements.
+    
+    Args:
+        stdscr: Main screen.
+        gw: Game window.
+        nw: Next piece window.
+        board: Game board state.
+        piece: Current tetromino shape.
+        pos: Current position [y, x].
+        ptype: Current piece type.
+        ntype: Next piece type.
+        score: Current score.
+        level: Current level.
+        lines: Lines cleared.
+        high_score: High score.
+        bh, bw: Board height and width.
+        mx: Max x coordinate.
+        sy, sx: Start y and x coordinates.
+    """
     gw.erase()
     nw.erase()
     gw.box()
@@ -306,19 +374,29 @@ def draw_game(stdscr, gw, nw, board, piece, pos, ptype, ntype, score, level, lin
     sw = stdscr.getmaxyx()[1]
     hx = min(sw-len(hi)-1, mx-len(hi)-2)
     safe_addstr(stdscr, 0, hx, hi, curses.color_pair(9)|curses.A_BOLD)
-    # --------------------------------------------------------------------
-    # Center the controls BELOW the board window:
+    # Controls below the board window
     ctrl = "↑:Rotate  ←→:Move  ↓:Drop  Space:Hard Drop  Q:Quit"
     controls_row = sy + bh + 3  # Just a few lines below bottom of game board
     controls_col = sx + ((bw*2 + 2) - len(ctrl))//2
     safe_addstr(stdscr, controls_row, controls_col, ctrl)
-    # --------------------------------------------------------------------
+    
     stdscr.noutrefresh()
     gw.noutrefresh()
     nw.noutrefresh()
     curses.doupdate()
 
 def show_game_over(stdscr, score, high_score, my, mx):
+    """Show game over screen and handle restart/quit options.
+    
+    Args:
+        stdscr: The screen to draw on.
+        score: Final score.
+        high_score: High score.
+        my, mx: Maximum y and x coordinates.
+        
+    Returns:
+        bool: True if user chooses to quit, False to restart.
+    """
     stdscr.clear()
     cy = my//2
     data = [
@@ -341,12 +419,13 @@ def show_game_over(stdscr, score, high_score, my, mx):
             return False
 
 def cleanup():
-    if _stdscr:
+    """Clean up terminal state when exiting."""
+    if stdscr:
         try:
             curses.endwin()
             print("\033[?25l\033[2J\033[H", end="")
             try:
-                rows, cols = _stdscr.getmaxyx()
+                rows, cols = stdscr.getmaxyx()
             except:
                 rows, cols = 24, 80
             msg = "Thanks for playing Tetris!"
@@ -358,11 +437,13 @@ def cleanup():
 
 def handle_exit(sig, frame):
     """Handle SIGINT (Ctrl+C) for program exit."""
-    global _exit_requested
-    _exit_requested = True
+    global exit_requested
+    exit_requested = True
 
-def run_demo(from_index=False):
-    """Run the tetris game demo.
+def play_tetris(from_index=False):
+    """Run the tetris game.
+    
+    This is the main public-facing function for launching the tetris game.
     
     Args:
         from_index: Whether the game was launched from index.py.
@@ -374,10 +455,10 @@ def run_demo(from_index=False):
         os.system('clear' if os.name == 'posix' else 'cls')
         print("\033[2J\033[H", end="")
         sys.stdout.flush()
-        result = curses.wrapper(lambda stdscr: tetris(stdscr, from_index))
+        result = curses.wrapper(lambda stdscr_param: _tetris_game_loop(stdscr_param, from_index))
         return result
     except Exception as e:
-        print(f"\n\033[31mError in demo: {e}\033[0m")
+        print(f"\n\033[31mError in tetris game: {e}\033[0m")
     finally:
         cleanup()
 
@@ -386,6 +467,6 @@ if __name__ == "__main__":
     sys.stdout.flush()
     os.system('clear' if os.name == 'posix' else 'cls')
     try:
-        curses.wrapper(tetris)
+        play_tetris()
     finally:
         cleanup()

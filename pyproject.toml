@@ -4,9 +4,12 @@ version = "0.0.6"
 description = "Serve Python CLI applications in the browser using ttyd"
 repository = "https://github.com/anotherbazeinthewall/terminaide"
 authors = ["Alex Basile <basileaw@gmail.com>"]
-packages = [{ include = "terminaide" }]
+packages = [{ include = "terminaide", from = "." }]                     # No explicit exclude here
 readme = "README.md"
 license = "MIT"
+
+[tool.poetry.extras]
+games = ["terminaide.games"] # Allows games to be optionally installed
 
 [build-system]
 requires = ["poetry-core"]
@@ -35,7 +38,7 @@ default   - No client_script/terminal_routes/server routes (serves instructions 
 single    - Client_script launches all games from root (no terminal_routes/server routes).
 multi     - Serves HTML menu at root, with separate routes for different games.
 container - Runs multi-mode inside a Docker container.
-​
+
 """
 
 [tool.poe.tasks.release]

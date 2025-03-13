@@ -14,10 +14,9 @@ Supported Platforms:
 """
 
 import logging
-from .serve import serve_terminal, _configure_app  # Import only definitions, no side effects
+from .serve import serve_terminal
 from .core.settings import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
 from .installer import setup_ttyd, get_platform_info
-from .demos import run as demo_run
 from .exceptions import (
     terminaideError,
     BinaryError,
@@ -52,9 +51,6 @@ __all__ = [
     "setup_ttyd",
     "get_platform_info",
 
-    # Demo functionality
-    "demo_run",
-
     # Exceptions
     "terminaideError",
     "BinaryError",
@@ -73,6 +69,3 @@ __all__ = [
     "ScriptConfigurationError",
     "DuplicateRouteError"
 ]
-
-# Optional: Provide a convenience alias if desired
-demos = demo_run
