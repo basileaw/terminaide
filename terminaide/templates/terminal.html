@@ -3,7 +3,6 @@
 
 <head>
     <title>{{ title }}</title>
-    <!-- Use protocol-relative URL for favicon -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='favicon.ico') }}">
     <style>
         /* Set background color for the entire viewport */
@@ -94,19 +93,9 @@
                 }
             });
 
-            // Detect if we're on HTTPS to set correct iframe src
-            const currentProtocol = window.location.protocol;
-            const terminalSrc = document.getElementById('terminal').getAttribute('src');
-
-            // Ensure iframe src uses the same protocol as the parent page
-            if (terminalSrc && terminalSrc.startsWith('/')) {
-                // It's already a relative URL, so it will inherit the current protocol
-                // No need to change anything
-            } else if (terminalSrc && !terminalSrc.startsWith('http')) {
-                // It's not an absolute URL, so prefix with current protocol
-                document.getElementById('terminal').setAttribute('src',
-                    currentProtocol + '//' + terminalSrc.replace(/^https?:\/\//, ''));
-            }
+            // Get current protocol to use for websocket connections
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            console.log(`Using ${protocol} for WebSocket connections`);
 
             function injectStyles() {
                 try {
