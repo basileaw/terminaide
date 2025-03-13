@@ -5,7 +5,7 @@ This package provides tools to easily serve Python CLI applications through
 a browser-based terminal using ttyd. It handles binary installation and
 management automatically across supported platforms.
 
-The package now supports multi-script routing, allowing different scripts
+The package supports multi-script routing, allowing different scripts
 to be served on different routes.
 
 Supported Platforms:
@@ -31,7 +31,6 @@ from .exceptions import (
     TemplateError,
     ProxyError,
     ConfigurationError,
-    # New exceptions for multi-script support
     RouteNotFoundError,
     PortAllocationError,
     ScriptConfigurationError,
@@ -41,7 +40,6 @@ from .exceptions import (
 # Configure package-level logging
 logging.getLogger("terminaide").addHandler(logging.NullHandler())
 
-__version__ = "0.3.0"  # Updated version number for multi-script support
 __all__ = [
     # Main functionality
     "serve_terminal",
@@ -70,7 +68,6 @@ __all__ = [
     "TemplateError",
     "ProxyError",
     "ConfigurationError",
-    # New exceptions for multi-script support
     "RouteNotFoundError",
     "PortAllocationError",
     "ScriptConfigurationError",
