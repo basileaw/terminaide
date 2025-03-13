@@ -8,7 +8,8 @@ service within a FastAPI application. It now supports multiple script configurat
 allowing different scripts to be served on different routes.
 
 The implementation uses a middleware-based approach to ensure that user-defined routes
-take precedence over the demo, even when those routes are defined after calling serve_terminal().
+take precedence over the default client, even when those routes are defined after calling 
+serve_terminal().
 
 All side effects (like spawning ttyd processes) happen only when the server truly starts.
 """
@@ -239,15 +240,15 @@ def _create_script_configs(
                     )
                 )
     
-    # Always add the demo to root path if no explicit root is defined
+    # Always add the default client to root path if no explicit root is defined
     # This ensures it's properly configured and started with other processes
     if not has_root_path and client_script is None:
-        demo_path = Path(__file__).parent / "demos" / "instructions.py"
+        default_client_path = Path(__file__).parent / "default_client.py"
         script_configs.append(
             ScriptConfig(
                 route_path="/",
-                client_script=demo_path,
-                title="Terminaide (Instructions)"
+                client_script=default_client_path,
+                title="Terminaide (Getting Started)"
             )
         )
     
@@ -322,17 +323,17 @@ async def _terminaide_lifespan(app: FastAPI, config: TTYDConfig):
         await proxy_manager.cleanup()
 
 
-async def _demo_middleware(request: Request, call_next):
+async def _default_client_middleware(request: Request, call_next):
     """
-    Middleware that serves the demo at the root path if no other route handles it.
+    Middleware that serves the default client at the root path if no other route handles it.
     
     This middleware lets users define their own root routes after calling serve_terminal(),
-    while still providing the helpful demo when no user route is defined.
+    while still providing the default interface when no user route is defined.
     """
     # First, let the request go through the normal routing process
     response = await call_next(request)
     
-    # If the path is root and no route was found (404), serve the demo
+    # If the path is root and no route was found (404), serve the default client
     if request.url.path == "/" and response.status_code == 404:
         # Access stored templates and config from app.state
         templates = request.app.state.terminaide_templates
@@ -342,10 +343,10 @@ async def _demo_middleware(request: Request, call_next):
         # Get the terminal path for the root route
         terminal_path = config.get_terminal_path_for_route("/")
         
-        # Log that we're serving the demo via middleware
-        logger.info("No route matched root path, serving demo via middleware")
+        # Log that we're serving the default client via middleware
+        logger.info("No route matched root path, serving default client via middleware")
         
-        # Serve the demo interface template
+        # Serve the default client interface template
         try:
             return templates.TemplateResponse(
                 template_file,
@@ -353,11 +354,11 @@ async def _demo_middleware(request: Request, call_next):
                     "request": request,
                     "mount_path": terminal_path,
                     "theme": config.theme.model_dump(),
-                    "title": "Terminaide (Instructions)"
+                    "title": "Terminaide (Getting Started)"
                 }
             )
         except Exception as e:
-            logger.error(f"Demo template rendering error: {e}")
+            logger.error(f"Default client template rendering error: {e}")
             # Let the original 404 pass through if template rendering fails
     
     # Return the original response for all other cases
@@ -417,7 +418,7 @@ def serve_terminal(
     
     # Create TTYDConfig
     config = TTYDConfig(
-        client_script=script_configs[0].client_script if script_configs else Path(__file__).parent / "demos" / "instructions.py",
+        client_script=script_configs[0].client_script if script_configs else Path(__file__).parent / "default_client.py",
         mount_path=mount_path,
         port=port,
         theme=ThemeConfig(**(theme or {"background": "black"})),
@@ -434,8 +435,8 @@ def serve_terminal(
         return
     setattr(app.state, sentinel_attr, True)
 
-    # Add our demo fallback middleware
-    app.middleware("http")(_demo_middleware)
+    # Add our default client fallback middleware
+    app.middleware("http")(_default_client_middleware)
 
     # We keep the original lifespan to merge it
     original_lifespan = app.router.lifespan_context
