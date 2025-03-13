@@ -1,8 +1,8 @@
 # terminaide/core/proxy.py
 
 """
-Manages HTTP and WebSocket proxying for ttyd processes, including path rewriting
-and multiple-route support.
+Manages HTTP and WebSocket proxying for ttyd processes, including path rewriting,
+multiple-route support, and HTTPS detection.
 """
 
 import json
@@ -22,10 +22,11 @@ from .settings import TTYDConfig, ScriptConfig
 
 logger = logging.getLogger("terminaide")
 
+
 class ProxyManager:
     """
-    Handles HTTP and WebSocket traffic to ttyd, including path prefix adjustments
-    and multi-route configurations.
+    Handles HTTP and WebSocket traffic to ttyd, including path prefix adjustments,
+    multi-route configurations, and proper protocol handling for HTTPS proxies.
     """
     
     def __init__(self, config: TTYDConfig):
@@ -41,6 +42,35 @@ class ProxyManager:
             f"({'multi-script' if self.config.is_multi_script else 'single-script'} mode)"
         )
 
+    def _get_request_protocol(self, request: Optional[Request] = None) -> str:
+        """
+        Determine the correct protocol (http/https) based on headers or config.
+        
+        This examines X-Forwarded-Proto and other common proxy headers to detect HTTPS.
+        """
+        if not request:
+            # Default to secure if no request available (used for WebSockets)
+            return "https" if self.config.ttyd_options.force_https else "http"
+            
+        # Check common proxy headers
+        forwarded_proto = request.headers.get("X-Forwarded-Proto")
+        if forwarded_proto:
+            return forwarded_proto
+
+        # Check the Forwarded header (RFC 7239)
+        forwarded = request.headers.get("Forwarded")
+        if forwarded:
+            for part in forwarded.split(";"):
+                if part.lower().startswith("proto="):
+                    return part.split("=")[1].strip('"')
+
+        # Check the request scheme
+        if request.url.scheme == "https":
+            return "https"
+            
+        # Default based on config (secure by default)
+        return "https" if self.config.ttyd_options.force_https else "http"
+
     def _initialize_targets(self) -> None:
         """
         Build base URLs for each script configuration's ttyd process.
@@ -52,13 +82,14 @@ class ProxyManager:
                 logger.error(f"No port assigned to route {route_path}")
                 continue
             host = f"{self.config.ttyd_options.interface}:{port}"
+            
+            # We'll add protocol dynamically at request time instead of hardcoding http
             self.targets[route_path] = {
-                "target_url": f"http://{host}",
-                "ws_url": f"ws://{host}/ws",
+                "host": host,
                 "port": port
             }
             logger.info(
-                f"Route '{route_path}' => {self.targets[route_path]['target_url']} "
+                f"Route '{route_path}' => {host} "
                 f"(terminal path: {self.config.get_terminal_path_for_route(route_path)})"
             )
 
@@ -144,9 +175,18 @@ class ProxyManager:
             headers = dict(request.headers)
             headers.pop("host", None)
 
+            # Get the host part of the target URL
+            host = target_info["host"]
+            
+            # Get protocol dynamically (will be "http" as we're proxying internally)
+            internal_protocol = "http"  # Always use http for internal proxying
+            
+            # Build the target URL
+            target_url = f"{internal_protocol}://{host}"
+            
             response = await self.http_client.request(
                 method=request.method,
-                url=urljoin(target_info["target_url"], target_path),
+                url=urljoin(target_url, target_path),
                 headers=headers,
                 content=await request.body()
             )
@@ -175,6 +215,7 @@ class ProxyManager:
     async def proxy_websocket(self, websocket: WebSocket, route_path: Optional[str] = None) -> None:
         """
         Forward WebSocket connections to ttyd, including bidirectional data flow.
+        Protocol (ws/wss) is determined by X-Forwarded-Proto or request URL.
         """
         try:
             if route_path is None:
@@ -188,7 +229,10 @@ class ProxyManager:
             if not target_info:
                 raise RouteNotFoundError(f"No target info for route: {route_path}")
 
-            ws_url = target_info["ws_url"]
+            # Always use plain ws:// for internal connections since we're connecting to
+            # the local ttyd process directly
+            ws_url = f"ws://{target_info['host']}/ws"
+            
             await websocket.accept(subprotocol='tty')
             logger.info(f"Connecting WebSocket to {ws_url} for route {route_path}")
 
@@ -260,12 +304,18 @@ class ProxyManager:
         for script_config in self.config.script_configs:
             route_path = script_config.route_path
             target_info = self.targets.get(route_path, {})
+            
+            # Include both http and https URLs in the info response
+            host = target_info.get("host", "")
+            
             routes_info.append({
                 "route_path": route_path,
                 "script": str(script_config.client_script),
                 "terminal_path": self.config.get_terminal_path_for_route(route_path),
-                "http_endpoint": target_info.get("target_url"),
-                "ws_endpoint": target_info.get("ws_url"),
+                "http_endpoint": f"http://{host}",
+                "https_endpoint": f"https://{host}",
+                "ws_endpoint": f"ws://{host}/ws",
+                "wss_endpoint": f"wss://{host}/ws",
                 "port": target_info.get("port"),
                 "title": script_config.title or self.config.title
             })

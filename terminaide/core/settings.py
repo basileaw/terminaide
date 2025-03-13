@@ -26,6 +26,7 @@ class TTYDOptions(BaseModel):
     credential_required: bool = False
     username: Optional[str] = None
     password: Optional[str] = None
+    force_https: bool = False  # Add this option to force HTTPS mode
     
     @model_validator(mode='after')
     def validate_credentials(self) -> 'TTYDOptions':

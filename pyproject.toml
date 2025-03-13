@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "terminaide"
-version = "0.0.4"
+version = "0.0.5"
 description = "Serve Python CLI applications in the browser using ttyd"
 repository = "https://github.com/anotherbazeinthewall/terminaide"
 authors = ["Alex Basile <basileaw@gmail.com>"]
@@ -50,4 +50,5 @@ sequence = [
       git tag v$VERSION
       git push && git push --tags
     """ },
+  { cmd = "poetry publish --build -vvv" },
 ]
