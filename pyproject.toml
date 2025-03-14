@@ -32,22 +32,15 @@ docker = "^7.1.0"
 poethepoet = "^0.33.0"
 
 [tool.poe.tasks.serve]
-cmd = "python demo/server.py ${args}"
-help = """
-Run demo server in one of 4 modes (also supports --port flag):
-
-default   - No client_script/terminal_routes/server routes (serves instructions by default).
-single    - Client_script launches all games from root (no terminal_routes/server routes).
-multi     - Serves HTML menu at root, with separate routes for different games.
-container - Runs multi-mode inside a Docker container.
-
-"""
+help = """Run demo server in one of 4 modes:"""
+args = [
+  { name = "mode", positional = true, help = "single | multi | container | default (no args)" },
+]
+cmd = "python demo/server.py ${mode} ${args}"
 
 [tool.poe.tasks.release]
-help = "Release a new version"
-args = [
-  { name = "type", positional = true, help = "Version increment type (patch/minor/major)" },
-]
+help = "Release one of three new versions:"
+args = [{ name = "type", positional = true, help = "patch | minor | major" }]
 sequence = [
   { cmd = "poetry version ${type}" },
   { cmd = "git add pyproject.toml" },
