@@ -5,6 +5,9 @@ Defines Pydantic-based settings for terminaide, including path handling for
 root/non-root mounting and multiple script routing.
 """
 
+import os
+import sys
+import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, Union, List
 from pydantic import (
@@ -15,6 +18,38 @@ from pydantic import (
 )
 
 from ..exceptions import ConfigurationError
+
+logger = logging.getLogger("terminaide")
+
+
+def smart_resolve_path(path: Union[str, Path]) -> Path:
+    """
+    Resolves a path using a predictable strategy:
+    1. First try the path as-is (absolute or relative to CWD)
+    2. Then try relative to the main script being run (sys.argv[0])
+    
+    This approach is both flexible and predictable.
+    """
+    original_path = Path(path)
+    
+    # Strategy 1: Use the path as-is (absolute or relative to CWD)
+    if original_path.is_absolute() or original_path.exists():
+        return original_path.absolute()
+    
+    # Strategy 2: Try relative to the main script being run
+    try:
+        main_script = Path(sys.argv[0]).absolute()
+        main_script_dir = main_script.parent
+        script_relative_path = main_script_dir / original_path
+        if script_relative_path.exists():
+            logger.debug(f"Found script at {script_relative_path} (relative to main script)")
+            return script_relative_path.absolute()
+    except Exception as e:
+        logger.debug(f"Error resolving path relative to main script: {e}")
+    
+    # Return the original if nothing was found
+    return original_path
+
 
 class TTYDOptions(BaseModel):
     """TTYd-specific options like auth, interface, and client capacity."""
@@ -61,11 +96,32 @@ class ScriptConfig(BaseModel):
     @field_validator('client_script')
     @classmethod
     def validate_script_path(cls, v: Union[str, Path]) -> Path:
-        """Ensure the script file exists."""
-        path = Path(v)
-        if not path.exists():
-            raise ConfigurationError(f"Script file does not exist: {path}")
-        return path.absolute()
+        """
+        Ensure the script file exists, trying:
+        1. The path as provided (relative to CWD or absolute)
+        2. The path relative to the main script being executed
+        """
+        resolved_path = smart_resolve_path(v)
+        
+        if not resolved_path.exists():
+            # Create a helpful error message
+            error_msg = f"Script file does not exist: {v}\n"
+            
+            # Add context about where we looked
+            cwd_path = Path.cwd() / v
+            error_msg += f"Current working directory: {os.getcwd()}\n"
+            error_msg += f"Tried:\n"
+            error_msg += f"  - As provided: {v}\n"
+            error_msg += f"  - Relative to CWD: {cwd_path}\n"
+            
+            # Add info about script-relative path if available
+            if sys.argv and len(sys.argv) > 0:
+                script_path = Path(sys.argv[0]).absolute().parent / v
+                error_msg += f"  - Relative to main script: {script_path}\n"
+            
+            raise ConfigurationError(error_msg)
+        
+        return resolved_path.absolute()
     
     @field_validator('route_path')
     @classmethod
