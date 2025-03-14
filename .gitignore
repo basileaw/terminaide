@@ -1,21 +1,11 @@
-
-.archive/
-
-.DS_Store
-.venv
-.vscode
-dist/
-
-# Python
 **/__pycache__
 **/*.pyc
 **/*.pyo
 **/*.pyd
-
-# OS specific
 .DS_Store
 
-# Elastic Beanstalk Files
-.elasticbeanstalk/*
-!.elasticbeanstalk/*.cfg.yml
-!.elasticbeanstalk/*.global.yml
+.archive/
+.DS_Store
+.venv
+.vscode
+dist/
