@@ -279,12 +279,19 @@ def generate_requirements_txt(pyproject_path, temp_dir):
         
         # Use poetry to export dependencies, including main and all other groups except dev
         result = subprocess.run(
-            ["poetry", "export", "--without", "dev", "--format", "requirements.txt"],
+            [
+                "poetry",
+                "export",
+                "--with", "demo",   # Include all optional groups
+                "--without", "dev", # Exclude dev dependencies
+                "--format", "requirements.txt"
+            ],
             cwd=pyproject_path.parent,
             capture_output=True,
             text=True,
             check=True
         )
+
         
         with open(req_path, "w") as f:
             f.write(result.stdout)
