@@ -22,12 +22,16 @@ ASTEROIDS_ASCII_ART = [
     "   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝      ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝╚═════╝ ╚══════╝",
 ]
 
+# A small subtitle beneath the ASCII art
+SUBTITLE = ""
+
 # Colors to match snake's aesthetic
 # (1 = green, 2 = cyan, 3 = red, 4 = white, 5 = yellow)
 SHIP_COLOR_PAIR = 1
 BULLET_COLOR_PAIR = 2
 ASTEROID_COLOR_PAIR = 3
 TEXT_COLOR_PAIR = 5  # for scoreboard, messages, etc.
+SUBTITLE_COLOR_PAIR = 4
 
 # Game constants
 MAX_ASTEROIDS = 5
@@ -41,7 +45,7 @@ ASTEROID_MAX_SPEED = 0.15
 ASTEROID_SYMBOLS = ["O", "@", "0", "#"]
 
 # For quick direction-based ship display
-SHIP_SYMBOL_UP = "^"   
+SHIP_SYMBOL_UP = "^"
 SHIP_SYMBOL_RIGHT = ">"
 SHIP_SYMBOL_DOWN = "v"
 SHIP_SYMBOL_LEFT = "<"
@@ -94,11 +98,11 @@ def setup_terminal(stdscr_window):
     curses.use_default_colors()
 
     # Same color pairs as snake
-    curses.init_pair(1, curses.COLOR_GREEN, -1)   # e.g. ship
-    curses.init_pair(2, curses.COLOR_CYAN, -1)   # e.g. bullets
-    curses.init_pair(3, curses.COLOR_RED, -1)    # e.g. asteroids
-    curses.init_pair(4, curses.COLOR_WHITE, -1)
-    curses.init_pair(5, curses.COLOR_YELLOW, -1) # e.g. score text
+    curses.init_pair(1, curses.COLOR_GREEN, -1)  # e.g. ship
+    curses.init_pair(2, curses.COLOR_CYAN, -1)  # e.g. bullets
+    curses.init_pair(3, curses.COLOR_RED, -1)   # e.g. asteroids
+    curses.init_pair(4, curses.COLOR_WHITE, -1) # e.g. subtitle
+    curses.init_pair(5, curses.COLOR_YELLOW, -1)# e.g. scoreboard text
 
 def wrap_position(x, y, max_x, max_y):
     """
@@ -129,14 +133,15 @@ class GameObject:
         self.y += self.vy
         self.x, self.y = wrap_position(self.x, self.y, max_x, max_y)
 
-    def draw(self, screen):
+    def draw(self, screen, offset_y=0):
         """
         Draw the object on the curses screen if alive.
+        offset_y lets us shift the drawing below ASCII art/scoreboard.
         """
         if self.alive:
             try:
                 screen.addch(
-                    int(self.y),
+                    int(self.y) + offset_y,
                     int(self.x),
                     self.symbol,
                     curses.color_pair(self.color_pair)
@@ -169,7 +174,7 @@ class Ship(GameObject):
         bullet_vy = self.vy + math.sin(rad) * BULLET_SPEED
         return Bullet(self.x, self.y, bullet_vx, bullet_vy, BULLET_SYMBOL, BULLET_COLOR_PAIR)
 
-    def draw(self, screen):
+    def draw(self, screen, offset_y=0):
         """
         Draw the ship with an ASCII character for orientation.
         We'll pick the closest of 0,90,180,270 degrees for display.
@@ -189,7 +194,7 @@ class Ship(GameObject):
         ]
         diffs.sort(key=lambda x: x[0])
         self.symbol = diffs[0][1]
-        super().draw(screen)
+        super().draw(screen, offset_y)
 
 class Asteroid(GameObject):
     """
@@ -211,16 +216,24 @@ def check_collision(obj1, obj2):
     distance = math.hypot(obj1.x - obj2.x, obj1.y - obj2.y)
     return distance < 1.0
 
-def show_game_over(stdscr, score, high_score, max_y, max_x):
+def show_game_over(stdscr, score, high_score, max_y, max_x, header_height):
     """
     Display a 'Game Over' screen (similar to snake),
     then wait for the user to press 'r' or 'q'.
     
-    Returns True if user quits, False if user restarts.
+    We display it around the vertical center of the *play area*,
+    ignoring the top header area. 
+    Returns True if user chooses to quit, False if user restarts.
     """
+    center_y = (max_y + header_height) // 2
+
+    stdscr.nodelay(False)
     stdscr.clear()
-    cy = max_y // 2
-    
+
+    # Re-draw the top header so it remains visible
+    draw_static_header(stdscr, max_x)
+    stdscr.noutrefresh()
+
     lines = [
         ("GAME OVER", -3, curses.A_BOLD | curses.color_pair(3)),
         (f"Your Score: {score}", -1, curses.color_pair(TEXT_COLOR_PAIR)),
@@ -228,13 +241,15 @@ def show_game_over(stdscr, score, high_score, max_y, max_x):
         ("Press 'r' to restart", 2, 0),
         ("Press 'q' to quit", 3, 0),
     ]
-    for txt, offset, attr in lines:
-        stdscr.addstr(cy + offset, max_x // 2 - len(txt)//2, txt, attr)
-    
+
+    for text, offset, attr in lines:
+        y_pos = center_y + offset
+        x_pos = (max_x - len(text)) // 2
+        stdscr.addstr(y_pos, x_pos, text, attr)
+
     stdscr.noutrefresh()
     curses.doupdate()
-    stdscr.nodelay(False)
-    
+
     while True:
         key = stdscr.getch()
         if key == ord('q'):
@@ -242,41 +257,91 @@ def show_game_over(stdscr, score, high_score, max_y, max_x):
         if key == ord('r'):
             return False
 
-def draw_score(stdscr, score, high_score, start_y, max_x):
+def draw_score(stdscr, score, high_score, score_y, max_x):
     """
-    Draw the scoreboard at `start_y`, matching style of snake.py (Score / High Score).
+    Draw the scoreboard at `score_y`, matching style of snake.py (Score / High Score).
+    We'll do a partial clear of that line, then print the text.
     """
-    # Clear the line if you want, or partially clear. We'll just write directly.
-    stdscr.addstr(start_y, 0, " " * max_x)
-    stdscr.addstr(start_y, 2, f" Score: {score} ", curses.color_pair(TEXT_COLOR_PAIR) | curses.A_BOLD)
+    stdscr.move(score_y, 0)
+    stdscr.clrtoeol()
+    stdscr.addstr(score_y, 2, f" Score: {score} ", curses.color_pair(TEXT_COLOR_PAIR) | curses.A_BOLD)
     txt = f" High Score: {high_score} "
-    stdscr.addstr(start_y, max_x - len(txt) - 2, txt, curses.color_pair(TEXT_COLOR_PAIR) | curses.A_BOLD)
+    stdscr.addstr(score_y, max_x - len(txt) - 2, txt, curses.color_pair(TEXT_COLOR_PAIR) | curses.A_BOLD)
 
-def draw_title(stdscr, max_x):
+def draw_static_header(stdscr, max_x):
     """
-    Draw the ASCII art (ASTEROIDS_ASCII_ART) at the top of the screen, each line centered.
-    Returns the number of lines used (so we know where to put the scoreboard).
+    Draw:
+      1) ASCII art at the very top (centered).
+      2) One blank line.
+      3) A subtitle line (centered).
     """
+    # Print ASCII art
     for i, line in enumerate(ASTEROIDS_ASCII_ART):
         x_pos = max(0, (max_x // 2) - (len(line) // 2))
         stdscr.addstr(i, x_pos, line, curses.color_pair(TEXT_COLOR_PAIR) | curses.A_BOLD)
-    return len(ASTEROIDS_ASCII_ART)
+
+    # One blank line after the art
+    blank_line_row = len(ASTEROIDS_ASCII_ART)
+    stdscr.move(blank_line_row, 0)
+    stdscr.clrtoeol()
+
+    # Subtitle line
+    subtitle_row = blank_line_row + 1
+    x_sub = max(0, (max_x // 2) - (len(SUBTITLE) // 2))
+    stdscr.addstr(subtitle_row, x_sub, SUBTITLE, curses.color_pair(SUBTITLE_COLOR_PAIR))
+
+def clear_game_area(stdscr, start_y, max_y, max_x):
+    """
+    Clear just the "game area" lines from start_y down to max_y-1
+    so we don't flicker the ASCII art, subtitle, or scoreboard each frame.
+    """
+    for row in range(start_y, max_y):
+        stdscr.move(row, 0)
+        stdscr.clrtoeol()
 
 def run_game(stdscr, max_y, max_x, high_score):
     """
-    One round of the Asteroids game.  
+    One round of the Asteroids game.
     Returns the final score for this round.
     """
     global exit_requested, back_to_menu
 
-    # Create player ship in the center
-    ship = Ship(max_x // 2, max_y // 2)
+    # We'll define how many lines of ASCII art we have
+    art_height = len(ASTEROIDS_ASCII_ART)
+    # One blank line after art, plus 1 line for the subtitle
+    subtitle_y = art_height + 1
+    # Then scoreboard line after that
+    scoreboard_y = subtitle_y + 1
+    # Then one more blank line
+    blank_line_after_score = scoreboard_y + 1
+    # The game area starts just after that blank line
+    game_start_y = blank_line_after_score
+
+    # Draw the static header (ASCII art + blank line + subtitle)
+    stdscr.nodelay(True)
+    stdscr.timeout(0)
+    draw_static_header(stdscr, max_x)
+
+    # Draw scoreboard initially
+    draw_score(stdscr, 0, high_score, scoreboard_y, max_x)
+
+    # Add one blank line after scoreboard
+    stdscr.move(blank_line_after_score - 1, 0)
+    stdscr.clrtoeol()
+
+    stdscr.noutrefresh()
+    curses.doupdate()
+
+    # Create player ship in the center of the playable area
+    # The playable area is from row game_start_y to max_y - 1
+    playable_height = max_y - game_start_y
+    ship = Ship(max_x // 2, playable_height // 2)
 
     # Create asteroids
     asteroids = []
     for _ in range(MAX_ASTEROIDS):
         x = random.randint(0, max_x - 1)
-        y = random.randint(0, max_y - 1)
+        y = random.randint(0, playable_height - 1)
         vx = random.uniform(ASTEROID_MIN_SPEED, ASTEROID_MAX_SPEED) * random.choice([-1, 1])
         vy = random.uniform(ASTEROID_MIN_SPEED, ASTEROID_MAX_SPEED) * random.choice([-1, 1])
         symbol = random.choice(ASTEROID_SYMBOLS)
@@ -285,15 +350,11 @@ def run_game(stdscr, max_y, max_x, high_score):
     bullets = []
     score = 0
 
-    # Non-blocking input
-    stdscr.nodelay(True)
-    stdscr.timeout(0)
-
     while True:
         if exit_requested:
             return score
 
-        # Check user input
+        # Handle user input
         try:
             key = stdscr.getch()
         except:
@@ -321,11 +382,11 @@ def run_game(stdscr, max_y, max_x, high_score):
                 bullets.append(ship.shoot())
 
         # Update objects
-        ship.update(max_x, max_y)
+        ship.update(max_x, playable_height)
         for asteroid in asteroids:
-            asteroid.update(max_x, max_y)
+            asteroid.update(max_x, playable_height)
         for bullet in bullets:
-            bullet.update(max_x, max_y)
+            bullet.update(max_x, playable_height)
 
         # Check collisions
         for asteroid in asteroids:
@@ -344,23 +405,23 @@ def run_game(stdscr, max_y, max_x, high_score):
         asteroids = [a for a in asteroids if a.alive]
         bullets = [b for b in bullets if b.alive]
 
-        # Clear screen and draw ASCII art + scoreboard
-        stdscr.clear()
-        title_height = draw_title(stdscr, max_x)
-        # scoreboard just below the ASCII art
-        draw_score(stdscr, score, high_score, title_height, max_x)
+        # 1) Clear only the game area (below ASCII art, subtitle, scoreboard, blank line)
+        clear_game_area(stdscr, game_start_y, max_y, max_x)
 
-        # If ship is alive, draw it
+        # 2) Update scoreboard if needed
+        draw_score(stdscr, score, high_score, scoreboard_y, max_x)
+
+        # 3) Draw living objects (ship, asteroids, bullets) with an offset
         if ship.alive:
-            ship.draw(stdscr)
-
-        # Draw asteroids & bullets
+            ship.draw(stdscr, offset_y=game_start_y)
         for asteroid in asteroids:
-            asteroid.draw(stdscr)
+            asteroid.draw(stdscr, offset_y=game_start_y)
         for bullet in bullets:
-            bullet.draw(stdscr)
+            bullet.draw(stdscr, offset_y=game_start_y)
 
-        stdscr.refresh()
+        # Use noutrefresh + doupdate to reduce flicker
+        stdscr.noutrefresh()
+        curses.doupdate()
 
         # End condition if ship is not alive
         if not ship.alive:
@@ -370,7 +431,7 @@ def run_game(stdscr, max_y, max_x, high_score):
         if len(asteroids) == 0:
             for _ in range(MAX_ASTEROIDS):
                 x = random.randint(0, max_x - 1)
-                y = random.randint(0, max_y - 1)
+                y = random.randint(0, playable_height - 1)
                 vx = random.uniform(ASTEROID_MIN_SPEED, ASTEROID_MAX_SPEED) * random.choice([-1, 1])
                 vy = random.uniform(ASTEROID_MIN_SPEED, ASTEROID_MAX_SPEED) * random.choice([-1, 1])
                 symbol = random.choice(ASTEROID_SYMBOLS)
@@ -430,7 +491,7 @@ def _asteroids_game_loop(stdscr_param, from_index=False):
             high_score = score
         
         # Show game over, see if user restarts or quits
-        quit_game = show_game_over(stdscr, score, high_score, max_y, max_x)
+        quit_game = show_game_over(stdscr, score, high_score, max_y, max_x, 0)
         if quit_game:
             break  # user pressed 'q'
         # else they pressed 'r' => loop again

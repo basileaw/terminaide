@@ -6,7 +6,7 @@ Test server for terminaide that demonstrates all three API tiers.
 
 Usage:
     python server.py                     # Default mode - shows getting started interface
-    python server.py function            # Function mode - demo of serve_function()
+    python server.py function            # Function mode - demo of serve_function() with Pong
     python server.py script              # Script mode - demo of serve_script()
     python server.py apps                # Apps mode - HTML page at root, terminal games at routes
     python server.py container           # Run the apps mode in a Docker container
@@ -156,7 +156,7 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
             "client_script": str(CLIENT_SCRIPT),
             "modes": {
                 "default": "Default config - shows getting started interface",
-                "function": "Function mode - demo of serve_function()",
+                "function": "Function mode - demo of serve_function() with Pong",
                 "script": "Script mode - demo of serve_script()",
                 "apps": "Apps mode - HTML page at root + terminal games",
                 "container": "Run the apps mode in a Docker container"
@@ -181,54 +181,119 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
 </html>"""
 
 
-# Example function to be used with serve_function mode
-def demo_terminal_function():
-    """Interactive demo function showing basic terminal interactions."""
-    print("\033[1;32m" + "="*60 + "\033[0m")
-    print("\033[1;32mWelcome to the Terminaide serve_function() demo!\033[0m")
-    print("\033[1;32m" + "="*60 + "\033[0m")
-    print("\nThis demonstrates the simplest way to serve a Python function in a browser terminal.")
-    print("No FastAPI setup required, just pass a function!")
-    
-    name = input("\nWhat's your name? ")
-    print(f"\nHello, {name}! Nice to meet you.")
-    
-    games = ["Snake", "Tetris", "Pong"]
-    print("\nHere are some games you could play:")
-    for i, game in enumerate(games, 1):
-        print(f"  {i}. {game}")
-    
-    choice = input("\nEnter the number of a game you'd like to play (or press Enter to skip): ")
-    
-    if choice and choice.isdigit() and 1 <= int(choice) <= len(games):
-        game = games[int(choice)-1]
-        print(f"\nYou selected {game}! In a real application, I would launch {game} now.")
-    else:
-        print("\nNo problem! Maybe next time.")
-    
-    print("\nTo learn more about Terminaide, check out the other demo modes:")
-    print("  - script: demonstrates serve_script()")
-    print("  - apps: demonstrates serve_apps()")
-    
-    input("\nPress Enter to exit...")
+# Function that directly runs Pong with no preamble
+def play_pong_function():
+    """Direct Pong launcher for serve_function demo."""
+    from terminaide.games import play_pong
+    play_pong()
 
 
 def create_app() -> FastAPI:
     """
     Factory function for Uvicorn (with reload).
-    This creates different app configurations based on the mode.
-    NOTE: This is only used for default mode and apps mode, which use FastAPI.
-    The function and script modes directly call their respective API functions.
+    This function now handles all modes to benefit from uvicorn's reload functionality.
     """
     mode = os.environ.get("TERMINAIDE_MODE", "default")
     app = FastAPI(title=f"Terminaide Test - {mode.upper()} Mode")
 
     description = ""
 
+    # Default mode - use serve_apps with empty routes to show default client
     if mode == "default":
-        description = "Default configuration - shows built-in interface"
-        serve_apps(app, terminal_routes={}, title="Default Mode", debug=True)
+        description = "Default configuration - shows getting started interface"
+        # Find the default client in the terminaide package
+        import terminaide
+        default_client_path = Path(terminaide.__file__).parent / "default_client.py"
+        
+        # Use serve_apps to benefit from uvicorn reload
+        serve_apps(
+            app,
+            terminal_routes={"/": default_client_path},
+            title="Terminaide (Getting Started)",
+            debug=True
+        )
     
+    # Function mode - wrap play_pong_function for demo
+    elif mode == "function":
+        description = "Function mode - demonstrating serve_function() with Pong"
+        
+        # Create a route that explains we're showcasing serve_function
+        @app.get("/", response_class=HTMLResponse)
+        async def function_explanation():
+            return """<!DOCTYPE html>
+<html>
+<head>
+    <title>Function Mode Example</title>
+    <meta http-equiv="refresh" content="5;url=/pong">
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            line-height: 1.6;
+            text-align: center;
+        }
+        .code {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            display: inline-block;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .redirect {
+            margin-top: 30px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>Simplest API: serve_function()</h1>
+    
+    <p>This demo shows how you can serve any Python function directly in a terminal:</p>
+    
+    <div class="code">
+        <pre>from terminaide import serve_function
+
+def play_pong_function():
+    from terminaide.games import play_pong
+    play_pong()
+
+serve_function(play_pong_function)</pre>
+    </div>
+    
+    <p class="redirect">Redirecting to Pong in 5 seconds...</p>
+</body>
+</html>"""
+        
+        # Directly serve the pong function
+        serve_apps(
+            app,
+            terminal_routes={
+                "/pong": {
+                    "client_script": [
+                        str(Path(sys.executable)),
+                        "-c",
+                        "from terminaide.games import play_pong; play_pong()"
+                    ],
+                    "title": "Pong via serve_function()"
+                }
+            },
+            debug=True
+        )
+    
+    # Script mode - demonstrates serve_script
+    elif mode == "script":
+        description = "Script mode - demonstrating serve_script()"
+        serve_apps(
+            app,
+            terminal_routes={"/": [CLIENT_SCRIPT, "--index"]},
+            title="Termin-Arcade (Script Mode)",
+            debug=True
+        )
+    
+    # Apps mode - multiple terminals with HTML interface
     elif mode == "apps":
         description = "Apps mode - HTML page at root + separate terminal routes"
         create_custom_root_endpoint(app)
@@ -250,8 +315,10 @@ def create_app() -> FastAPI:
             },
             debug=True
         )
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
     
-    # Create the info endpoint for these modes
+    # Create the info endpoint for all modes
     create_info_endpoint(app, mode, description)
     return app
 
@@ -428,7 +495,7 @@ def parse_args():
 def main():
     """
     Main entrypoint for running in different modes.
-    Each mode demonstrates a different API function.
+    All modes now use the factory pattern with uvicorn to benefit from code reload.
     """
     args = parse_args()
     mode = args.actual_mode
@@ -440,30 +507,7 @@ def main():
     if mode == "container":
         build_and_run_container(port=port)
         return
-
-    # Directly handle function mode with serve_function
-    if mode == "function":
-        print("\033[1;36mRunning serve_function() demo...\033[0m")
-        serve_function(
-            demo_terminal_function,
-            port=port,
-            title="Terminaide Function Demo",
-            debug=True
-        )
-        return
     
-    # Directly handle script mode with serve_script
-    if mode == "script":
-        print("\033[1;36mRunning serve_script() demo...\033[0m")
-        serve_script(
-            CLIENT_SCRIPT,
-            port=port,
-            title="Termin-Arcade (Script Mode)",
-            debug=True
-        )
-        return
-    
-    # For default and apps modes, use FastAPI with serve_apps
     logger.info(f"Visit http://localhost:{port} for the main interface")
     logger.info(f"Visit http://localhost:{port}/info for details")
 
