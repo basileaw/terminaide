@@ -1,5 +1,3 @@
-# terminaide/games/__init__.py
-
 """
 Games module for terminaide.
 
@@ -17,12 +15,14 @@ Example:
         games.play_snake()
         games.play_pong()
         games.play_tetris()
+        games.play_asteroids()
 """
 
 from .snake import play_snake
 from .pong import play_pong
 from .tetris import play_tetris
+from .asteroids import play_asteroids
 from .index import show_index
 
 # Define the module's public API
-__all__ = ["play_snake", "play_pong", "play_tetris", "show_index"]
+__all__ = ["play_snake", "play_pong", "play_tetris", "play_asteroids", "show_index"]
