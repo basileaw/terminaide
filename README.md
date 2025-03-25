@@ -26,30 +26,45 @@ Terminaide automatically installs the ttyd binary if not already present, simpli
 
 ## Usage
 
-There are two primary ways to use terminaide, depending on your needs:
+Terminaide offers three API entry points with increasing levels of complexity and flexibility:
 
-### Single Script
+### 1. Function Mode (Simplest)
 
-To serve a single Python script with the absolute bare minimum overhead:
+The absolute simplest way to serve a Python function directly in a browser terminal:
 
 ```python
-# app.py
-from terminaide import simple_serve
+from terminaide import serve_function
+
+def hello():
+    name = input("What's your name? ")
+    print(f"Hello, {name}!")
 
 if __name__ == "__main__":
-    simple_serve("my_script.py")
+    serve_function(hello)  # That's it!
+```
+
+Just pass any Python function to `serve_function()` and it's instantly web-accessible. No servers to configure, no special code to write.
+
+### 2. Script Mode (Simple)
+
+To serve an existing Python script file:
+
+```python
+from terminaide import serve_script
+
+if __name__ == "__main__":
+    serve_script("my_script.py")
 ```
 
 This approach is ideal when you have an existing terminal application that you don't want to modify. Your script runs exactly as it would in a normal terminal, but becomes accessible through any web browser.
 
-### Multi Mode
+### 3. Apps Mode (Advanced)
 
-To serve multiple terminals in a more complex application:
+To integrate multiple terminals into a FastAPI application:
 
 ```python
-# app.py
 from fastapi import FastAPI
-from terminaide import serve_terminals
+from terminaide import serve_apps
 import uvicorn
 
 app = FastAPI()
@@ -59,7 +74,7 @@ app = FastAPI()
 async def root():
     return {"message": "Welcome to my terminal app"}
 
-serve_terminals(
+serve_apps(
     app,
     terminal_routes={
         "/cli1": "script1.py",
@@ -79,43 +94,61 @@ This approach works best when you're building a new application with terminaide 
 
 ### Configuration Options
 
-Terminaide supports the following configuration options when calling `serve_terminals()`:
+The following configuration options are available for the advanced `serve_apps()` function:
 
-- **terminal_routes** (required): Dictionary mapping URL paths to scripts
-  - Basic format: `"/path": "script.py"`
-  - With arguments: `"/path": ["script.py", "--arg1", "value"]`
-  - Advanced: `"/path": {"client_script": "script.py", "args": [...], "title": "Title", "port": 7682}`
+```python
+serve_apps(
+    app,                      # FastAPI application
+    terminal_routes={...},    # Dictionary mapping paths to scripts
+    mount_path="/",           # Base path for terminal mounting
+    port=7681,                # Base port for ttyd processes
+    theme=None,               # Terminal theme (colors, fonts)
+    ttyd_options=None,        # Options for ttyd processes
+    template_override=None,   # Custom HTML template
+    title="Terminal",         # Default terminal title
+    debug=False,              # Enable debug mode
+    trust_proxy_headers=True  # Trust X-Forwarded-Proto headers
+)
+```
 
-- **mount_path** (default: "/"): Base path where terminal will be mounted
+The **terminal_routes** dictionary supports these formats:
 
-- **port** (default: 7681): Base port for ttyd processes
+- Basic format: `"/path": "script.py"`
+- With arguments: `"/path": ["script.py", "--arg1", "value"]`
+- Advanced: `"/path": {"client_script": "script.py", "args": [...], "title": "Title", "port": 7682}`
 
-- **theme**: Terminal appearance customization
-  - `background`: Background color (default: "black")
-  - `foreground`: Text color (default: "white")
-  - `cursor`: Cursor color
-  - `cursor_accent`: Secondary cursor color
-  - `selection`: Selection highlight color
-  - `font_family`: Terminal font
-  - `font_size`: Font size in pixels
+For theme and ttyd customization, you can use:
 
-- **ttyd_options**: Options passed to the ttyd process
-  - `writable` (default: True): Allow terminal input
-  - `interface` (default: "127.0.0.1"): Network interface to bind
-  - `check_origin` (default: True): Enforce same-origin policy
-  - `max_clients` (default: 1): Maximum simultaneous connections
-  - `credential_required` (default: False): Enable authentication
-  - `username`: Login username (required if credential_required=True)
-  - `password`: Login password (required if credential_required=True)
-  - `force_https` (default: False): Force HTTPS mode
+#### Theme Options
 
-- **template_override**: Path to custom terminal HTML template
+```python
+theme={
+    "background": "black",      # Background color
+    "foreground": "white",      # Text color
+    "cursor": "white",          # Cursor color
+    "cursor_accent": None,      # Secondary cursor color
+    "selection": None,          # Selection highlight color
+    "font_family": None,        # Terminal font
+    "font_size": None           # Font size in pixels
+}
+```
 
-- **title** (default: "Terminal"): Title for the terminal window
+#### TTYD Options
 
-- **debug** (default: False): Enable debug mode with detailed logging
+```python
+ttyd_options={
+    "writable": True,            # Allow terminal input
+    "interface": "127.0.0.1",    # Network interface to bind
+    "check_origin": True,        # Enforce same-origin policy
+    "max_clients": 1,            # Maximum simultaneous connections
+    "credential_required": False, # Enable authentication
+    "username": None,            # Login username
+    "password": None,            # Login password
+    "force_https": False         # Force HTTPS mode
+}
+```
 
-- **trust_proxy_headers** (default: True): Trust X-Forwarded-Proto for HTTPS detection
+The simpler `serve_function()` and `serve_script()` functions accept a subset of these options: `port`, `title`, `theme`, and `debug`.
 
 ### Examples
 
@@ -123,8 +156,9 @@ The `demo/` directory demonstrates these configurations with several ready-to-us
 
 ```bash
 poe serve              # Default mode with instructions
-poe serve single       # Single application mode
-poe serve multi        # Multi-terminal mode with HTML menu
+poe serve function     # Function mode - demo of serve_function()
+poe serve script       # Script mode - demo of serve_script()
+poe serve apps         # Apps mode - HTML page at root with multiple terminals
 poe serve container    # Run in Docker container
 ```
 
@@ -133,6 +167,13 @@ poe serve container    # Run in Docker container
 - Python 3.12+
 - Linux or macOS (Windows support on roadmap)
 - Docker/Poe for demos
+
+## Backward Compatibility
+
+For backward compatibility, the previous function names are still available:
+
+- `simple_serve` → alias for `serve_script`
+- `serve_terminals` → alias for `serve_apps`
 
 ## Limitations
 
