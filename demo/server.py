@@ -2,13 +2,14 @@
 # demo/server.py
 
 """
-Test server for terminaide that supports multiple configuration patterns.
+Test server for terminaide that demonstrates all three API tiers.
 
 Usage:
     python server.py                     # Default mode - shows getting started interface
-    python server.py single              # Single application with Termin-Arcade menu
-    python server.py multi               # HTML page at root, terminal games at routes
-    python server.py container           # Run the server in a Docker container
+    python server.py function            # Function mode - demo of serve_function()
+    python server.py script              # Script mode - demo of serve_script()
+    python server.py apps                # Apps mode - HTML page at root, terminal games at routes
+    python server.py container           # Run the apps mode in a Docker container
 """
 
 import os
@@ -22,7 +23,7 @@ import subprocess
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from terminaide import serve_terminals
+from terminaide import serve_function, serve_script, serve_apps
 
 import uvicorn
 
@@ -41,8 +42,8 @@ def create_custom_root_endpoint(app: FastAPI):
     """Add an HTML root with rainbow ASCII banner and white for borders/buttons."""
     @app.get("/", response_class=HTMLResponse)
     async def custom_root(request: Request):
-        # If CONTAINER_MODE is set, we show "Container" instead of "Multi"
-        title_mode = "Container" if os.environ.get("CONTAINER_MODE") == "true" else "Multi"
+        # If CONTAINER_MODE is set, we show "Container" instead of "Apps"
+        title_mode = "Container" if os.environ.get("CONTAINER_MODE") == "true" else "Apps"
 
         html_content = f"""<!DOCTYPE html>
 <html>
@@ -154,16 +155,18 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
             "description": description,
             "client_script": str(CLIENT_SCRIPT),
             "modes": {
-                "default": "Default config - built-in interface",
-                "single": "Single app with Termin-Arcade menu",
-                "multi": "HTML page at root + terminal games",
-                "container": "Run inside Docker container"
+                "default": "Default config - shows getting started interface",
+                "function": "Function mode - demo of serve_function()",
+                "script": "Script mode - demo of serve_script()",
+                "apps": "Apps mode - HTML page at root + terminal games",
+                "container": "Run the apps mode in a Docker container"
             },
             "usage": "python server.py [mode] or python server.py --mode [mode]",
             "notes": [
-                "Route priority: custom routes > terminaide routes",
-                "Order of route definition matters",
-                "Custom routes can be defined before or after serve_terminals()"
+                "The three API tiers represent increasing complexity and flexibility",
+                "serve_function: Simplest - just pass a function",
+                "serve_script: Simple - pass a script file",
+                "serve_apps: Advanced - integrate with FastAPI"
             ]
         }
         return f"""<!DOCTYPE html>
@@ -178,9 +181,44 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
 </html>"""
 
 
+# Example function to be used with serve_function mode
+def demo_terminal_function():
+    """Interactive demo function showing basic terminal interactions."""
+    print("\033[1;32m" + "="*60 + "\033[0m")
+    print("\033[1;32mWelcome to the Terminaide serve_function() demo!\033[0m")
+    print("\033[1;32m" + "="*60 + "\033[0m")
+    print("\nThis demonstrates the simplest way to serve a Python function in a browser terminal.")
+    print("No FastAPI setup required, just pass a function!")
+    
+    name = input("\nWhat's your name? ")
+    print(f"\nHello, {name}! Nice to meet you.")
+    
+    games = ["Snake", "Tetris", "Pong"]
+    print("\nHere are some games you could play:")
+    for i, game in enumerate(games, 1):
+        print(f"  {i}. {game}")
+    
+    choice = input("\nEnter the number of a game you'd like to play (or press Enter to skip): ")
+    
+    if choice and choice.isdigit() and 1 <= int(choice) <= len(games):
+        game = games[int(choice)-1]
+        print(f"\nYou selected {game}! In a real application, I would launch {game} now.")
+    else:
+        print("\nNo problem! Maybe next time.")
+    
+    print("\nTo learn more about Terminaide, check out the other demo modes:")
+    print("  - script: demonstrates serve_script()")
+    print("  - apps: demonstrates serve_apps()")
+    
+    input("\nPress Enter to exit...")
+
+
 def create_app() -> FastAPI:
     """
     Factory function for Uvicorn (with reload).
+    This creates different app configurations based on the mode.
+    NOTE: This is only used for default mode and apps mode, which use FastAPI.
+    The function and script modes directly call their respective API functions.
     """
     mode = os.environ.get("TERMINAIDE_MODE", "default")
     app = FastAPI(title=f"Terminaide Test - {mode.upper()} Mode")
@@ -189,19 +227,12 @@ def create_app() -> FastAPI:
 
     if mode == "default":
         description = "Default configuration - shows built-in interface"
-        serve_terminals(app, terminal_routes={}, title="Default Mode", debug=True)
-    elif mode == "single":
-        description = "Single application with Termin-Arcade menu"
-        serve_terminals(
-            app,
-            terminal_routes={"/": [CLIENT_SCRIPT, "--index"]},
-            title="Termin-Arcade (Single)",
-            debug=True
-        )
-    elif mode == "multi":
-        description = "HTML root page + separate terminal routes"
+        serve_apps(app, terminal_routes={}, title="Default Mode", debug=True)
+    
+    elif mode == "apps":
+        description = "Apps mode - HTML page at root + separate terminal routes"
         create_custom_root_endpoint(app)
-        serve_terminals(
+        serve_apps(
             app,
             terminal_routes={
                 "/snake": {
@@ -219,9 +250,8 @@ def create_app() -> FastAPI:
             },
             debug=True
         )
-    else:
-        raise ValueError(f"Unknown mode: {mode}")
-
+    
+    # Create the info endpoint for these modes
     create_info_endpoint(app, mode, description)
     return app
 
@@ -306,7 +336,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 8000
 
-CMD ["python", "demo/server.py", "--mode", "multi"]
+CMD ["python", "demo/server.py", "--mode", "apps"]
 """
             dockerfile_path = temp_path / "Dockerfile"
             with open(dockerfile_path, "w") as f:
@@ -371,13 +401,13 @@ def parse_args():
     parser.add_argument(
         "mode_pos",
         nargs="?",
-        choices=["default", "single", "multi", "container"],
+        choices=["default", "function", "script", "apps", "container"],
         default="default",
         help="Server mode (positional arg)"
     )
     parser.add_argument(
         "--mode",
-        choices=["default", "single", "multi", "container"],
+        choices=["default", "function", "script", "apps", "container"],
         help="Server mode (overrides positional arg)"
     )
     parser.add_argument(
@@ -398,25 +428,50 @@ def parse_args():
 def main():
     """
     Main entrypoint for running in different modes.
+    Each mode demonstrates a different API function.
     """
     args = parse_args()
     mode = args.actual_mode
+    port = args.port
     
     os.environ["TERMINAIDE_MODE"] = mode
-    logger.info(f"Starting server in {mode.upper()} mode on port {args.port}")
+    logger.info(f"Starting server in {mode.upper()} mode on port {port}")
 
     if mode == "container":
-        build_and_run_container(port=args.port)
+        build_and_run_container(port=port)
         return
 
-    logger.info(f"Visit http://localhost:{args.port} for the main interface")
-    logger.info(f"Visit http://localhost:{args.port}/info for details")
+    # Directly handle function mode with serve_function
+    if mode == "function":
+        print("\033[1;36mRunning serve_function() demo...\033[0m")
+        serve_function(
+            demo_terminal_function,
+            port=port,
+            title="Terminaide Function Demo",
+            debug=True
+        )
+        return
+    
+    # Directly handle script mode with serve_script
+    if mode == "script":
+        print("\033[1;36mRunning serve_script() demo...\033[0m")
+        serve_script(
+            CLIENT_SCRIPT,
+            port=port,
+            title="Termin-Arcade (Script Mode)",
+            debug=True
+        )
+        return
+    
+    # For default and apps modes, use FastAPI with serve_apps
+    logger.info(f"Visit http://localhost:{port} for the main interface")
+    logger.info(f"Visit http://localhost:{port}/info for details")
 
     uvicorn.run(
         "demo.server:create_app",
         factory=True,
         host="0.0.0.0",
-        port=args.port,
+        port=port,
         reload=True,
         reload_dirs=[str(CURRENT_DIR.parent)]
     )

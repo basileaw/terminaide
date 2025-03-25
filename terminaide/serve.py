@@ -4,22 +4,24 @@
 Main implementation for configuring and serving ttyd through FastAPI.
 
 This module provides the core functionality for setting up a ttyd-based terminal
-service within a FastAPI application. It supports multiple script configurations,
-allowing different scripts to be served on different routes.
-
-The implementation uses a middleware-based approach to ensure that user-defined routes
-take precedence over the default client, even when those routes are defined after calling 
-serve_terminals().
+service within a FastAPI application, with three distinct API paths:
+1. serve_function: The simplest entry point - run a function directly in a terminal
+2. serve_script: Simple path - serve a Python script file in a terminal
+3. serve_apps: Advanced path - integrate multiple terminals into a FastAPI application
 
 All side effects (like spawning ttyd processes) happen only when the server truly starts.
 """
 
+import inspect
 import logging
+import os
 import sys
 import platform
 import signal
+import tempfile
+import importlib.util
 from pathlib import Path
-from typing import Optional, Dict, Any, Union, Tuple, List
+from typing import Optional, Dict, Any, Union, Tuple, List, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, WebSocket, Depends
@@ -305,7 +307,7 @@ async def _default_client_middleware(request: Request, call_next):
     """
     Middleware that serves the default client at the root path if no other route handles it.
     
-    This middleware lets users define their own root routes after calling serve_terminals(),
+    This middleware lets users define their own root routes after calling serve_apps(),
     while still providing the default interface when no user route is defined.
     """
     # First, let the request go through the normal routing process
@@ -343,7 +345,267 @@ async def _default_client_middleware(request: Request, call_next):
     return response
 
 
-def serve_terminals(
+def _generate_function_wrapper(func: Callable) -> Tuple[Path, List[str]]:
+    """
+    Generate a temporary Python script that imports and calls the provided function.
+    
+    Args:
+        func: The function to wrap and call in the terminal
+        
+    Returns:
+        Tuple containing:
+        - Path to the generated script
+        - List of cleanup functions to be called on exit
+    """
+    if not callable(func):
+        raise TypeError(f"Expected a callable function, got {type(func).__name__}")
+    
+    # Get function information
+    func_name = func.__name__
+    module = inspect.getmodule(func)
+    module_name = getattr(module, "__name__", None)
+    
+    # Create a temporary directory to hold our script
+    temp_dir = tempfile.mkdtemp(prefix="terminaide_")
+    script_path = Path(temp_dir) / f"{func_name}_wrapper.py"
+    
+    # Different handling based on where the function comes from
+    if module_name == "__main__":
+        # Function is defined in the main script
+        main_module_file = getattr(module, "__file__", None)
+        if main_module_file:
+            main_script_path = Path(main_module_file).resolve()
+            module_dir = main_script_path.parent
+            module_file = main_script_path.name
+            base_name = module_file.rsplit('.', 1)[0]
+            
+            # Write the wrapper script
+            with open(script_path, "w") as f:
+                f.write(f"""# Generated wrapper for function {func_name}
+import sys
+import os
+
+# Add the original script's directory to path
+script_dir = {repr(str(module_dir))}
+if script_dir not in sys.path:
+    sys.path.insert(0, script_dir)
+
+# Import the function from the original module
+try:
+    # Try direct import first
+    from {base_name} import {func_name}
+except ImportError:
+    # If that fails, try to load the module dynamically
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("{base_name}", {repr(str(main_script_path))})
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    {func_name} = getattr(module, "{func_name}")
+
+# Run the function
+if __name__ == "__main__":
+    {func_name}()
+""")
+        else:
+            # Handle interactive/REPL environments
+            source_code = inspect.getsource(func)
+            with open(script_path, "w") as f:
+                f.write(f"""# Generated wrapper for function {func_name} (from interactive environment)
+
+{source_code}
+
+# Run the function
+if __name__ == "__main__":
+    {func_name}()
+""")
+    else:
+        # Function from an importable module
+        with open(script_path, "w") as f:
+            f.write(f"""# Generated wrapper for function {func_name}
+from {module_name} import {func_name}
+
+# Run the function
+if __name__ == "__main__":
+    {func_name}()
+""")
+    
+    # Define cleanup function
+    def cleanup_temp_files():
+        try:
+            if script_path.exists():
+                script_path.unlink()
+            if Path(temp_dir).exists():
+                os.rmdir(temp_dir)
+            logger.debug(f"Cleaned up temporary function wrapper: {script_path}")
+        except Exception as e:
+            logger.warning(f"Failed to clean up temporary function wrapper: {e}")
+    
+    return script_path, [cleanup_temp_files]
+
+
+def serve_function(
+    func: Callable,
+    port: int = 8000,
+    title: Optional[str] = None,
+    theme: Optional[Dict[str, Any]] = None,
+    debug: bool = False
+) -> None:
+    """
+    The simplest way to serve a Python function in a browser terminal.
+    
+    This function creates a temporary wrapper script that calls the provided function,
+    then serves it in a browser terminal.
+    
+    Args:
+        func: Python function to serve in the terminal
+        port: Port for the web server
+        title: Title for the terminal window (defaults to function name)
+        theme: Terminal theme configuration
+        debug: Enable debug mode
+    
+    Example:
+        ```python
+        def hello_world():
+            print("Hello from terminaide!")
+            name = input("What's your name? ")
+            print(f"Nice to meet you, {name}!")
+        
+        if __name__ == "__main__":
+            from terminaide import serve_function
+            serve_function(hello_world)
+        ```
+    """
+    try:
+        # Generate a title from the function name if not provided
+        if title is None:
+            func_name = func.__name__
+            title = f"{func_name}() Terminal"
+        
+        # Generate the wrapper script
+        script_path, cleanup_functions = _generate_function_wrapper(func)
+        
+        # Set up signal handling for cleanup
+        def handle_exit(sig, frame):
+            print("\n\033[93mCleaning up and shutting down...\033[0m")
+            for cleanup_func in cleanup_functions:
+                cleanup_func()
+            sys.exit(0)
+        
+        # Register signal handlers
+        signal.signal(signal.SIGINT, handle_exit)
+        signal.signal(signal.SIGTERM, handle_exit)
+        
+        try:
+            # Print a friendly message about the function
+            func_name = func.__name__
+            module_name = func.__module__
+            module_desc = "" if module_name == "__main__" else f" from {module_name}"
+            
+            print("\033[92m" + "="*60 + "\033[0m")
+            print(f"\033[92m Terminaide: Serving function \033[1m{func_name}()\033[0m\033[92m{module_desc} in a browser terminal\033[0m")
+            print("\033[92m" + "="*60 + "\033[0m")
+            
+            # Serve the wrapper script
+            serve_script(
+                script_path=script_path,
+                port=port,
+                title=title,
+                theme=theme,
+                debug=debug
+            )
+        finally:
+            # Make sure to clean up even if serve_script fails
+            for cleanup_func in cleanup_functions:
+                cleanup_func()
+    
+    except Exception as e:
+        print(f"\033[91mError serving function: {e}\033[0m")
+        if debug:
+            import traceback
+            traceback.print_exc()
+
+
+def serve_script(
+    script_path: Union[str, Path],
+    port: int = 8000,
+    title: str = "Terminal",
+    theme: Optional[Dict[str, Any]] = None,
+    debug: bool = False
+) -> None:
+    """
+    A simple function to serve a Python script in a browser terminal.
+    
+    This function creates a FastAPI app, configures a terminal at the root path,
+    and starts the uvicorn server automatically. It's designed for beginners who
+    just want to quickly serve a script without worrying about FastAPI or server setup.
+    
+    Args:
+        script_path: Path to the script to run
+        port: Port for the web server
+        title: Title for the terminal window
+        theme: Theme configuration
+        debug: Enable debug mode
+    
+    Example:
+        ```python
+        # launcher.py
+        from terminaide import serve_script
+        
+        if __name__ == "__main__":
+            serve_script("my_script.py")
+        ```
+    """
+    try:
+        # Try to resolve the script path
+        script_absolute_path = smart_resolve_path(script_path)
+        
+        if not script_absolute_path.exists():
+            print(f"\033[91mError: Script not found: {script_path}\033[0m")
+            print(f"Tried absolute path: {script_absolute_path}")
+            print("Make sure the script exists and the path is correct.")
+            return
+        
+        # Create a FastAPI app
+        app = FastAPI(title=f"Terminaide - {title}")
+        
+        # Configure the terminal
+        serve_apps(
+            app,
+            terminal_routes={"/": script_absolute_path},
+            port=7681,  # This is for ttyd, not the web server
+            title=title,
+            theme=theme,
+            debug=debug
+        )
+        
+        # Print a friendly message
+        print("\033[92m" + "="*60 + "\033[0m")
+        print(f"\033[92m Terminaide: Serving \033[1m{script_absolute_path.name}\033[0m\033[92m in a browser terminal\033[0m")
+        print("\033[92m" + "="*60 + "\033[0m")
+        print(f"\033[96m> URL: \033[1mhttp://localhost:{port}\033[0m")
+        print("\033[96m> Press Ctrl+C to exit\033[0m")
+        
+        # Start the uvicorn server
+        import uvicorn
+        
+        # Set up signal handling for graceful shutdown
+        def handle_exit(sig, frame):
+            print("\n\033[93mShutting down...\033[0m")
+            sys.exit(0)
+            
+        signal.signal(signal.SIGINT, handle_exit)
+        
+        # Start uvicorn
+        uvicorn.run(app, host="127.0.0.1", port=port, log_level="info" if debug else "warning")
+        
+    except Exception as e:
+        print(f"\033[91mError starting terminal: {e}\033[0m")
+        if debug:
+            import traceback
+            traceback.print_exc()
+
+
+def serve_apps(
     app: FastAPI,
     *,
     terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any]]],
@@ -357,10 +619,11 @@ def serve_terminals(
     trust_proxy_headers: bool = True
 ) -> None:
     """
-    Attach a custom lifespan to the app for serving terminal interfaces.
+    Integrate multiple terminal applications into a FastAPI app.
     
     This function configures terminaide to serve one or more terminal interfaces
-    through ttyd. It supports multi-script configurations.
+    through ttyd. It supports multi-script configurations and is ideal for
+    complex applications that need to combine web and terminal interfaces.
     
     Args:
         app: FastAPI application to attach the lifespan to
@@ -377,6 +640,35 @@ def serve_terminals(
         debug: Enable debug mode
         trust_proxy_headers: Whether to trust X-Forwarded-Proto and similar headers
                             for HTTPS detection (default: True)
+    
+    Example:
+        ```python
+        # server.py
+        from fastapi import FastAPI
+        from terminaide import serve_apps
+        import uvicorn
+        
+        app = FastAPI()
+        
+        @app.get("/")
+        async def root():
+            return {"message": "Welcome to my terminal app"}
+        
+        serve_apps(
+            app,
+            terminal_routes={
+                "/cli1": "script1.py",
+                "/cli2": ["script2.py", "--arg1", "value"],
+                "/cli3": {
+                    "client_script": "script3.py",
+                    "title": "Advanced CLI"
+                }
+            }
+        )
+        
+        if __name__ == "__main__":
+            uvicorn.run(app, host="0.0.0.0", port=8000)
+        ```
     """
     # Add ProxyHeaderMiddleware for HTTPS detection if enabled
     if trust_proxy_headers:
@@ -432,72 +724,6 @@ def serve_terminals(
     app.router.lifespan_context = terminaide_merged_lifespan
 
 
-def simple_serve(
-    script_path: Union[str, Path],
-    port: int = 8000,
-    title: str = "Terminal",
-    theme: Optional[Dict[str, Any]] = None,
-    debug: bool = False
-) -> None:
-    """
-    A simplified function to serve a Python script in a browser terminal.
-    
-    This function creates a FastAPI app, configures a terminal at the root path,
-    and starts the uvicorn server automatically. It's designed for beginners who
-    just want to quickly serve a script without worrying about FastAPI or server setup.
-    
-    Args:
-        script_path: Path to the script to run
-        port: Port for the web server
-        title: Title for the terminal window
-        theme: Theme configuration
-        debug: Enable debug mode
-    """
-    try:
-        # Try to resolve the script path
-        script_absolute_path = smart_resolve_path(script_path)
-        
-        if not script_absolute_path.exists():
-            print(f"\033[91mError: Script not found: {script_path}\033[0m")
-            print(f"Tried absolute path: {script_absolute_path}")
-            print("Make sure the script exists and the path is correct.")
-            return
-        
-        # Create a FastAPI app
-        app = FastAPI(title=f"Terminaide - {title}")
-        
-        # Configure the terminal
-        serve_terminals(
-            app,
-            terminal_routes={"/": script_absolute_path},
-            port=7681,  # This is for ttyd, not the web server
-            title=title,
-            theme=theme,
-            debug=debug
-        )
-        
-        # Print a friendly message
-        print("\033[92m" + "="*60 + "\033[0m")
-        print(f"\033[92m Terminaide: Serving \033[1m{script_absolute_path.name}\033[0m\033[92m in a browser terminal\033[0m")
-        print("\033[92m" + "="*60 + "\033[0m")
-        print(f"\033[96m> URL: \033[1mhttp://localhost:{port}\033[0m")
-        print("\033[96m> Press Ctrl+C to exit\033[0m")
-        
-        # Start the uvicorn server
-        import uvicorn
-        
-        # Set up signal handling for graceful shutdown
-        def handle_exit(sig, frame):
-            print("\n\033[93mShutting down...\033[0m")
-            sys.exit(0)
-            
-        signal.signal(signal.SIGINT, handle_exit)
-        
-        # Start uvicorn
-        uvicorn.run(app, host="127.0.0.1", port=port, log_level="info" if debug else "warning")
-        
-    except Exception as e:
-        print(f"\033[91mError starting terminal: {e}\033[0m")
-        if debug:
-            import traceback
-            traceback.print_exc()
+# Aliases for backward compatibility
+simple_serve = serve_script
+serve_terminals = serve_apps
