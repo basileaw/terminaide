@@ -22,7 +22,7 @@ import subprocess
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from terminaide import serve_terminal
+from terminaide import serve_terminals
 
 import uvicorn
 
@@ -163,7 +163,7 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
             "notes": [
                 "Route priority: custom routes > terminaide routes",
                 "Order of route definition matters",
-                "Custom routes can be defined before or after serve_terminal()"
+                "Custom routes can be defined before or after serve_terminals()"
             ]
         }
         return f"""<!DOCTYPE html>
@@ -189,19 +189,19 @@ def create_app() -> FastAPI:
 
     if mode == "default":
         description = "Default configuration - shows built-in interface"
-        serve_terminal(app, title="Default Mode", debug=True)
+        serve_terminals(app, terminal_routes={}, title="Default Mode", debug=True)
     elif mode == "single":
         description = "Single application with Termin-Arcade menu"
-        serve_terminal(
+        serve_terminals(
             app,
-            client_script=[CLIENT_SCRIPT, "--index"],
+            terminal_routes={"/": [CLIENT_SCRIPT, "--index"]},
             title="Termin-Arcade (Single)",
             debug=True
         )
     elif mode == "multi":
         description = "HTML root page + separate terminal routes"
         create_custom_root_endpoint(app)
-        serve_terminal(
+        serve_terminals(
             app,
             terminal_routes={
                 "/snake": {

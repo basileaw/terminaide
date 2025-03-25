@@ -34,15 +34,10 @@ To serve a single Python script with the absolute bare minimum overhead:
 
 ```python
 # app.py
-from fastapi import FastAPI
-from terminaide import serve_terminal
-import uvicorn
-
-app = FastAPI()
-serve_terminal(app, client_script="my_script.py")
+from terminaide import simple_serve
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    simple_serve("my_script.py")
 ```
 
 This approach is ideal when you have an existing terminal application that you don't want to modify. Your script runs exactly as it would in a normal terminal, but becomes accessible through any web browser.
@@ -54,7 +49,7 @@ To serve multiple terminals in a more complex application:
 ```python
 # app.py
 from fastapi import FastAPI
-from terminaide import serve_terminal
+from terminaide import serve_terminals
 import uvicorn
 
 app = FastAPI()
@@ -64,7 +59,7 @@ app = FastAPI()
 async def root():
     return {"message": "Welcome to my terminal app"}
 
-serve_terminal(
+serve_terminals(
     app,
     terminal_routes={
         "/cli1": "script1.py",
@@ -84,26 +79,43 @@ This approach works best when you're building a new application with terminaide 
 
 ### Configuration Options
 
-Terminaide additionally provides a number of configuration options:
+Terminaide supports the following configuration options when calling `serve_terminals()`:
 
-```python
-serve_terminal(
-    app,
-    mount_path="/app",               # Base path (default: "/")
-    port=7681,                       # Base port for ttyd (default: 7681)
-    theme={                          # Terminal theme
-        "background": "black",
-        "foreground": "white", 
-    },
-    ttyd_options={                   # ttyd-specific options
-        "credential_required": True,
-        "username": "user",
-        "password": "pass",
-    },
-    title="My Terminal App",         # Custom title
-    debug=True                       # Debug mode
-)
-```
+- **terminal_routes** (required): Dictionary mapping URL paths to scripts
+  - Basic format: `"/path": "script.py"`
+  - With arguments: `"/path": ["script.py", "--arg1", "value"]`
+  - Advanced: `"/path": {"client_script": "script.py", "args": [...], "title": "Title", "port": 7682}`
+
+- **mount_path** (default: "/"): Base path where terminal will be mounted
+
+- **port** (default: 7681): Base port for ttyd processes
+
+- **theme**: Terminal appearance customization
+  - `background`: Background color (default: "black")
+  - `foreground`: Text color (default: "white")
+  - `cursor`: Cursor color
+  - `cursor_accent`: Secondary cursor color
+  - `selection`: Selection highlight color
+  - `font_family`: Terminal font
+  - `font_size`: Font size in pixels
+
+- **ttyd_options**: Options passed to the ttyd process
+  - `writable` (default: True): Allow terminal input
+  - `interface` (default: "127.0.0.1"): Network interface to bind
+  - `check_origin` (default: True): Enforce same-origin policy
+  - `max_clients` (default: 1): Maximum simultaneous connections
+  - `credential_required` (default: False): Enable authentication
+  - `username`: Login username (required if credential_required=True)
+  - `password`: Login password (required if credential_required=True)
+  - `force_https` (default: False): Force HTTPS mode
+
+- **template_override**: Path to custom terminal HTML template
+
+- **title** (default: "Terminal"): Title for the terminal window
+
+- **debug** (default: False): Enable debug mode with detailed logging
+
+- **trust_proxy_headers** (default: True): Trust X-Forwarded-Proto for HTTPS detection
 
 ### Examples
 

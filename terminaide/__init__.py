@@ -14,7 +14,7 @@ Supported Platforms:
 """
 
 import logging
-from .serve import serve_terminal
+from .serve import serve_terminals, simple_serve
 from .core.settings import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
 from .installer import setup_ttyd, get_platform_info
 from .exceptions import (
@@ -41,7 +41,8 @@ logging.getLogger("terminaide").addHandler(logging.NullHandler())
 
 __all__ = [
     # Main functionality
-    "serve_terminal",
+    "serve_terminals",
+    "simple_serve",
     "TTYDConfig",
     "ScriptConfig",
     "ThemeConfig",
