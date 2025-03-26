@@ -8,6 +8,7 @@ service within a FastAPI application, with three distinct API paths:
 1. serve_function: simplest entry point - run a function in a terminal
 2. serve_script: simple path - run a Python script in a terminal
 3. serve_apps: advanced path - integrate multiple terminals into a FastAPI application
+
 """
 
 import inspect
@@ -16,7 +17,6 @@ import os
 import sys
 import signal
 import tempfile
-# import importlib.util
 from pathlib import Path
 from typing import Optional, Dict, Any, Union, Tuple, List, Callable
 from contextlib import asynccontextmanager
@@ -31,17 +31,19 @@ from .core.proxy import ProxyManager
 from .core.settings import (
     TTYDConfig,
     ScriptConfig,
-    # ThemeConfig,
-    # TTYDOptions,
     smart_resolve_path
 )
 from .exceptions import TemplateError, ConfigurationError
 
+import uvicorn
+
 logger = logging.getLogger("terminaide")
 
+###############################################################################
+# Template & route setup
+###############################################################################
 
 def _setup_templates(config: TTYDConfig) -> Tuple[Jinja2Templates, str]:
-    """Configure and validate template directory and file."""
     if config.template_override:
         template_dir = config.template_override.parent
         template_file = config.template_override.name
@@ -116,7 +118,6 @@ def _configure_routes(
 def _create_script_configs(
     terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any]]]
 ) -> List[ScriptConfig]:
-    """Convert terminal_routes mapping into a list of ScriptConfig objects."""
     script_configs = []
     has_root_path = terminal_routes and "/" in terminal_routes
 
@@ -156,7 +157,6 @@ def _create_script_configs(
             )
 
     if not has_root_path:
-        # If no "/" route is defined, add the default client at root.
         default_client_path = Path(__file__).parent / "default_client.py"
         script_configs.append(
             ScriptConfig(route_path="/", client_script=default_client_path, title="Terminaide (Intro)")
@@ -169,7 +169,6 @@ def _create_script_configs(
 
 
 def _configure_app(app: FastAPI, config: TTYDConfig):
-    """Set up TTYD managers, routes, static files, etc."""
     mode = "multi-script" if config.is_multi_script else "single-script"
     logger.info(f"Configuring ttyd service with {config.mount_path} mounting ({mode} mode)")
 
@@ -193,7 +192,6 @@ def _configure_app(app: FastAPI, config: TTYDConfig):
 
 @asynccontextmanager
 async def _terminaide_lifespan(app: FastAPI, config: TTYDConfig):
-    """Start TTYD on startup, stop it on shutdown."""
     ttyd_manager, proxy_manager = _configure_app(app, config)
     mode = "multi-script" if config.is_multi_script else "single-script"
     logger.info(
@@ -210,10 +208,6 @@ async def _terminaide_lifespan(app: FastAPI, config: TTYDConfig):
 
 
 async def _default_client_middleware(request: Request, call_next):
-    """
-    Middleware that serves the default client at the root path
-    if no route was found (404 on "/").
-    """
     response = await call_next(request)
     if request.url.path == "/" and response.status_code == 404:
         templates = request.app.state.terminaide_templates
@@ -236,127 +230,106 @@ async def _default_client_middleware(request: Request, call_next):
             logger.error(f"Default client template rendering error: {e}")
     return response
 
+###############################################################################
+# Ephemeral script generation (with __mp_main__ fix)
+###############################################################################
 
-def _generate_function_wrapper(func: Callable) -> Tuple[Path, List[Callable]]:
+def _inline_source_code_wrapper(func: Callable) -> Optional[str]:
     """
-    Generate a temporary Python script that calls the given function.
-    Return (script_path, [cleanup_funcs]).
+    Attempt to inline the source code of 'func' if it's in __main__ or __mp_main__.
+    Return the wrapper code as a string, or None if we can't get source code.
     """
-    if not callable(func):
-        raise TypeError(f"Expected a callable function, got {type(func).__name__}")
+    try:
+        source_code = inspect.getsource(func)
+    except OSError:
+        return None
 
     func_name = func.__name__
-    module = inspect.getmodule(func)
-    module_name = getattr(module, "__name__", None)
-
-    temp_dir = tempfile.mkdtemp(prefix="terminaide_")
-    script_path = Path(temp_dir) / f"{func_name}_wrapper.py"
-
-    if module_name == "__main__":
-        main_module_file = getattr(module, "__file__", None)
-        if main_module_file:
-            main_script_path = Path(main_module_file).resolve()
-            module_dir = main_script_path.parent
-            module_file = main_script_path.name
-            base_name = module_file.rsplit('.', 1)[0]
-            with open(script_path, "w") as f:
-                f.write(f"""# Generated wrapper for function {func_name}
-import sys
-import os
-
-script_dir = {repr(str(module_dir))}
-if script_dir not in sys.path:
-    sys.path.insert(0, script_dir)
-
-try:
-    from {base_name} import {func_name}
-except ImportError:
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("{base_name}", {repr(str(main_script_path))})
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    {func_name} = getattr(module, "{func_name}")
-
-if __name__ == "__main__":
-    {func_name}()
-""")
-        else:
-            # Interactive environment fallback
-            source_code = inspect.getsource(func)
-            with open(script_path, "w") as f:
-                f.write(f"""# Generated wrapper for function {func_name} (interactive env)
-
+    return f"""# Ephemeral inline function from main or mp_main
 {source_code}
 
 if __name__ == "__main__":
     {func_name}()
-""")
-    else:
-        with open(script_path, "w") as f:
-            f.write(f"""# Generated wrapper for function {func_name}
+"""
+
+def _generate_function_wrapper(func: Callable) -> Path:
+    """
+    Generate an ephemeral script for the given function. If it's in a real module,
+    we do the normal import approach. If it's in __main__ or __mp_main__, inline fallback.
+    """
+    func_name = func.__name__
+    module_name = getattr(func, "__module__", None)
+
+    temp_dir = Path(tempfile.gettempdir()) / "terminaide_ephemeral"
+    temp_dir.mkdir(exist_ok=True)
+    script_path = temp_dir / f"{func_name}_wrapper.py"
+
+    # if it's a normal module (not main or mp_main)
+    if module_name and module_name not in ("__main__", "__mp_main__"):
+        wrapper_code = f"""# Ephemeral script for function {func_name} from module {module_name}
 from {module_name} import {func_name}
 
 if __name__ == "__main__":
     {func_name}()
-""")
+"""
+        script_path.write_text(wrapper_code, encoding="utf-8")
+        return script_path
 
-    def cleanup_temp_files():
-        try:
-            if script_path.exists():
-                script_path.unlink()
-            if Path(temp_dir).exists():
-                os.rmdir(temp_dir)
-            logger.debug(f"Cleaned up temporary function wrapper: {script_path}")
-        except Exception as e:
-            logger.warning(f"Failed to clean up temp wrapper: {e}")
+    # otherwise, inline fallback
+    inline_code = _inline_source_code_wrapper(func)
+    if inline_code:
+        script_path.write_text(inline_code, encoding="utf-8")
+        return script_path
 
-    return script_path, [cleanup_temp_files]
+    # last resort: error script
+    script_path.write_text(
+        f'print("ERROR: cannot reload function {func_name} from module={module_name}, no source found.")\n',
+        encoding="utf-8"
+    )
+    return script_path
 
+###############################################################################
+# Public APIs: serve_function, serve_script, serve_apps
+###############################################################################
 
 def serve_function(
     func: Callable,
     port: int = 8000,
     title: Optional[str] = None,
     theme: Optional[Dict[str, Any]] = None,
-    debug: bool = False
+    debug: bool = False,
+    reload: bool = False
 ) -> None:
-    """
-    Serve a Python function in a browser terminal.
-    No banner is printed here – we pass a label to serve_script -> serve_apps.
-    """
     if title is None:
         title = f"{func.__name__}() Terminal"
 
-    # Generate a temporary wrapper script for the function
-    script_path, cleanup_functions = _generate_function_wrapper(func)
-
-    def handle_exit(sig, frame):
-        print("\n\033[93mCleaning up...\033[0m")
-        for cfunc in cleanup_functions:
-            cfunc()
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, handle_exit)
-    signal.signal(signal.SIGTERM, handle_exit)
-
-    try:
-        # Pass banner_label to serve_script, so we see "Serving function xyz()..."
-        func_name = func.__name__
-        module_name = func.__module__
-        module_desc = f" from {module_name}" if module_name and module_name != "__main__" else ""
-        banner_label = f"'{func_name}()'{module_desc}"
-
-        serve_script(
-            script_path=script_path,
+    if not reload:
+        ephemeral_path = _generate_function_wrapper(func)
+        banner_label = f"'{func.__name__}()' from {func.__module__}"
+        _serve_script_direct(
+            ephemeral_path,
             port=port,
             title=title,
             theme=theme,
             debug=debug,
             banner_label=banner_label
         )
-    finally:
-        for cfunc in cleanup_functions:
-            cfunc()
+    else:
+        os.environ["TERMINAIDE_FUNC_NAME"] = func.__name__
+        os.environ["TERMINAIDE_FUNC_MOD"] = func.__module__ if func.__module__ else ""
+        os.environ["TERMINAIDE_PORT"] = str(port)
+        os.environ["TERMINAIDE_TITLE"] = title
+        os.environ["TERMINAIDE_DEBUG"] = "1" if debug else "0"
+        os.environ["TERMINAIDE_THEME"] = str(theme) if theme else ""
+
+        uvicorn.run(
+            "terminaide.serve:_function_app_factory",
+            factory=True,
+            host="127.0.0.1",
+            port=port,
+            reload=True,
+            log_level="info" if debug else "warning"
+        )
 
 
 def serve_script(
@@ -365,60 +338,42 @@ def serve_script(
     title: str = "Terminal",
     theme: Optional[Dict[str, Any]] = None,
     debug: bool = False,
-    banner_label: Optional[str] = None  # <--- pass "script X" or get from function
+    banner_label: Optional[str] = None,
+    reload: bool = False
 ) -> None:
-    """
-    Serve a Python script in a browser terminal.
-    No banner is printed here – we pass a label to serve_apps to handle it.
-    """
-    try:
-        script_absolute_path = smart_resolve_path(script_path)
-        if not script_absolute_path.exists():
-            print(f"\033[91mError: Script not found: {script_path}\033[0m")
-            return
+    script_absolute_path = smart_resolve_path(script_path)
+    if not script_absolute_path.exists():
+        print(f"\033[91mError: Script not found: {script_path}\033[0m")
+        return
 
-        # If banner_label wasn't supplied (meaning direct script mode),
-        # then we set it to "<filename>" by default.
-        if banner_label is None:
-            banner_label = f"{script_absolute_path.name}"
+    if not banner_label:
+        banner_label = f"{script_absolute_path.name}"
 
-        app = FastAPI(title=f"Terminaide - {title}")
-        from .serve import serve_apps
-
-        serve_apps(
-            app,
-            terminal_routes={"/": script_absolute_path},
-            port=7681,
+    if not reload:
+        _serve_script_direct(
+            script_absolute_path,
+            port=port,
             title=title,
             theme=theme,
             debug=debug,
-            banner_label=banner_label  # <--- unify banner logic in serve_apps
+            banner_label=banner_label
         )
-
-        # After serve_apps prints the banner, we print our normal usage lines:
-        print(f"\033[96m> URL: \033[1mhttp://localhost:{port}\033[0m")
-        print("\033[96m> Press Ctrl+C to exit\033[0m")
-
-        import uvicorn
-
-        def handle_exit(sig, frame):
-            print("\n\033[93mShutting down...\033[0m")
-            sys.exit(0)
-
-        signal.signal(signal.SIGINT, handle_exit)
+    else:
+        os.environ["TERMINAIDE_SCRIPT_PATH"] = str(script_absolute_path)
+        os.environ["TERMINAIDE_PORT"] = str(port)
+        os.environ["TERMINAIDE_TITLE"] = title
+        os.environ["TERMINAIDE_DEBUG"] = "1" if debug else "0"
+        os.environ["TERMINAIDE_BANNER"] = banner_label
+        os.environ["TERMINAIDE_THEME"] = str(theme) if theme else ""
 
         uvicorn.run(
-            app,
+            "terminaide.serve:_script_app_factory",
+            factory=True,
             host="127.0.0.1",
             port=port,
+            reload=True,
             log_level="info" if debug else "warning"
         )
-
-    except Exception as e:
-        print(f"\033[91mError starting terminal: {e}\033[0m")
-        if debug:
-            import traceback
-            traceback.print_exc()
 
 
 def serve_apps(
@@ -435,11 +390,6 @@ def serve_apps(
     trust_proxy_headers: bool = True,
     banner_label: Optional[str] = None
 ) -> None:
-    """
-    Integrate multiple terminal apps into a FastAPI app. Prints exactly one banner.
-      - If banner_label is provided, we use "Serving {banner_label} in a browser terminal."
-      - Otherwise, we fallback to "Serving advanced multi-route setup in a browser terminal."
-    """
     if trust_proxy_headers:
         try:
             from .middleware import ProxyHeaderMiddleware
@@ -449,9 +399,9 @@ def serve_apps(
         except Exception as e:
             logger.warning(f"Failed to add proxy header middleware: {e}")
 
-    script_configs = _create_script_configs(terminal_routes)
     from .core.settings import TTYDConfig, ThemeConfig, TTYDOptions
 
+    script_configs = _create_script_configs(terminal_routes)
     config = TTYDConfig(
         client_script=script_configs[0].client_script if script_configs else Path(__file__).parent / "default_client.py",
         mount_path=mount_path,
@@ -485,12 +435,160 @@ def serve_apps(
 
     app.router.lifespan_context = terminaide_merged_lifespan
 
-    # Print a single banner based on banner_label
     if banner_label:
-        print("\033[92m" + "="*60 + "\033[0m")
+        print("\033[92m" + "=" * 60 + "\033[0m")
         print(f"\033[92mTerminaide serving {banner_label} on port {config.port}\033[0m")
-        print("\033[92m" + "="*60 + "\033[0m")
+        print("\033[92m" + "=" * 60 + "\033[0m")
     else:
-        print("\033[92m" + "="*60 + "\033[0m")
+        print("\033[92m" + "=" * 60 + "\033[0m")
         print(f"\033[92mTerminaide serving multi-route setup on port {config.port}\033[0m")
-        print("\033[92m" + "="*60 + "\033[0m")
+        print("\033[92m" + "=" * 60 + "\033[0m")
+
+
+###############################################################################
+# Internal: direct (non-reload) approach vs. factory approach
+###############################################################################
+
+def _serve_script_direct(
+    script_path: Path,
+    port: int,
+    title: str,
+    theme: Optional[Dict[str, Any]],
+    debug: bool,
+    banner_label: str
+):
+    """
+    Old approach: pass a FastAPI object directly to uvicorn.run().
+    This triggers a reload warning if reload=True, so we only do it if reload=False.
+    """
+    app = FastAPI(title=f"Terminaide - {title}")
+    from .serve import serve_apps
+
+    serve_apps(
+        app,
+        terminal_routes={"/": script_path},
+        port=7681,
+        title=title,
+        theme=theme,
+        debug=debug,
+        banner_label=banner_label
+    )
+
+    print(f"\033[96m> URL: \033[1mhttp://localhost:{port}\033[0m")
+    print("\033[96m> Press Ctrl+C to exit\033[0m")
+
+    def handle_exit(sig, frame):
+        print("\n\033[93mShutting down...\033[0m")
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, handle_exit)
+    signal.signal(signal.SIGTERM, handle_exit)
+
+    uvicorn.run(
+        app,
+        host="127.0.0.1",
+        port=port,
+        log_level="info" if debug else "warning"
+    )
+
+
+def _script_app_factory() -> FastAPI:
+    """
+    Called by uvicorn with factory=True in script mode when reload=True.
+    Rebuilds the FastAPI app from environment variables.
+    """
+    script_path_str = os.environ["TERMINAIDE_SCRIPT_PATH"]
+    port_str = os.environ["TERMINAIDE_PORT"]
+    title = os.environ["TERMINAIDE_TITLE"]
+    debug = (os.environ.get("TERMINAIDE_DEBUG") == "1")
+    banner_label = os.environ["TERMINAIDE_BANNER"]
+    theme_str = os.environ.get("TERMINAIDE_THEME") or ""
+
+    import ast
+    theme = None
+    if theme_str and theme_str not in ("{}", "None"):
+        try:
+            theme = ast.literal_eval(theme_str)
+        except:
+            pass
+
+    script_path = Path(script_path_str)
+
+    app = FastAPI(title=f"Terminaide - {title}")
+    from .serve import serve_apps
+    serve_apps(
+        app,
+        terminal_routes={"/": script_path},
+        port=7681,
+        title=title,
+        theme=theme,
+        debug=debug,
+        banner_label=banner_label
+    )
+    return app
+
+
+def _function_app_factory() -> FastAPI:
+    """
+    Called by uvicorn with factory=True in function mode when reload=True.
+    We'll try to re-import the function from its module if it's not __main__/__mp_main__.
+    If it *is* in main or mp_main, we search sys.modules for the function, then inline.
+    """
+    func_name = os.environ.get("TERMINAIDE_FUNC_NAME", "")
+    func_mod = os.environ.get("TERMINAIDE_FUNC_MOD", "")
+    port_str = os.environ["TERMINAIDE_PORT"]
+    title = os.environ["TERMINAIDE_TITLE"]
+    debug = (os.environ.get("TERMINAIDE_DEBUG") == "1")
+    theme_str = os.environ.get("TERMINAIDE_THEME") or ""
+
+    # Attempt to re-import if not __main__ or __mp_main__
+    func = None
+    if func_mod and func_mod not in ("__main__", "__mp_main__"):
+        try:
+            mod = __import__(func_mod, fromlist=[func_name])
+            func = getattr(mod, func_name, None)
+        except:
+            logger.warning(f"Failed to import {func_name} from {func_mod}")
+
+    # If it's __main__ or __mp_main__, see if we can find the function object in sys.modules
+    if func is None and func_mod in ("__main__", "__mp_main__"):
+        candidate_mod = sys.modules.get(func_mod)
+        if candidate_mod and hasattr(candidate_mod, func_name):
+            func = getattr(candidate_mod, func_name)
+
+    ephemeral_path = None
+    banner_label = f"'{func_name}()' from {func_mod}"
+
+    if func is not None and callable(func):
+        ephemeral_path = _generate_function_wrapper(func)
+    else:
+        # If we still can't get the function, create an error script
+        temp_dir = Path(tempfile.gettempdir()) / "terminaide_ephemeral"
+        temp_dir.mkdir(exist_ok=True)
+        ephemeral_path = temp_dir / f"{func_name}_cannot_reload.py"
+        ephemeral_path.write_text(
+            f'print("ERROR: cannot reload function {func_name} from module={func_mod}")\n',
+            encoding="utf-8"
+        )
+        banner_label += " (reload failed)"
+
+    import ast
+    theme = None
+    if theme_str and theme_str not in ("{}", "None"):
+        try:
+            theme = ast.literal_eval(theme_str)
+        except:
+            pass
+
+    app = FastAPI(title=f"Terminaide - {title}")
+    from .serve import serve_apps
+    serve_apps(
+        app,
+        terminal_routes={"/": ephemeral_path},
+        port=7681,
+        title=title,
+        theme=theme,
+        debug=debug,
+        banner_label=banner_label
+    )
+    return app

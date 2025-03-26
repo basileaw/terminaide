@@ -20,6 +20,7 @@ import argparse
 import tempfile
 import subprocess
 from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from terminaide import serve_function, serve_script, serve_apps
@@ -196,7 +197,7 @@ def generate_requirements_txt(pyproject_path, temp_dir):
         logger.info("Generating requirements.txt (excluding dev)")
         req_path = Path(temp_dir) / "requirements.txt"
         result = subprocess.run(
-            ["poetry", "export", "--with", "demo", "--without", "dev", "--format", "requirements.txt"],
+            ["poetry", "export", "--without", "dev", "--format", "requirements.txt"],
             cwd=pyproject_path.parent, capture_output=True, text=True, check=True
         )
         with open(req_path, "w") as f:
@@ -262,8 +263,6 @@ CMD ["python", "demo/server.py", "--mode", "apps"]
                     if line:
                         logger.info(f"Build: {line}")
             
-            logger.info(f"Image built: {image.tags}")
-        
         container_name = f"{image_name}-container"
         try:
             old_container = client.containers.get(container_name)
@@ -327,22 +326,48 @@ def main():
     if mode == "container":
         build_and_run_container(port)
         return
+
+    # DEFAULT MODE
     if mode == "default":
         import terminaide
         default_client_path = Path(terminaide.__file__).parent / "default_client.py"
-        serve_script(default_client_path, port=port, title="Terminaide (Intro)", debug=True)
+        serve_script(
+            default_client_path,
+            port=port,
+            title="Terminaide (Intro)",
+            debug=True,
+            reload=True    # <-- Enable reload for default mode
+        )
         return
+
+    # FUNCTION MODE
     if mode == "function":
-        serve_function(play_asteroids_function, port=port, title="Termin-Asteroids (Function)", debug=True)
+        serve_function(
+            play_asteroids_function,
+            port=port,
+            title="Termin-Asteroids (Function)",
+            debug=True,
+            reload=True   # <-- Enable reload for function mode
+        )
         return
+
+    # SCRIPT MODE
     if mode == "script":
-        serve_script(CLIENT_SCRIPT, port=port, title="Termin-Arcade (Script)", debug=True)
+        serve_script(
+            CLIENT_SCRIPT,
+            port=port,
+            title="Termin-Arcade (Script)",
+            debug=True,
+            reload=True   # <-- Enable reload for script mode
+        )
         return
+
+    # APPS MODE
     if mode == "apps":
         logger.info(f"Visit http://localhost:{port} for the main interface")
         logger.info(f"Visit http://localhost:{port}/info for details")
         uvicorn.run(
-            "demo.server:create_app",  # Import path (string)
+            "demo.server:create_app",
             factory=True,
             host="0.0.0.0",
             port=port,
