@@ -23,7 +23,6 @@ poetry add terminaide
 ```
 
 Terminaide automatically installs and manages its own ttyd binary within the package, with no reliance on system-installed versions:
-
 - On Linux: Pre-built binaries are downloaded automatically
 - On macOS: The binary is compiled from source (requires Xcode Command Line Tools)
 

@@ -228,7 +228,12 @@ def build_and_run_container(port=8000):
                 src_dir = project_root / directory
                 dst_dir = temp_path / directory
                 if src_dir.exists():
-                    shutil.copytree(src_dir, dst_dir)
+                    # Basic solution - ensure bin directory exists but is empty
+                    shutil.copytree(src_dir, dst_dir, ignore=lambda src, names: 
+                                ['ttyd'] if os.path.basename(src) == 'bin' else [])
+
+                    # Alternatively, create an empty bin directory if it was excluded
+                    (dst_dir / 'bin').mkdir(exist_ok=True)
             
             generate_requirements_txt(project_root / "pyproject.toml", temp_path)
             
