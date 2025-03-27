@@ -111,7 +111,8 @@ serve_apps(
     template_override=None,   # Custom HTML template
     title="Terminal",         # Default terminal title
     debug=False,              # Enable debug mode
-    trust_proxy_headers=True  # Trust X-Forwarded-Proto headers
+    trust_proxy_headers=True, # Trust X-Forwarded-Proto headers
+    forward_env=True          # Control environment variable forwarding
 )
 ```
 
@@ -152,7 +153,27 @@ ttyd_options={
 }
 ```
 
-The simpler `serve_function()` and `serve_script()` functions accept a subset of these options: `port`, `title`, `theme`, and `debug`.
+#### Environment Variable Options
+
+```python
+# Forward all environment variables (default)
+forward_env=True
+
+# Disable environment forwarding
+forward_env=False
+
+# Forward only specific variables
+forward_env=["AWS_PROFILE", "PATH", "DJANGO_SETTINGS"]
+
+# Forward with selective overrides
+forward_env={
+    "AWS_PROFILE": "dev",  # Set specific value
+    "DEBUG": "1",          # Set specific value
+    "PATH": None           # Use value from parent process
+}
+```
+
+The simpler `serve_function()` and `serve_script()` functions accept a subset of these options: `port`, `title`, `theme`, `debug`, and `forward_env`.
 
 ### Examples
 
