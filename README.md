@@ -22,7 +22,12 @@ pip install terminaide
 poetry add terminaide
 ```
 
-Terminaide automatically installs the ttyd binary if not already present, simplifying setup for both novice users and containerized deployments without requiring system-level dependencies.
+Terminaide automatically installs and manages its own ttyd binary within the package, with no reliance on system-installed versions:
+
+- On Linux: Pre-built binaries are downloaded automatically
+- On macOS: The binary is compiled from source (requires Xcode Command Line Tools)
+
+This approach ensures a consistent experience across environments and simplifies both setup and cleanup.
 
 ## Usage
 
@@ -166,14 +171,8 @@ poe serve container    # Run in Docker container
 
 - Python 3.12+
 - Linux or macOS (Windows support on roadmap)
+- macOS users need Xcode Command Line Tools (`xcode-select --install`)
 - Docker/Poe for demos
-
-## Backward Compatibility
-
-For backward compatibility, the previous function names are still available:
-
-- `simple_serve` → alias for `serve_script`
-- `serve_terminals` → alias for `serve_apps`
 
 ## Limitations
 

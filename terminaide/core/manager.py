@@ -34,13 +34,17 @@ class TTYDManager:
     Supports single or multi-script configurations.
     """
     
-    def __init__(self, config: TTYDConfig):
+    def __init__(self, config: TTYDConfig, force_reinstall_ttyd: bool = None):
         """
         Initialize TTYDManager with the given TTYDConfig.
+        
+        Args:
+            config: The TTYDConfig object
+            force_reinstall_ttyd: If True, force reinstall ttyd even if it exists
         """
         self.config = config
         self._ttyd_path: Optional[Path] = None
-        self._setup_ttyd()
+        self._setup_ttyd(force_reinstall_ttyd)
         
         # Track processes by route
         self.processes: Dict[str, subprocess.Popen] = {}
@@ -50,12 +54,15 @@ class TTYDManager:
         self._base_port = config.port
         self._allocate_ports()
 
-    def _setup_ttyd(self) -> None:
+    def _setup_ttyd(self, force_reinstall: bool = None) -> None:
         """
         Set up and verify the ttyd binary.
+        
+        Args:
+            force_reinstall: If True, force reinstall ttyd even if it exists
         """
         try:
-            self._ttyd_path = setup_ttyd()
+            self._ttyd_path = setup_ttyd(force_reinstall)
             logger.info(f"Using ttyd binary at: {self._ttyd_path}")
         except Exception as e:
             logger.error(f"Failed to set up ttyd: {e}")

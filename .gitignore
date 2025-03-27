@@ -3,9 +3,10 @@
 **/*.pyo
 **/*.pyd
 .DS_Store
-
 .archive/
-.DS_Store
 .venv
 .vscode
 dist/
+
+terminaide/bin/*
+!terminaide/bin/.gitkeep

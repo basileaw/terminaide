@@ -83,3 +83,9 @@ __all__ = [
     "ScriptConfigurationError",
     "DuplicateRouteError"
 ]
+
+# Ensure bin directory exists on import
+import os
+from pathlib import Path
+bin_dir = Path(__file__).parent / "bin"
+bin_dir.mkdir(exist_ok=True)
