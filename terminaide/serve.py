@@ -436,13 +436,9 @@ def serve_apps(
     app.router.lifespan_context = terminaide_merged_lifespan
 
     if banner_label:
-        print("\033[92m" + "=" * 60 + "\033[0m")
-        print(f"\033[92mTerminaide serving {banner_label} on port {config.port}\033[0m")
-        print("\033[92m" + "=" * 60 + "\033[0m")
+        print(f"\033[92mTerminaide proxying {banner_label} on port {config.port}\033[0m")
     else:
-        print("\033[92m" + "=" * 60 + "\033[0m")
-        print(f"\033[92mTerminaide serving multi-route setup on port {config.port}\033[0m")
-        print("\033[92m" + "=" * 60 + "\033[0m")
+        print(f"\033[92mTerminaide proxying multi-routes on port {config.port}\033[0m")
 
 
 ###############################################################################
