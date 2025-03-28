@@ -55,13 +55,13 @@ class TTYDOptions(BaseModel):
     """TTYd-specific options like auth, interface, and client capacity."""
     writable: bool = True
     port: int = Field(default=7681, gt=1024, lt=65535)
-    interface: str = "127.0.0.1"
+    interface: str = "0.0.0.0"  # Changed from "127.0.0.1" to bind to all interfaces
     check_origin: bool = True
     max_clients: int = Field(default=1, gt=0)
     credential_required: bool = False
     username: Optional[str] = None
     password: Optional[str] = None
-    force_https: bool = False  # Add this option to force HTTPS mode
+    force_https: bool = False
     
     @model_validator(mode='after')
     def validate_credentials(self) -> 'TTYDOptions':

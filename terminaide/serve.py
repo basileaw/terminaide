@@ -325,7 +325,7 @@ def serve_function(
         uvicorn.run(
             "terminaide.serve:_function_app_factory",
             factory=True,
-            host="127.0.0.1",
+            host="0.0.0.0",  # Changed from "127.0.0.1"
             port=port,
             reload=True,
             log_level="info" if debug else "warning"
@@ -369,7 +369,7 @@ def serve_script(
         uvicorn.run(
             "terminaide.serve:_script_app_factory",
             factory=True,
-            host="127.0.0.1",
+            host="0.0.0.0",  # Changed from "127.0.0.1"
             port=port,
             reload=True,
             log_level="info" if debug else "warning"
@@ -486,7 +486,7 @@ def _serve_script_direct(
 
     uvicorn.run(
         app,
-        host="127.0.0.1",
+        host="0.0.0.0",  # Changed from "127.0.0.1"
         port=port,
         log_level="info" if debug else "warning"
     )
