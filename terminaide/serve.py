@@ -474,7 +474,7 @@ def _serve_script_direct(
     print("\033[96m> Press Ctrl+C to exit\033[0m")
 
     def handle_exit(sig, frame):
-        print("\n\033[93mShutting down...\033[0m")
+        print("\033[93mShutting down...\033[0m")
         sys.exit(0)
 
     signal.signal(signal.SIGINT, handle_exit)

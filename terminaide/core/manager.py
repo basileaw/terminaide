@@ -126,7 +126,21 @@ class TTYDManager:
         else:
             cmd.append('-R')
         
-        python_cmd = [sys.executable, str(script_config.client_script)]
+        # Find the cursor_manager.py path
+        cursor_manager_path = Path(__file__).parent.parent / "cursor_manager.py"
+        
+        # Check if cursor management is enabled via environment variable
+        cursor_mgmt_enabled = os.environ.get("TERMINAIDE_CURSOR_MGMT", "1").lower() in ("1", "true", "yes", "enabled")
+        
+        # Use cursor manager if it exists and is enabled
+        if cursor_mgmt_enabled and cursor_manager_path.exists():
+            logger.debug(f"Using cursor manager for script: {script_config.client_script}")
+            python_cmd = [sys.executable, str(cursor_manager_path), str(script_config.client_script)]
+        else:
+            if cursor_mgmt_enabled and not cursor_manager_path.exists():
+                logger.warning(f"Cursor manager not found at {cursor_manager_path}, using direct execution")
+            python_cmd = [sys.executable, str(script_config.client_script)]
+            
         if script_config.args:
             python_cmd.extend(script_config.args)
             
