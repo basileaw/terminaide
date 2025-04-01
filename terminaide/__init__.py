@@ -1,3 +1,5 @@
+# terminaide/__init__.py
+
 """
 terminaide: Serve Python CLI applications in the browser using ttyd.
 
@@ -38,10 +40,6 @@ from .exceptions import (
     DuplicateRouteError
 )
 
-# For backward compatibility
-from .serve import serve_script as simple_serve
-from .serve import serve_apps as serve_terminals
-
 # Configure package-level logging
 logging.getLogger("terminaide").addHandler(logging.NullHandler())
 
@@ -50,10 +48,6 @@ __all__ = [
     "serve_function",
     "serve_script", 
     "serve_apps",
-    
-    # For backward compatibility
-    "simple_serve",
-    "serve_terminals",
     
     # Configuration objects
     "TTYDConfig",
