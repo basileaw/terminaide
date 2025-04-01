@@ -127,7 +127,7 @@ class TTYDManager:
             cmd.append('-R')
         
         # Find the cursor_manager.py path
-        cursor_manager_path = Path(__file__).parent.parent / "cursor_manager.py"
+        cursor_manager_path = Path(__file__).parent / "cursor_manager.py"
         
         # Check if cursor management is enabled via environment variable
         cursor_mgmt_enabled = os.environ.get("TERMINAIDE_CURSOR_MGMT", "1").lower() in ("1", "true", "yes", "enabled")

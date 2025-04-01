@@ -110,7 +110,7 @@ serve_apps(
     ttyd_options=None,        # Options for ttyd processes
     template_override=None,   # Custom HTML template
     title="Terminal",         # Default terminal title
-    debug=False,              # Enable debug mode
+    debug=True,              # Enable debug mode
     trust_proxy_headers=True, # Trust X-Forwarded-Proto headers
     forward_env=True          # Control environment variable forwarding
 )
