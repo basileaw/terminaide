@@ -341,7 +341,7 @@ def main():
     # DEFAULT MODE
     if mode == "default":
         import terminaide
-        default_client_path = Path(terminaide.__file__).parent / "default_client.py"
+        default_client_path = Path(terminaide.__file__).parent / "core" / "default_client.py"
         serve_script(
             default_client_path,
             port=port,
