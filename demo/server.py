@@ -1,14 +1,14 @@
-#!/usr/bin/env python3
+
 # demo/server.py
 
 """
 Test server for terminaide that demonstrates all three API tiers.
 Usage:
-    python server.py                     # Default mode - shows getting started interface
-    python server.py function            # Function mode - demo of serve_function() with Asteroids
-    python server.py script              # Script mode - demo of serve_script()
-    python server.py apps                # Apps mode - HTML page at root, terminal games at routes
-    python server.py container           # Run the apps mode in a Docker container
+python server.py                     # Default mode - shows getting started interface
+python server.py function            # Function mode - demo of serve_function() with Asteroids
+python server.py script              # Script mode - demo of serve_script()
+python server.py apps                # Apps mode - HTML page at root, terminal games at routes
+python server.py container           # Run the apps mode in a Docker container
 """
 
 import os
@@ -20,18 +20,14 @@ import argparse
 import tempfile
 import subprocess
 from pathlib import Path
-
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from terminaide import serve_function, serve_script, serve_apps
 import uvicorn
-
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(name)s - %(message)s')
 logger = logging.getLogger(__name__)
-
 CURRENT_DIR = Path(__file__).parent
 CLIENT_SCRIPT = CURRENT_DIR / "client.py"
-
 MODE_HELP = {
     "default": "Default (getting started interface)",
     "function": "Serve function mode (Asteroids)",
@@ -45,98 +41,98 @@ def create_custom_root_endpoint(app: FastAPI):
     async def custom_root(request: Request):
         title_mode = "Container" if os.environ.get("CONTAINER_MODE") == "true" else "Apps"
         html_content = f"""<!DOCTYPE html>
-<html>
-<head>
-    <title>Termin-Arcade ({title_mode})</title>
-    <link rel="icon" type="image/x-icon" href="{request.url_for('static', path='favicon.ico')}">
-    <style>
-        body {{
-            font-family: 'Courier New', monospace;
-            line-height: 1.5;
-            background-color: black;
-            color: #f0f0f0;
-            text-align: center;
-            padding: 40px 20px;
-            margin: 0;
-        }}
-        .ascii-banner pre {{
-            margin: 0 auto 40px;
-            white-space: pre;
-            line-height: 1;
-            display: inline-block;
-            text-align: left;
-            background: linear-gradient(
-                to right,
-                red,
-                orange,
-                yellow,
-                green,
-                blue,
-                indigo,
-                violet
-            );
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            color: transparent;
-        }}
-        .card {{
-            background-color: #2d2d2d;
-            max-width: 600px;
-            margin: 0 auto 30px;
-            padding: 20px;
-        }}
-        .terminal-box {{
-            border: 1px solid #fff;
-            max-width: 400px;
-            margin: 30px auto;
-            padding: 10px;
-            color: #fff;
-        }}
-        .links {{
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin: 30px auto;
-        }}
-        .terminal-link {{
-            display: inline-block;
-            background-color: #fff;
-            color: #000;
-            padding: 8px 20px;
-            text-decoration: none;
-            font-weight: bold;
-        }}
-        .info-link {{
-            color: #fff;
-            text-decoration: none;
-            display: inline-block;
-        }}
-    </style>
-</head>
-<body>
-    <div class="ascii-banner">
-<pre>████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗      █████╗ ██████╗  ██████╗ █████╗ ██████╗ ███████╗
+        <html>
+        <head>
+            <title>Termin-Arcade ({title_mode})</title>
+            <link rel="icon" type="image/x-icon" href="{request.url_for('static', path='favicon.ico')}">
+            <style>
+                body {{
+                    font-family: 'Courier New', monospace;
+                    line-height: 1.5;
+                    background-color: black;
+                    color: #f0f0f0;
+                    text-align: center;
+                    padding: 40px 20px;
+                    margin: 0;
+                }}
+                .ascii-banner pre {{
+                    margin: 0 auto 40px;
+                    white-space: pre;
+                    line-height: 1;
+                    display: inline-block;
+                    text-align: left;
+                    background: linear-gradient(
+                        to right,
+                        red,
+                        orange,
+                        yellow,
+                        green,
+                        blue,
+                        indigo,
+                        violet
+                    );
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    color: transparent;
+                }}
+                .card {{
+                    background-color: #2d2d2d;
+                    max-width: 600px;
+                    margin: 0 auto 30px;
+                    padding: 20px;
+                }}
+                .terminal-box {{
+                    border: 1px solid #fff;
+                    max-width: 400px;
+                    margin: 30px auto;
+                    padding: 10px;
+                    color: #fff;
+                }}
+                .links {{
+                    display: flex;
+                    justify-content: center;
+                    gap: 20px;
+                    margin: 30px auto;
+                }}
+                .terminal-link {{
+                    display: inline-block;
+                    background-color: #fff;
+                    color: #000;
+                    padding: 8px 20px;
+                    text-decoration: none;
+                    font-weight: bold;
+                }}
+                .info-link {{
+                    color: #fff;
+                    text-decoration: none;
+                    display: inline-block;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="ascii-banner">
+                <pre>████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗      █████╗ ██████╗  ██████╗ █████╗ ██████╗ ███████╗
 ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║██║████╗  ██║     ██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔════╝
    ██║   █████╗  ██████╔╝██╔████╔██║██║██╔██╗ ██║     ███████║██████╔╝██║     ███████║██║  ██║█████╗  
    ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║██║██║╚██╗██║     ██╔══██║██╔══██╗██║     ██╔══██║██║  ██║██╔══╝  
    ██║   ███████╗██║  ██║██║ ╚═╝ ██║██║██║ ╚████║     ██║  ██║██║  ██║╚██████╗██║  ██║██████╔╝███████╗
    ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝     ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝</pre>
-    </div>
-    <div class="card">
-        This demo shows how HTML pages and terminal applications can be combined in one server.
-        Each game runs in its own terminal instance.
-    </div>
-    <div class="terminal-box">
-        Available Games
-    </div>
-    <div class="links">
-        <a href="/snake" class="terminal-link">Snake</a>
-        <a href="/tetris" class="terminal-link">Tetris</a>
-        <a href="/pong" class="terminal-link">Pong</a>
-    </div>
-    <a href="/info" class="info-link">Server Configuration Info</a>
-</body>
-</html>"""
+            </div>
+            <div class="card">
+                This demo shows how HTML pages and terminal applications can be combined in one server.
+                Each game runs in its own terminal instance.
+            </div>
+            <div class="terminal-box">
+                Available Games
+            </div>
+            <div class="links">
+                <a href="/snake" class="terminal-link">Snake</a>
+                <a href="/tetris" class="terminal-link">Tetris</a>
+                <a href="/pong" class="terminal-link">Pong</a>
+            </div>
+            <a href="/info" class="info-link">Server Configuration Info</a>
+        </body>
+        </html>"""
         return HTMLResponse(html_content)
 
 def create_info_endpoint(app: FastAPI, mode: str, description: str):
@@ -155,13 +151,13 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
             ]
         }
         return f"""<!DOCTYPE html>
-<html>
-<head>
-    <title>Terminaide Info</title>
-    <link rel="icon" type="image/x-icon" href="{request.url_for('static', path='favicon.ico')}">
-</head>
-<body><pre>{json.dumps(info_dict, indent=2)}</pre></body>
-</html>"""
+        <html>
+        <head>
+            <title>Terminaide Info</title>
+            <link rel="icon" type="image/x-icon" href="{request.url_for('static', path='favicon.ico')}">
+        </head>
+        <body><pre>{json.dumps(info_dict, indent=2)}</pre></body>
+        </html>"""
 
 def play_asteroids_function():
     from terminaide.games import play_asteroids
@@ -176,6 +172,7 @@ def create_app():
     app = FastAPI(title=f"Terminaide - {mode.upper()} Mode")
     description = ""
 
+    # Don't try to use any Docker stuff here - just handle the apps mode
     if mode == "apps":
         description = "Apps mode - HTML root + separate terminal routes"
         create_custom_root_endpoint(app)
@@ -188,8 +185,7 @@ def create_app():
             },
             debug=True
         )
-    
-    create_info_endpoint(app, mode, description)
+        create_info_endpoint(app, mode, description)
     return app
 
 def generate_requirements_txt(pyproject_path, temp_dir):
@@ -214,11 +210,21 @@ def generate_requirements_txt(pyproject_path, temp_dir):
 def build_and_run_container(port=8000):
     try:
         import docker
-        import docker.errors
-        client = docker.from_env()
+        
+        # Get the correct Docker socket location from the context
+        context_result = subprocess.run(['docker', 'context', 'inspect'], 
+                                     capture_output=True, text=True)
+        if context_result.returncode == 0:
+            context_data = json.loads(context_result.stdout)
+            if context_data and 'Endpoints' in context_data[0]:
+                docker_host = context_data[0]['Endpoints']['docker']['Host']
+                client = docker.DockerClient(base_url=docker_host)
+        else:
+            client = docker.from_env()
+            
         client.ping()
+        
         logger.info("Connected to Docker daemon")
-
         project_root = Path(__file__).parent.parent.absolute()
         image_name = project_root.name.lower()
 
@@ -230,71 +236,70 @@ def build_and_run_container(port=8000):
                 if src_dir.exists():
                     # Basic solution - ensure bin directory exists but is empty
                     shutil.copytree(src_dir, dst_dir, ignore=lambda src, names: 
-                                ['ttyd'] if os.path.basename(src) == 'bin' else [])
-
+                        ['ttyd'] if os.path.basename(src) == 'bin' else [])
                     # Alternatively, create an empty bin directory if it was excluded
                     (dst_dir / 'bin').mkdir(exist_ok=True)
-            
+
             generate_requirements_txt(project_root / "pyproject.toml", temp_path)
-            
+
             dockerfile_content = """
 FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 WORKDIR /app
-
 COPY terminaide/ ./terminaide/
 COPY demo/ ./demo/
 COPY requirements.txt ./
-
 RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 8000
-
 CMD ["python", "demo/server.py", "--mode", "apps"]
 """
             dockerfile_path = temp_path / "Dockerfile"
             with open(dockerfile_path, "w") as f:
                 f.write(dockerfile_content)
-            
+
             logger.info(f"Building Docker image: {image_name}")
             image, build_logs = client.images.build(
                 path=str(temp_path),
                 tag=image_name,
                 rm=True
             )
+
             for log in build_logs:
                 if 'stream' in log:
                     line = log['stream'].strip()
                     if line:
                         logger.info(f"Build: {line}")
-            
-        container_name = f"{image_name}-container"
-        try:
-            old_container = client.containers.get(container_name)
-            old_container.stop()
-            old_container.remove()
-        except docker.errors.NotFound:
-            pass
-        
-        logger.info(f"Starting container {container_name} on port {port}")
-        c = client.containers.run(
-            image.id,
-            name=container_name,
-            ports={f"8000/tcp": port},
-            detach=True,
-            environment={"CONTAINER_MODE": "true"}
-        )
-        
-        logger.info(f"Container {container_name} started (ID: {c.id[:12]})")
-        logger.info(f"Access at: http://localhost:{port}")
-        logger.info("Streaming container logs (Ctrl+C to stop)")
-        try:
-            for line in c.logs(stream=True):
-                print(line.decode().strip())
-        except KeyboardInterrupt:
-            logger.info("Stopping container...")
-            c.stop()
-            logger.info("Container stopped")
+
+            container_name = f"{image_name}-container"
+            try:
+                old_container = client.containers.get(container_name)
+                old_container.stop()
+                old_container.remove()
+            except docker.errors.NotFound:
+                pass
+
+            logger.info(f"Starting container {container_name} on port {port}")
+            c = client.containers.run(
+                image.id,
+                name=container_name,
+                ports={f"8000/tcp": port},
+                detach=True,
+                environment={"CONTAINER_MODE": "true"}
+            )
+
+            logger.info(f"Container {container_name} started (ID: {c.id[:12]})")
+            logger.info(f"Access at: http://localhost:{port}")
+            logger.info("Streaming container logs (Ctrl+C to stop)")
+
+            try:
+                for line in c.logs(stream=True):
+                    print(line.decode().strip())
+            except KeyboardInterrupt:
+                logger.info("Stopping container...")
+                c.stop()
+                logger.info("Container stopped")
+
     except Exception as e:
         if "docker" in str(e.__class__):
             logger.error(f"Docker error: {e}")
@@ -321,11 +326,12 @@ def main():
     if mode != "container":
         os.environ["WATCHFILES_FORCE_POLLING"] = "0"
         os.environ["WATCHFILES_POLL_DELAY"] = "0.1"
-    os.environ["TERMINAIDE_VERBOSE"] = "0"
-    log_level = "WARNING" if mode != "apps" else "INFO"
-    logging.getLogger("terminaide").setLevel(log_level)
-    logging.getLogger("uvicorn").setLevel(log_level)
-    
+        os.environ["TERMINAIDE_VERBOSE"] = "0"
+
+        log_level = "WARNING" if mode != "apps" else "INFO"
+        logging.getLogger("terminaide").setLevel(log_level)
+        logging.getLogger("uvicorn").setLevel(log_level)
+
     logger.info(f"Starting server in {mode.upper()} mode on port {port}")
 
     if mode == "container":
