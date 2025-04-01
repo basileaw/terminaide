@@ -40,7 +40,7 @@ class TerminaideConfig:
     port: int = 8000
     title: str = "Terminal"
     theme: Dict[str, Any] = field(default_factory=lambda: {"background": "black", "foreground": "white"})
-    debug: bool = False
+    debug: bool = True
     reload: bool = False
     forward_env: Union[bool, List[str], Dict[str, Optional[str]]] = True
     
@@ -60,31 +60,6 @@ class TerminaideConfig:
     _target: Optional[Union[Callable, Path, Dict[str, Any]]] = None
     _app: Optional[FastAPI] = None
     _mode: str = "function"  # "function", "script", or "apps"
-
-def development_config(**overrides) -> TerminaideConfig:
-    """Create a configuration optimized for development."""
-    return TerminaideConfig(
-        debug=True,
-        reload=True,
-        **overrides
-    )
-
-def demo_config(**overrides) -> TerminaideConfig:
-    """Create a configuration optimized for demos."""
-    return TerminaideConfig(
-        theme={"background": "#002b36", "foreground": "#839496"},
-        debug=True,
-        **overrides
-    )
-
-def production_config(**overrides) -> TerminaideConfig:
-    """Create a configuration optimized for production use."""
-    return TerminaideConfig(
-        debug=False,
-        reload=False,
-        trust_proxy_headers=True,
-        **overrides
-    )
 
 ################################################################################
 # Helper Functions
@@ -354,23 +329,12 @@ def serve_function(
             - port: Web server port (default: 8000)
             - title: Terminal window title (default: "{func_name}() Terminal")
             - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
-            - debug: Enable debug mode (default: False)
+            - debug: Enable debug mode (default: True)
             - reload: Enable auto-reload on code changes (default: False)
             - forward_env: Control environment variable forwarding (default: True)
             - ttyd_options: Options for the ttyd process
             - template_override: Custom HTML template path
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
-    
-    Example:
-        ```python
-        from terminaide import serve_function
-        
-        def hello():
-            name = input("What's your name? ")
-            print(f"Hello, {name}!")
-        
-        serve_function(hello, port=8000, debug=True)
-        ```
     """
     cfg = build_config(config, kwargs)
     cfg._target = func
@@ -405,13 +369,6 @@ def serve_script(
             - ttyd_options: Options for the ttyd process
             - template_override: Custom HTML template path
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
-    
-    Example:
-        ```python
-        from terminaide import serve_script
-        
-        serve_script("my_script.py", port=8000, debug=True)
-        ```
     """
     cfg = build_config(config, kwargs)
     cfg._target = Path(script_path)
@@ -442,33 +399,13 @@ def serve_apps(
             - port: Web server port (default: 8000)
             - title: Default terminal window title (default: "Terminal")
             - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
-            - debug: Enable debug mode (default: False)
+            - debug: Enable debug mode (default: True)
             - ttyd_port: Base port for ttyd processes (default: 7681)
             - mount_path: Base path for terminal mounting (default: "/")
             - forward_env: Control environment variable forwarding (default: True)
             - ttyd_options: Options for the ttyd processes
             - template_override: Custom HTML template path
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
-    
-    Example:
-        ```python
-        from fastapi import FastAPI
-        from terminaide import serve_apps
-        
-        app = FastAPI()
-        
-        @app.get("/")
-        def root():
-            return {"message": "Hello World"}
-        
-        serve_apps(
-            app,
-            terminal_routes={
-                "/cli1": "script1.py",
-                "/cli2": ["script2.py", "--arg1", "value"]
-            }
-        )
-        ```
     """
     cfg = build_config(config, kwargs)
     cfg._target = terminal_routes
