@@ -1,4 +1,3 @@
-
 # demo/server.py
 
 """
@@ -15,7 +14,6 @@ import os
 import sys
 import json
 import shutil
-import logging
 import argparse
 import tempfile
 import subprocess
@@ -24,8 +22,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from terminaide import serve_function, serve_script, serve_apps
 import uvicorn
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(name)s - %(message)s')
-logger = logging.getLogger(__name__)
+from terminaide import logger
+
 CURRENT_DIR = Path(__file__).parent
 CLIENT_SCRIPT = CURRENT_DIR / "client.py"
 MODE_HELP = {
@@ -330,7 +328,10 @@ def main():
         os.environ["TERMINAIDE_VERBOSE"] = "0"
 
         log_level = "WARNING" if mode != "apps" else "INFO"
-        logging.getLogger("terminaide").setLevel(log_level)
+        # Set terminaide logger level directly
+        logger.setLevel(log_level)
+        # Also set uvicorn logger level
+        import logging
         logging.getLogger("uvicorn").setLevel(log_level)
 
     logger.info(f"Starting server in {mode.upper()} mode on port {port}")

@@ -107,7 +107,7 @@ class ServeWithConfig:
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
             
             uvicorn.run(
-                "terminaide.serve:function_app_factory",
+                "terminaide.termin_api:function_app_factory",  # Updated
                 factory=True,
                 host="0.0.0.0",
                 port=config.port,
@@ -164,7 +164,7 @@ class ServeWithConfig:
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
             
             uvicorn.run(
-                "terminaide.serve:script_app_factory",
+                "terminaide.termin_api:script_app_factory",  # Updated
                 factory=True,
                 host="0.0.0.0",
                 port=config.port,

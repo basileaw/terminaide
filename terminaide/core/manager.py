@@ -214,8 +214,15 @@ class TTYDManager:
                 )
 
         cmd = self._build_command(script_config)
-        cmd_str = ' '.join(cmd)
-        logger.info(f"Starting ttyd for route {route_path} with command: {cmd_str}")
+        
+        # Log a concise info message
+        logger.info(f"Starting ttyd for route {route_path} on port {port}")
+        
+        # Log detailed command at debug level
+        if logger.isEnabledFor(logging.DEBUG):
+            cmd_str = ' '.join(cmd)
+            logger.debug("Full command:")
+            logger.debug(f"  {cmd_str}")
 
         try:
             process = subprocess.Popen(

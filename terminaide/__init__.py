@@ -41,22 +41,36 @@ from .core.exceptions import (
     DuplicateRouteError
 )
 
-# Configure package-level logging
-logger = logging.getLogger("terminaide")
-handler = logging.StreamHandler()
+import sys
 
-# Create a custom formatter that aligns messages at position 11
-class AlignedFormatter(logging.Formatter):
+# ANSI color codes similar to uvicorn's
+COLORS = {
+    'DEBUG': '\033[36m',     # Cyan
+    'INFO': '\033[32m',      # Green
+    'WARNING': '\033[33m',   # Yellow
+    'ERROR': '\033[31m',     # Red
+    'CRITICAL': '\033[41m',  # Red background
+    'RESET': '\033[0m'       # Reset colors
+}
+
+class ColorAlignedFormatter(logging.Formatter):
     def format(self, record):
         levelname = record.levelname
         # Ensure the level name + padding + colon takes exactly 10 characters
         padding_length = max(1, 9 - len(levelname))
         padding = ' ' * padding_length
         
-        # Format: "LEVEL:" + padding to position 11 + message
-        return f"{levelname}:{padding}{record.getMessage()}"
+        # Add colors if the system supports it
+        if sys.stdout.isatty():  # Only apply colors if running in a terminal
+            colored_levelname = f"{COLORS.get(levelname, '')}{levelname}{COLORS['RESET']}"
+            return f"{colored_levelname}:{padding}{record.getMessage()}"
+        else:
+            return f"{levelname}:{padding}{record.getMessage()}"
 
-handler.setFormatter(AlignedFormatter())
+# Configure package-level logging
+logger = logging.getLogger("terminaide")
+handler = logging.StreamHandler()
+handler.setFormatter(ColorAlignedFormatter())
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
