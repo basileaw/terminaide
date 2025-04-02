@@ -1,9 +1,6 @@
 # terminaide/core/proxy.py
 
-"""
-Manages HTTP and WebSocket proxying for ttyd processes, including path rewriting
-and multiple-route support.
-"""
+""" Manages HTTP and WebSocket proxying for ttyd processes, including path rewriting and multiple-route support. """
 
 import json
 import logging
@@ -23,11 +20,8 @@ from .settings import TTYDConfig, ScriptConfig
 logger = logging.getLogger("terminaide")
 
 class ProxyManager:
-    """
-    Handles HTTP and WebSocket traffic to ttyd, including path prefix adjustments
-    and multi-route configurations.
-    """
-    
+    """ Handles HTTP and WebSocket traffic to ttyd, including path prefix adjustments and multi-route configurations. """
+
     def __init__(self, config: TTYDConfig):
         """
         Initialize the proxy manager with the given TTYDConfig.
@@ -36,9 +30,11 @@ class ProxyManager:
         self._client: Optional[httpx.AsyncClient] = None
         self.targets: Dict[str, Dict[str, str]] = {}
         self._initialize_targets()
+        
+        entry_mode = getattr(self.config, '_mode', 'script')
         logger.info(
             f"Proxy ready for {len(self.targets)} routes "
-            f"({'multi-script' if self.config.is_multi_script else 'single-script'} mode)"
+            f"({entry_mode} API, {'multi-script' if self.config.is_multi_script else 'single-script'} mode)"
         )
 
     def _get_request_protocol(self, request: Optional[Request] = None) -> str:
@@ -292,9 +288,13 @@ class ProxyManager:
                 "port": target_info.get("port"),
                 "title": script_config.title or self.config.title
             })
+        
+        entry_mode = getattr(self.config, '_mode', 'script')
+        
         return {
             "routes": routes_info,
             "mount_path": self.config.mount_path,
             "is_root_mounted": self.config.is_root_mounted,
-            "is_multi_script": self.config.is_multi_script
+            "is_multi_script": self.config.is_multi_script,
+            "entry_mode": entry_mode  # Add entry mode to routes info
         }

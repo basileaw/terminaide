@@ -1,9 +1,4 @@
-# terminaide/core/manager.py
-
-"""
-Manages TTYd processes for single or multi-script setups, ensuring their
-lifecycle, cleanup, and health monitoring.
-"""
+""" Manages TTYd processes for single or multi-script setups, ensuring their lifecycle, cleanup, and health monitoring. """
 
 import os
 import sys
@@ -25,12 +20,8 @@ from .settings import TTYDConfig, ScriptConfig
 logger = logging.getLogger("terminaide")
 
 class TTYDManager:
-    """
-    Manages the lifecycle of ttyd processes, including startup, shutdown,
-    health checks, resource cleanup, and port allocation.
-    Supports single or multi-script configurations.
-    """
-    
+    """ Manages the lifecycle of ttyd processes, including startup, shutdown, health checks, resource cleanup, and port allocation. Supports single or multi-script configurations. """
+
     def __init__(self, config: TTYDConfig, force_reinstall_ttyd: bool = None):
         """
         Initialize TTYDManager with the given TTYDConfig.
@@ -64,7 +55,7 @@ class TTYDManager:
         except Exception as e:
             logger.error(f"Failed to set up ttyd: {e}")
             raise TTYDStartupError(f"Failed to set up ttyd: {e}")
-    
+
     def _allocate_ports(self) -> None:
         """
         Allocate and validate ports for each script configuration.
@@ -191,7 +182,8 @@ class TTYDManager:
             
         script_count = len(self.config.script_configs)
         mode_type = 'multi-script' if self.config.is_multi_script else 'single-script'
-        logger.info(f"Starting {script_count} ttyd processes ({mode_type} mode)")
+        entry_mode = getattr(self.config, '_mode', 'script')
+        logger.info(f"Starting {script_count} ttyd processes ({mode_type} mode via {entry_mode} API)")
         
         success_count = 0
         for script_config in self.config.script_configs:
@@ -366,16 +358,19 @@ class TTYDManager:
         # Log a compact summary of process health
         running_count = sum(1 for p in processes_health if p["status"] == "running")
         logger.debug(f"Health check: {running_count}/{len(processes_health)} processes running")
-            
+        
+        entry_mode = getattr(self.config, '_mode', 'script')
+        
         return {
             "processes": processes_health,
             "ttyd_path": str(self._ttyd_path) if self._ttyd_path else None,
             "is_multi_script": self.config.is_multi_script,
             "process_count": len(self.processes),
             "mounting": "root" if self.config.is_root_mounted else "non-root",
+            "entry_mode": entry_mode,  # Add entry mode to health check
             **self.config.get_health_check_info()
         }
-    
+
     def restart_process(self, route_path: str) -> None:
         """
         Restart the ttyd process for a given route.

@@ -153,6 +153,7 @@ class TTYDConfig(BaseModel):
     debug: bool = False
     title: str = "Terminal"
     script_configs: List[ScriptConfig] = Field(default_factory=list)
+    _mode: str = "script"  # Default mode: "function", "script", or "apps"
     
     @field_validator('client_script', 'template_override')
     @classmethod
@@ -261,6 +262,7 @@ class TTYDConfig(BaseModel):
             "static_path": self.static_path,
             "is_root_mounted": self.is_root_mounted,
             "is_multi_script": self.is_multi_script,
+            "entry_mode": self._mode,  # Add entry mode to health check info
             "port": self.port,
             "debug": self.debug,
             "max_clients": self.ttyd_options.max_clients,

@@ -109,7 +109,7 @@ class ServeWithConfig:
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
             
             uvicorn.run(
-                "terminaide.termin_api:function_app_factory",  # Updated
+                "terminaide.termin_api:function_app_factory",  
                 factory=True,
                 host="0.0.0.0",
                 port=config.port,
@@ -135,7 +135,7 @@ class ServeWithConfig:
                 ttyd_port=config.ttyd_port
             )
             script_config._target = ephemeral_path
-            script_config._mode = "script"
+            script_config._mode = "function"  # Preserve the function mode
             
             cls.serve_script(script_config)
 
@@ -159,6 +159,7 @@ class ServeWithConfig:
             os.environ["TERMINAIDE_DEBUG"] = "1" if config.debug else "0"
             os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
+            os.environ["TERMINAIDE_MODE"] = config._mode  
             
             uvicorn.run(
                 "terminaide.termin_api:script_app_factory",  # Updated
@@ -318,6 +319,7 @@ class AppFactory:
             forward_env=forward_env
         )
         config._target = ephemeral_path
+        config._mode = "function"  # Set mode to function
         
         # Direct setup instead of recursive uvicorn call
         script_path = config._target
@@ -352,6 +354,8 @@ class AppFactory:
         debug = (os.environ.get("TERMINAIDE_DEBUG") == "1")
         theme_str = os.environ.get("TERMINAIDE_THEME") or "{}"
         forward_env_str = os.environ.get("TERMINAIDE_FORWARD_ENV", "True")
+        # Get the mode from environment, default to script
+        mode = os.environ.get("TERMINAIDE_MODE", "script")
         
         import ast
         
@@ -378,6 +382,7 @@ class AppFactory:
             forward_env=forward_env
         )
         config._target = script_path
+        config._mode = mode  # Set the mode from the environment variable
         
         # Direct setup instead of recursive uvicorn call
         ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)

@@ -1,12 +1,8 @@
 # core/config.py
 
-"""
-Core configuration module for Terminaide.
+""" Core configuration module for Terminaide.
 
-This module contains shared configuration classes and utilities
-used by different parts of the Terminaide library. It serves as
-a central point of configuration to avoid circular dependencies.
-"""
+This module contains shared configuration classes and utilities used by different parts of the Terminaide library. It serves as a central point of configuration to avoid circular dependencies. """
 
 import logging
 from pathlib import Path
@@ -29,7 +25,7 @@ logger = logging.getLogger("terminaide")
 @dataclass
 class TerminaideConfig:
     """Unified configuration for all Terminaide serving modes."""
-    
+
     # Common configuration options
     port: int = 8000
     title: str = "Terminal"
@@ -37,34 +33,32 @@ class TerminaideConfig:
     debug: bool = True
     reload: bool = False
     forward_env: Union[bool, List[str], Dict[str, Optional[str]]] = True
-    
+
     # Advanced configuration
     ttyd_options: Dict[str, Any] = field(default_factory=dict)
     template_override: Optional[Path] = None
     trust_proxy_headers: bool = True
     mount_path: str = "/"
-    
+
     # Proxy settings
     ttyd_port: int = 7681  # Base port for ttyd processes
-    
+
     # Internal fields (not exposed directly)
     _target: Optional[Union[Callable, Path, Dict[str, Any]]] = None
     _app: Optional[FastAPI] = None
     _mode: str = "function"  # "function", "script", or "apps"
 
-
 def build_config(config: Optional[TerminaideConfig], overrides: Dict[str, Any]) -> TerminaideConfig:
     """Build a config object from the provided config and overrides."""
     if config is None:
         config = TerminaideConfig()
-    
+
     # Apply overrides
     for key, value in overrides.items():
         if hasattr(config, key):
             setattr(config, key, value)
-    
-    return config
 
+    return config
 
 def setup_templates(config: TerminaideConfig) -> Tuple[Jinja2Templates, str]:
     """Set up the Jinja2 templates for the HTML interface."""
@@ -74,17 +68,16 @@ def setup_templates(config: TerminaideConfig) -> Tuple[Jinja2Templates, str]:
     else:
         template_dir = Path(__file__).parent.parent / "templates"
         template_file = "terminal.html"
-    
+
     if not template_dir.exists():
         raise TemplateError(str(template_dir), "Template directory not found")
-    
+
     templates = Jinja2Templates(directory=str(template_dir))
-    
+
     if not (template_dir / template_file).exists():
         raise TemplateError(template_file, "Template file not found")
-    
-    return templates, template_file
 
+    return templates, template_file
 
 def configure_routes(
     app: FastAPI,
@@ -92,9 +85,10 @@ def configure_routes(
     ttyd_manager: TTYDManager,
     proxy_manager: ProxyManager,
     templates: Jinja2Templates,
-    template_file: str) -> None:
+    template_file: str
+) -> None:
     """Define routes for TTYD: health, interface, websocket, and proxy."""
-    
+
     @app.get(f"{config.mount_path}/health")
     async def health_check():
         return {
@@ -139,12 +133,12 @@ def configure_routes(
         async def proxy_terminal_request(request: Request, path: str, route_path=route_path):
             return await proxy_manager.proxy_http(request)
 
-
 def create_script_configs(
-    terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any]]]) -> List[ScriptConfig]:
+    terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any]]]
+) -> List[ScriptConfig]:
     """Convert the terminal_routes dictionary into a list of ScriptConfig objects."""
     script_configs = []
-    
+
     for route_path, script_spec in terminal_routes.items():
         if isinstance(script_spec, dict) and "client_script" in script_spec:
             script_value = script_spec["client_script"]
@@ -187,45 +181,45 @@ def create_script_configs(
 
     if not script_configs:
         raise ConfigurationError("No valid script configuration provided")
-    
-    return script_configs
 
+    return script_configs
 
 def configure_app(app: FastAPI, config: TTYDConfig):
     """Configure the FastAPI app with the TTYDManager, ProxyManager, and routes."""
     mode = "multi-script" if config.is_multi_script else "single-script"
-    logger.info(f"Configuring ttyd service with {config.mount_path} mounting ({mode} mode)")
-    
+    entry_mode = getattr(config, '_mode', 'script')
+    logger.info(f"Configuring ttyd service with {config.mount_path} mounting ({entry_mode} API, {mode} mode)")
+
     ttyd_manager = TTYDManager(config)
     proxy_manager = ProxyManager(config)
-    
+
     package_dir = Path(__file__).parent.parent
     static_dir = package_dir / "static"
     static_dir.mkdir(exist_ok=True)
-    
+
     app.mount(config.static_path, StaticFiles(directory=str(static_dir)), name="static")
-    
+
     templates, template_file = setup_templates(config)
     app.state.terminaide_templates = templates
     app.state.terminaide_template_file = template_file
     app.state.terminaide_config = config
-    
-    configure_routes(app, config, ttyd_manager, proxy_manager, templates, template_file)
-    
-    return ttyd_manager, proxy_manager
 
+    configure_routes(app, config, ttyd_manager, proxy_manager, templates, template_file)
+
+    return ttyd_manager, proxy_manager
 
 @asynccontextmanager
 async def terminaide_lifespan(app: FastAPI, config: TTYDConfig):
     """Lifespan context manager for the TTYDManager and ProxyManager."""
     ttyd_manager, proxy_manager = configure_app(app, config)
-    
+
     mode = "multi-script" if config.is_multi_script else "single-script"
+    entry_mode = getattr(config, '_mode', 'script')
     logger.info(
         f"Starting ttyd service (mounting: "
-        f"{'root' if config.is_root_mounted else 'non-root'}, mode: {mode})"
+        f"{'root' if config.is_root_mounted else 'non-root'}, mode: {mode}, API: {entry_mode})"
     )
-    
+
     ttyd_manager.start()
     try:
         yield
@@ -233,7 +227,6 @@ async def terminaide_lifespan(app: FastAPI, config: TTYDConfig):
         logger.info("Cleaning up ttyd service...")
         ttyd_manager.stop()
         await proxy_manager.cleanup()
-
 
 def convert_terminaide_config_to_ttyd_config(config: TerminaideConfig, script_path: Path = None) -> TTYDConfig:
     """Convert a TerminaideConfig to a TTYDConfig."""
@@ -245,16 +238,16 @@ def convert_terminaide_config_to_ttyd_config(config: TerminaideConfig, script_pa
         terminal_routes = config._target
     elif script_path is not None:
         terminal_routes = {"/": script_path}
-    
+
     script_configs = create_script_configs(terminal_routes)
-    
+
     # Convert theme dict to ThemeConfig
     theme_config = ThemeConfig(**(config.theme or {}))
-    
+
     # Convert ttyd_options dict to TTYDOptions
     ttyd_options_config = TTYDOptions(**(config.ttyd_options or {}))
-    
-    return TTYDConfig(
+
+    ttyd_config = TTYDConfig(
         client_script=script_configs[0].client_script if script_configs else None,
         mount_path=config.mount_path,
         port=config.ttyd_port,
@@ -266,3 +259,8 @@ def convert_terminaide_config_to_ttyd_config(config: TerminaideConfig, script_pa
         script_configs=script_configs,
         forward_env=config.forward_env
     )
+    
+    # Propagate the entry mode to TTYDConfig
+    ttyd_config._mode = config._mode
+    
+    return ttyd_config
