@@ -1,3 +1,5 @@
+# core/config.py
+
 """
 Core configuration module for Terminaide.
 
@@ -35,9 +37,6 @@ class TerminaideConfig:
     debug: bool = True
     reload: bool = False
     forward_env: Union[bool, List[str], Dict[str, Optional[str]]] = True
-    
-    # Display options
-    banner_label: Optional[str] = None
     
     # Advanced configuration
     ttyd_options: Dict[str, Any] = field(default_factory=dict)

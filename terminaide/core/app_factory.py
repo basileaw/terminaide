@@ -1,3 +1,5 @@
+# core/app_factory.py
+
 """
 Factory functions and app builders for Terminaide serving modes.
 
@@ -118,7 +120,6 @@ class ServeWithConfig:
             # Direct mode - use local generate_function_wrapper
             func = config._target
             ephemeral_path = generate_function_wrapper(func)
-            banner_label = config.banner_label or f"'{func.__name__}()' from {func.__module__}"
             
             # Create a clean config for script mode
             script_config = type(config)(
@@ -127,7 +128,6 @@ class ServeWithConfig:
                 theme=config.theme,
                 debug=config.debug,
                 forward_env=config.forward_env,
-                banner_label=banner_label,
                 ttyd_options=config.ttyd_options,
                 template_override=config.template_override,
                 trust_proxy_headers=config.trust_proxy_headers,
@@ -151,15 +151,12 @@ class ServeWithConfig:
             print(f"\033[91mError: Script not found: {script_path}\033[0m")
             return
         
-        banner_label = config.banner_label or f"{script_path.name}"
-        
         if config.reload:
             # Reload mode
             os.environ["TERMINAIDE_SCRIPT_PATH"] = str(script_path)
             os.environ["TERMINAIDE_PORT"] = str(config.port)
             os.environ["TERMINAIDE_TITLE"] = config.title
             os.environ["TERMINAIDE_DEBUG"] = "1" if config.debug else "0"
-            os.environ["TERMINAIDE_BANNER"] = banner_label
             os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
             
@@ -248,11 +245,6 @@ class ServeWithConfig:
                     yield
         
         app.router.lifespan_context = terminaide_merged_lifespan
-        
-        if config.banner_label:
-            print(f"\033[92mTerminaide proxying {config.banner_label} on port {config.ttyd_port}\033[0m")
-        else:
-            print(f"\033[92mTerminaide proxying multi-routes on port {config.ttyd_port}\033[0m")
 
 
 class AppFactory:
@@ -289,7 +281,6 @@ class AppFactory:
                 func = getattr(candidate_mod, func_name)
         
         ephemeral_path = None
-        banner_label = f"'{func_name}()' from {func_mod}"
         
         if func is not None and callable(func):
             ephemeral_path = generate_function_wrapper(func)
@@ -302,7 +293,6 @@ class AppFactory:
                 f'print("ERROR: cannot reload function {func_name} from module={func_mod}")\n',
                 encoding="utf-8"
             )
-            banner_label += " (reload failed)"
         
         import ast
         
@@ -325,8 +315,7 @@ class AppFactory:
             title=title,
             theme=theme,
             debug=debug,
-            forward_env=forward_env,
-            banner_label=banner_label
+            forward_env=forward_env
         )
         config._target = ephemeral_path
         
@@ -361,7 +350,6 @@ class AppFactory:
         port_str = os.environ["TERMINAIDE_PORT"]
         title = os.environ["TERMINAIDE_TITLE"]
         debug = (os.environ.get("TERMINAIDE_DEBUG") == "1")
-        banner_label = os.environ["TERMINAIDE_BANNER"]
         theme_str = os.environ.get("TERMINAIDE_THEME") or "{}"
         forward_env_str = os.environ.get("TERMINAIDE_FORWARD_ENV", "True")
         
@@ -387,8 +375,7 @@ class AppFactory:
             title=title,
             theme=theme,
             debug=debug,
-            forward_env=forward_env,
-            banner_label=banner_label
+            forward_env=forward_env
         )
         config._target = script_path
         

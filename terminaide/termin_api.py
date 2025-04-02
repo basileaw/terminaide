@@ -81,7 +81,6 @@ def serve_script(
             - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
             - debug: Enable debug mode (default: False)
             - reload: Enable auto-reload on code changes (default: False)
-            - banner_label: Custom label for terminal banner (default: script filename)
             - forward_env: Control environment variable forwarding (default: True)
             - ttyd_options: Options for the ttyd process
             - template_override: Custom HTML template path
@@ -90,10 +89,6 @@ def serve_script(
     cfg = build_config(config, kwargs)
     cfg._target = Path(script_path)
     cfg._mode = "script"
-    
-    # Auto-generate banner if not specified
-    if "banner_label" not in kwargs and (config is None or config.banner_label is None):
-        cfg.banner_label = Path(script_path).name
     
     ServeWithConfig.serve(cfg)
 
