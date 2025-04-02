@@ -20,7 +20,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from ..exceptions import TTYDStartupError, TTYDProcessError, PortAllocationError
+from .exceptions import TTYDStartupError, TTYDProcessError, PortAllocationError
 from .ttyd_installer import setup_ttyd
 from .settings import TTYDConfig, ScriptConfig
 

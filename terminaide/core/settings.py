@@ -17,7 +17,7 @@ from pydantic import (
     model_validator
 )
 
-from ..exceptions import ConfigurationError
+from .exceptions import ConfigurationError
 
 logger = logging.getLogger("terminaide")
 

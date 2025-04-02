@@ -22,7 +22,7 @@ from fastapi.templating import Jinja2Templates
 from .settings import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
 from .manager import TTYDManager
 from .proxy import ProxyManager
-from ..exceptions import TemplateError, ConfigurationError
+from .exceptions import TemplateError, ConfigurationError
 
 logger = logging.getLogger("terminaide")
 

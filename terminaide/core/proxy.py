@@ -17,7 +17,7 @@ import websockets.exceptions
 from fastapi import Request, WebSocket
 from fastapi.responses import Response, StreamingResponse
 
-from ..exceptions import ProxyError, RouteNotFoundError
+from .exceptions import ProxyError, RouteNotFoundError
 from .settings import TTYDConfig, ScriptConfig
 
 logger = logging.getLogger("terminaide")
