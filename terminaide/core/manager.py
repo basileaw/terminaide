@@ -10,9 +10,9 @@ import sys
 import socket
 import time
 import signal
-import logging
 import subprocess
 import platform
+import logging
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
@@ -63,7 +63,7 @@ class TTYDManager:
         """
         try:
             self._ttyd_path = setup_ttyd(force_reinstall)
-            logger.info(f"Using ttyd binary at: {self._ttyd_path}")
+            logger.debug(f"Using ttyd binary at: {self._ttyd_path}")
         except Exception as e:
             logger.error(f"Failed to set up ttyd: {e}")
             raise TTYDStartupError(f"Failed to set up ttyd: {e}")
@@ -80,6 +80,9 @@ class TTYDManager:
         }
         next_port = self._base_port
         
+        # Track newly assigned ports
+        new_assignments = []
+        
         for cfg in configs_to_assign:
             while (next_port in assigned_ports
                    or self._is_port_in_use("127.0.0.1", next_port)):
@@ -88,10 +91,13 @@ class TTYDManager:
                     raise PortAllocationError("Port range exhausted")
             cfg.port = next_port
             assigned_ports.add(next_port)
+            new_assignments.append((cfg.route_path, next_port))
             next_port += 1
 
-        for cfg in self.config.script_configs:
-            logger.info(f"Assigned port {cfg.port} to route {cfg.route_path}")
+        # Log all port assignments in a single message
+        if new_assignments:
+            assignments_str = ", ".join([f"{route}:{port}" for route, port in new_assignments])
+            logger.debug(f"Port assignments: {assignments_str}")
 
     def _build_command(self, script_config: ScriptConfig) -> List[str]:
         """
@@ -186,13 +192,19 @@ class TTYDManager:
         if not self.config.script_configs:
             raise TTYDStartupError("No script configurations found")
             
-        logger.info(
-            f"Starting {len(self.config.script_configs)} ttyd processes "
-            f"({'multi-script' if self.config.is_multi_script else 'single-script'} mode)"
-        )
+        script_count = len(self.config.script_configs)
+        mode_type = 'multi-script' if self.config.is_multi_script else 'single-script'
+        logger.info(f"Starting {script_count} ttyd processes ({mode_type} mode)")
         
+        success_count = 0
         for script_config in self.config.script_configs:
-            self.start_process(script_config)
+            try:
+                self.start_process(script_config)
+                success_count += 1
+            except Exception as e:
+                logger.error(f"Failed to start process for {script_config.route_path}: {e}")
+        
+        logger.info(f"Started {success_count}/{script_count} processes successfully")
 
     def start_process(self, script_config: ScriptConfig) -> None:
         """
@@ -215,14 +227,8 @@ class TTYDManager:
 
         cmd = self._build_command(script_config)
         
-        # Log a concise info message
-        logger.info(f"Starting ttyd for route {route_path} on port {port}")
-        
-        # Log detailed command at debug level
-        if logger.isEnabledFor(logging.DEBUG):
-            cmd_str = ' '.join(cmd)
-            logger.debug("Full command:")
-            logger.debug(f"  {cmd_str}")
+        # Log detailed command at debug level only
+        logger.debug(f"Process command for {route_path}: {' '.join(cmd)}")
 
         try:
             process = subprocess.Popen(
@@ -247,9 +253,8 @@ class TTYDManager:
                     raise TTYDStartupError(stderr=stderr)
                     
                 if self.is_process_running(route_path):
-                    logger.info(
-                        f"ttyd started for route {route_path} with PID {process.pid} on port {port}"
-                    )
+                    # Single consolidated log message after successful start
+                    logger.info(f"Started ttyd: {route_path} (port:{port}, pid:{process.pid})")
                     return
                     
                 time.sleep(check_interval)
@@ -267,22 +272,33 @@ class TTYDManager:
         """
         Stop all running ttyd processes.
         """
-        logger.info(f"Stopping all ttyd processes ({len(self.processes)} total)")
+        process_count = len(self.processes)
+        if process_count == 0:
+            logger.debug("No ttyd processes to stop")
+            return
+            
+        logger.info(f"Stopping {process_count} ttyd processes")
+        
         for route_path in list(self.processes.keys()):
-            self.stop_process(route_path)
-        self.processes.clear()
-        self.start_times.clear()
+            self.stop_process(route_path, log_individual=False)
+            
         logger.info("All ttyd processes stopped")
 
-    def stop_process(self, route_path: str) -> None:
+    def stop_process(self, route_path: str, log_individual: bool = True) -> None:
         """
         Stop a single ttyd process for the given route.
+        
+        Args:
+            route_path: The route path of the process to stop
+            log_individual: Whether to log individual process stop (False when called from stop())
         """
         process = self.processes.get(route_path)
         if not process:
             return
             
-        logger.info(f"Stopping ttyd for route {route_path}...")
+        if log_individual:
+            logger.info(f"Stopping ttyd for route {route_path}")
+            
         try:
             if os.name == 'nt':
                 process.terminate()
@@ -313,7 +329,9 @@ class TTYDManager:
         
         self.processes.pop(route_path, None)
         self.start_times.pop(route_path, None)
-        logger.info(f"ttyd for route {route_path} stopped")
+        
+        if log_individual:
+            logger.info(f"Stopped ttyd for route {route_path}")
 
     def is_process_running(self, route_path: str) -> bool:
         """
@@ -347,6 +365,11 @@ class TTYDManager:
                 "pid": self.processes.get(route_path).pid if running else None,
                 "title": cfg.title or self.config.title
             })
+            
+        # Log a compact summary of process health
+        running_count = sum(1 for p in processes_health if p["status"] == "running")
+        logger.debug(f"Health check: {running_count}/{len(processes_health)} processes running")
+            
         return {
             "processes": processes_health,
             "ttyd_path": str(self._ttyd_path) if self._ttyd_path else None,
