@@ -223,7 +223,7 @@ class ServeWithConfig:
         # Import middleware here to avoid circular imports
         if config.trust_proxy_headers:
             try:
-                from ..middleware import ProxyHeaderMiddleware
+                from .middleware import ProxyHeaderMiddleware
                 if not any(m.cls.__name__ == "ProxyHeaderMiddleware" for m in getattr(app, "user_middleware", [])):
                     app.add_middleware(ProxyHeaderMiddleware)
                     logger.info("Added proxy header middleware for HTTPS detection")
