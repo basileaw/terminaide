@@ -1,5 +1,3 @@
-# core/app_factory.py 
-
 """
 Factory functions and app builders for Terminaide serving modes.
 
@@ -24,7 +22,6 @@ from .config import (
     TerminaideConfig,
     convert_terminaide_config_to_ttyd_config,
     terminaide_lifespan,
-    default_client_middleware
 )
 
 logger = logging.getLogger("terminaide")
@@ -182,7 +179,6 @@ class ServeWithConfig:
             ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)
             
             # Setup routes and lifecycle
-            app.middleware("http")(default_client_middleware)
             original_lifespan = app.router.lifespan_context
             
             @asynccontextmanager
@@ -239,7 +235,6 @@ class ServeWithConfig:
         
         setattr(app.state, sentinel_attr, True)
         
-        app.middleware("http")(default_client_middleware)
         original_lifespan = app.router.lifespan_context
         
         @asynccontextmanager
@@ -340,7 +335,6 @@ class AppFactory:
         ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)
         
         # Setup routes and lifecycle
-        app.middleware("http")(default_client_middleware)
         original_lifespan = app.router.lifespan_context
         
         @asynccontextmanager
@@ -402,7 +396,6 @@ class AppFactory:
         ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)
         
         # Setup routes and lifecycle
-        app.middleware("http")(default_client_middleware)
         original_lifespan = app.router.lifespan_context
         
         @asynccontextmanager

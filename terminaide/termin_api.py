@@ -1,4 +1,4 @@
-# serve.py
+# termin-api.py
 
 """Main implementation for configuring and serving ttyd through FastAPI.
 
@@ -124,6 +124,10 @@ def serve_apps(
             - template_override: Custom HTML template path
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
     """
+    if not terminal_routes:
+        logger.warning("No terminal routes provided to serve_apps(). No terminals will be served.")
+        return
+        
     cfg = build_config(config, kwargs)
     cfg._target = terminal_routes
     cfg._app = app

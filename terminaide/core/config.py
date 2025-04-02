@@ -1,5 +1,3 @@
-# core/config.py
-
 """
 Core configuration module for Terminaide.
 
@@ -147,7 +145,6 @@ def create_script_configs(
     terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any]]]) -> List[ScriptConfig]:
     """Convert the terminal_routes dictionary into a list of ScriptConfig objects."""
     script_configs = []
-    has_root_path = terminal_routes and "/" in terminal_routes
     
     for route_path, script_spec in terminal_routes.items():
         if isinstance(script_spec, dict) and "client_script" in script_spec:
@@ -189,12 +186,6 @@ def create_script_configs(
                 ScriptConfig(route_path=route_path, client_script=script_path, args=[])
             )
 
-    if not has_root_path:
-        default_client_path = Path(__file__).parent.parent / "core" / "default_client.py"
-        script_configs.append(
-            ScriptConfig(route_path="/", client_script=default_client_path, title="Terminaide (Intro)")
-        )
-    
     if not script_configs:
         raise ConfigurationError("No valid script configuration provided")
     
@@ -245,33 +236,6 @@ async def terminaide_lifespan(app: FastAPI, config: TTYDConfig):
         await proxy_manager.cleanup()
 
 
-async def default_client_middleware(request: Request, call_next):
-    """Middleware to serve the default client when a route isn't matched."""
-    response = await call_next(request)
-    
-    if request.url.path == "/" and response.status_code == 404:
-        templates = request.app.state.terminaide_templates
-        template_file = request.app.state.terminaide_template_file
-        config = request.app.state.terminaide_config
-        terminal_path = config.get_terminal_path_for_route("/")
-        
-        logger.info("No route matched root path, serving default client via middleware")
-        
-        try:
-            return templates.TemplateResponse(
-                template_file,
-                {
-                    "request": request,
-                    "mount_path": terminal_path,
-                    "theme": config.theme.model_dump(),
-                    "title": "Terminaide (Getting Started)"
-                }
-            )
-        except Exception as e:
-            logger.error(f"Default client template rendering error: {e}")
-    return response
-
-
 def convert_terminaide_config_to_ttyd_config(config: TerminaideConfig, script_path: Path = None) -> TTYDConfig:
     """Convert a TerminaideConfig to a TTYDConfig."""
     if script_path is None and config._target is not None and isinstance(config._target, Path):
@@ -292,7 +256,7 @@ def convert_terminaide_config_to_ttyd_config(config: TerminaideConfig, script_pa
     ttyd_options_config = TTYDOptions(**(config.ttyd_options or {}))
     
     return TTYDConfig(
-        client_script=script_configs[0].client_script if script_configs else Path(__file__).parent.parent / "core" / "default_client.py",
+        client_script=script_configs[0].client_script if script_configs else None,
         mount_path=config.mount_path,
         port=config.ttyd_port,
         theme=theme_config,
