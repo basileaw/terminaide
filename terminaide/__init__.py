@@ -42,7 +42,23 @@ from .core.exceptions import (
 )
 
 # Configure package-level logging
-logging.getLogger("terminaide").addHandler(logging.NullHandler())
+logger = logging.getLogger("terminaide")
+handler = logging.StreamHandler()
+
+# Create a custom formatter that aligns messages at position 11
+class AlignedFormatter(logging.Formatter):
+    def format(self, record):
+        levelname = record.levelname
+        # Ensure the level name + padding + colon takes exactly 10 characters
+        padding_length = max(1, 9 - len(levelname))
+        padding = ' ' * padding_length
+        
+        # Format: "LEVEL:" + padding to position 11 + message
+        return f"{levelname}:{padding}{record.getMessage()}"
+
+handler.setFormatter(AlignedFormatter())
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 # Ensure bin directory exists on import
 bin_dir = Path(__file__).parent / "bin"
