@@ -20,7 +20,7 @@ Supported Platforms:
 import logging
 from .serve import serve_function, serve_script, serve_apps
 from .core.settings import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
-from .installer import setup_ttyd, get_platform_info
+from .core.ttyd_installer import setup_ttyd, get_platform_info
 from .exceptions import (
     terminaideError,
     BinaryError,
