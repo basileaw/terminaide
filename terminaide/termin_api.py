@@ -12,10 +12,8 @@ service within a FastAPI application, with three distinct API paths:
 
 import logging
 from pathlib import Path
-from typing import Optional, Dict, Any, Union, List, Callable
-
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from typing import Optional, Dict, Any, Union, List, Callable
 
 from .core.config import (
     TerminaideConfig, 

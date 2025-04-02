@@ -18,7 +18,8 @@ Supported Platforms:
 """
 
 import logging
-from .serve import serve_function, serve_script, serve_apps
+from pathlib import Path
+from .termin_api import serve_function, serve_script, serve_apps
 from .core.settings import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
 from .core.ttyd_installer import setup_ttyd, get_platform_info
 from .core.exceptions import (
@@ -42,6 +43,10 @@ from .core.exceptions import (
 
 # Configure package-level logging
 logging.getLogger("terminaide").addHandler(logging.NullHandler())
+
+# Ensure bin directory exists on import
+bin_dir = Path(__file__).parent / "bin"
+bin_dir.mkdir(exist_ok=True)
 
 __all__ = [
     # New API
@@ -77,9 +82,3 @@ __all__ = [
     "ScriptConfigurationError",
     "DuplicateRouteError"
 ]
-
-# Ensure bin directory exists on import
-import os
-from pathlib import Path
-bin_dir = Path(__file__).parent / "bin"
-bin_dir.mkdir(exist_ok=True)
