@@ -20,6 +20,12 @@ from typing import Callable, Optional
 from contextlib import asynccontextmanager
 
 from .settings import smart_resolve_path
+from .config import (
+    TerminaideConfig,
+    convert_terminaide_config_to_ttyd_config,
+    terminaide_lifespan,
+    default_client_middleware
+)
 
 logger = logging.getLogger("terminaide")
 
@@ -139,8 +145,6 @@ class ServeWithConfig:
     @classmethod
     def serve_script(cls, config) -> None:
         """Implementation for serving a script."""
-        from ..serve import convert_terminaide_config_to_ttyd_config, terminaide_lifespan, default_client_middleware
-        
         script_path = config._target
         if not isinstance(script_path, Path):
             script_path = Path(script_path)
@@ -213,8 +217,6 @@ class ServeWithConfig:
     @classmethod
     def serve_apps(cls, config) -> None:
         """Implementation for serving multiple apps."""
-        from ..serve import convert_terminaide_config_to_ttyd_config, terminaide_lifespan, default_client_middleware
-        
         app = config._app
         terminal_routes = config._target
         
@@ -268,8 +270,6 @@ class AppFactory:
         We'll try to re-import the function from its module if it's not __main__/__mp_main__.
         If it *is* in main or mp_main, we search sys.modules for the function, then inline.
         """
-        from ..serve import TerminaideConfig, convert_terminaide_config_to_ttyd_config, default_client_middleware, terminaide_lifespan
-        
         func_name = os.environ.get("TERMINAIDE_FUNC_NAME", "")
         func_mod = os.environ.get("TERMINAIDE_FUNC_MOD", "")
         port_str = os.environ["TERMINAIDE_PORT"]
@@ -363,8 +363,6 @@ class AppFactory:
         Called by uvicorn with factory=True in script mode when reload=True.
         Rebuilds the FastAPI app from environment variables.
         """
-        from ..serve import TerminaideConfig, convert_terminaide_config_to_ttyd_config, default_client_middleware, terminaide_lifespan
-        
         script_path_str = os.environ["TERMINAIDE_SCRIPT_PATH"]
         port_str = os.environ["TERMINAIDE_PORT"]
         title = os.environ["TERMINAIDE_TITLE"]
