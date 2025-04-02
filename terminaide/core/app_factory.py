@@ -83,8 +83,48 @@ class ServeWithConfig:
     """Class responsible for handling the serving implementation for different modes."""
     
     @classmethod
+    def display_banner(cls, mode):
+        """Display a minimal banner indicating the mode using Rich."""
+        try:
+            from rich.console import Console
+            from rich.panel import Panel
+            
+            # Select color based on mode
+            mode_colors = {
+                "function": "dark_orange",
+                "script": "blue", 
+                "apps": "magenta"
+            }
+            
+            color = mode_colors.get(mode, "yellow")
+            mode_upper = mode.upper()
+            
+            # Create and display minimal panel
+            console = Console(highlight=False)
+            panel = Panel(
+                f"TERMINAIDE {mode_upper} SERVER",
+                border_style=color,
+                expand=False,
+                padding=(0, 1)
+            )
+            
+            # Ensure this appears first
+            console.print(panel)
+        except ImportError:
+            # Fallback if Rich is not installed
+            mode_upper = mode.upper()
+            banner = f"== TERMINAIDE SERVING IN {mode_upper} MODE =="
+            print(f"\033[1m\033[92m{banner}\033[0m")  # Bold green
+        
+        # Also log through standard logging
+        logger.debug(f"Starting Terminaide in {mode_upper} mode")
+    
+    @classmethod
     def serve(cls, config) -> None:
         """Serves the application based on the configuration mode."""
+        # Display banner before any mode-specific handling
+        cls.display_banner(config._mode)
+        
         if config._mode == "function":
             cls.serve_function(config)
         elif config._mode == "script":
@@ -109,7 +149,7 @@ class ServeWithConfig:
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
             
             uvicorn.run(
-                "terminaide.termin_api:function_app_factory",  
+                "terminaide.termin_api:function_app_factory",  # Updated
                 factory=True,
                 host="0.0.0.0",
                 port=config.port,
@@ -159,7 +199,7 @@ class ServeWithConfig:
             os.environ["TERMINAIDE_DEBUG"] = "1" if config.debug else "0"
             os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
-            os.environ["TERMINAIDE_MODE"] = config._mode  
+            os.environ["TERMINAIDE_MODE"] = config._mode  # Add this to pass mode
             
             uvicorn.run(
                 "terminaide.termin_api:script_app_factory",  # Updated
@@ -191,8 +231,8 @@ class ServeWithConfig:
             
             app.router.lifespan_context = terminaide_merged_lifespan
             
-            print(f"\033[96m> URL: \033[1mhttp://localhost:{config.port}\033[0m")
-            print("\033[96m> Press Ctrl+C to exit\033[0m")
+            # print(f"\033[96m> URL: \033[1mhttp://localhost:{config.port}\033[0m")
+            # print("\033[96m> Press Ctrl+C to exit\033[0m")
             
             def handle_exit(sig, frame):
                 print("\033[93mShutting down...\033[0m")
@@ -321,6 +361,9 @@ class AppFactory:
         config._target = ephemeral_path
         config._mode = "function"  # Set mode to function
         
+        # Show banner for reloaded app
+        ServeWithConfig.display_banner(config._mode)
+        
         # Direct setup instead of recursive uvicorn call
         script_path = config._target
         ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)
@@ -383,6 +426,9 @@ class AppFactory:
         )
         config._target = script_path
         config._mode = mode  # Set the mode from the environment variable
+        
+        # Show banner for reloaded app
+        ServeWithConfig.display_banner(config._mode)
         
         # Direct setup instead of recursive uvicorn call
         ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)
