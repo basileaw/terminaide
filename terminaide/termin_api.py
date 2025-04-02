@@ -15,7 +15,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from typing import Optional, Dict, Any, Union, List, Callable
 
-from .core.config import (
+from .core.app_config import (
     TerminaideConfig, 
     build_config
 )

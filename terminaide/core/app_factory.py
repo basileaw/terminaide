@@ -19,11 +19,11 @@ from fastapi import FastAPI
 from typing import Callable, Optional
 from contextlib import asynccontextmanager
 
-from .settings import smart_resolve_path
-from .config import (
+from .app_config import (
     TerminaideConfig,
     convert_terminaide_config_to_ttyd_config,
     terminaide_lifespan,
+    smart_resolve_path
 )
 
 logger = logging.getLogger("terminaide")

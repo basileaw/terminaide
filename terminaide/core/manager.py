@@ -1,3 +1,5 @@
+# core/manager.py
+
 """ Manages TTYd processes for single or multi-script setups, ensuring their lifecycle, cleanup, and health monitoring. """
 
 import os
@@ -15,7 +17,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from .exceptions import TTYDStartupError, TTYDProcessError, PortAllocationError
 from .ttyd_installer import setup_ttyd
-from .settings import TTYDConfig, ScriptConfig
+from .data_models import TTYDConfig, ScriptConfig
 
 logger = logging.getLogger("terminaide")
 

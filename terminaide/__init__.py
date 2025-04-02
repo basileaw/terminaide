@@ -17,10 +17,11 @@ Supported Platforms:
 - macOS ARM64 (Apple Silicon)
 """
 
+import sys
 import logging
 from pathlib import Path
 from .termin_api import serve_function, serve_script, serve_apps
-from .core.settings import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
+from .core.data_models import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
 from .core.ttyd_installer import setup_ttyd, get_platform_info
 from .core.exceptions import (
     terminaideError,
@@ -40,8 +41,6 @@ from .core.exceptions import (
     ScriptConfigurationError,
     DuplicateRouteError
 )
-
-import sys
 
 # ANSI color codes similar to uvicorn's
 COLORS = {

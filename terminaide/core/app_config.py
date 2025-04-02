@@ -9,18 +9,46 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from contextlib import asynccontextmanager
 from typing import Optional, Dict, Any, Union, Tuple, List, Callable, Awaitable
+import sys
 
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .settings import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
+from .data_models import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions, create_script_configs
 from .manager import TTYDManager
 from .proxy import ProxyManager
 from .exceptions import TemplateError, ConfigurationError
 
 logger = logging.getLogger("terminaide")
+
+def smart_resolve_path(path: Union[str, Path]) -> Path:
+    """ Resolves a path using a predictable strategy:
+    1. First try the path as-is (absolute or relative to CWD)
+    2. Then try relative to the main script being run (sys.argv[0])
+
+    This approach is both flexible and predictable.
+    """
+    original_path = Path(path)
+
+    # Strategy 1: Use the path as-is (absolute or relative to CWD)
+    if original_path.is_absolute() or original_path.exists():
+        return original_path.absolute()
+
+    # Strategy 2: Try relative to the main script being run
+    try:
+        main_script = Path(sys.argv[0]).absolute()
+        main_script_dir = main_script.parent
+        script_relative_path = main_script_dir / original_path
+        if script_relative_path.exists():
+            logger.debug(f"Found script at {script_relative_path} (relative to main script)")
+            return script_relative_path.absolute()
+    except Exception as e:
+        logger.debug(f"Error resolving path relative to main script: {e}")
+
+    # Return the original if nothing was found
+    return original_path
 
 @dataclass
 class TerminaideConfig:
@@ -133,57 +161,6 @@ def configure_routes(
         async def proxy_terminal_request(request: Request, path: str, route_path=route_path):
             return await proxy_manager.proxy_http(request)
 
-def create_script_configs(
-    terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any]]]
-) -> List[ScriptConfig]:
-    """Convert the terminal_routes dictionary into a list of ScriptConfig objects."""
-    script_configs = []
-
-    for route_path, script_spec in terminal_routes.items():
-        if isinstance(script_spec, dict) and "client_script" in script_spec:
-            script_value = script_spec["client_script"]
-            if isinstance(script_value, list) and len(script_value) > 0:
-                script_path = script_value[0]
-                args = script_value[1:]
-            else:
-                script_path = script_value
-                args = []
-            
-            if "args" in script_spec:
-                args = script_spec["args"]
-            
-            cfg_data = {
-                "route_path": route_path,
-                "client_script": script_path,
-                "args": args
-            }
-            
-            if "title" in script_spec:
-                cfg_data["title"] = script_spec["title"]
-            
-            if "port" in script_spec:
-                cfg_data["port"] = script_spec["port"]
-            
-            script_configs.append(ScriptConfig(**cfg_data))
-        
-        elif isinstance(script_spec, list) and len(script_spec) > 0:
-            script_path = script_spec[0]
-            args = script_spec[1:]
-            script_configs.append(
-                ScriptConfig(route_path=route_path, client_script=script_path, args=args)
-            )
-        
-        else:
-            script_path = script_spec
-            script_configs.append(
-                ScriptConfig(route_path=route_path, client_script=script_path, args=[])
-            )
-
-    if not script_configs:
-        raise ConfigurationError("No valid script configuration provided")
-
-    return script_configs
-
 def configure_app(app: FastAPI, config: TTYDConfig):
     """Configure the FastAPI app with the TTYDManager, ProxyManager, and routes."""
     mode = "multi-script" if config.is_multi_script else "single-script"
@@ -259,8 +236,8 @@ def convert_terminaide_config_to_ttyd_config(config: TerminaideConfig, script_pa
         script_configs=script_configs,
         forward_env=config.forward_env
     )
-    
+
     # Propagate the entry mode to TTYDConfig
     ttyd_config._mode = config._mode
-    
+
     return ttyd_config

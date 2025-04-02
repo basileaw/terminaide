@@ -1,4 +1,4 @@
-# terminaide/exceptions.py
+# core/exceptions.py
 
 """
 Custom exceptions for the terminaide package.
