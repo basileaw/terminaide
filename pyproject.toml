@@ -4,12 +4,9 @@ version = "0.0.7"
 description = "Serve Python CLI applications in the browser using ttyd"
 repository = "https://github.com/anotherbazeinthewall/terminaide"
 authors = ["Alex Basile <basileaw@gmail.com>"]
-packages = [{ include = "terminaide", from = "." }]                     # No explicit exclude here
+packages = [{ include = "terminaide", from = "." }]
 readme = "README.md"
 license = "MIT"
-
-[tool.poetry.extras]
-games = ["terminaide.games"] # Allows games to be optionally installed
 
 [build-system]
 requires = ["poetry-core"]

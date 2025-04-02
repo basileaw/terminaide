@@ -160,7 +160,7 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
         </html>"""
 
 def play_asteroids_function():
-    from terminaide.games import play_asteroids
+    from ..terminarcade import play_asteroids
     play_asteroids()
 
 def create_app():
@@ -230,16 +230,16 @@ def build_and_run_container(port=8000):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            for directory in ["terminaide", "demo"]:
+            # Add 'terminarcade' to the list of directories
+            for directory in ["terminaide", "demo", "terminarcade"]:  # Add "terminarcade" here
                 src_dir = project_root / directory
                 dst_dir = temp_path / directory
                 if src_dir.exists():
                     # Basic solution - ensure bin directory exists but is empty
-                    shutil.copytree(src_dir, dst_dir, ignore=lambda src, names: 
+                    shutil.copytree(src_dir, dst_dir, ignore=lambda src, names:
                         ['ttyd'] if os.path.basename(src) == 'bin' else [])
                     # Alternatively, create an empty bin directory if it was excluded
                     (dst_dir / 'bin').mkdir(exist_ok=True)
-
             generate_requirements_txt(project_root / "pyproject.toml", temp_path)
 
             dockerfile_content = """
@@ -248,6 +248,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 WORKDIR /app
 COPY terminaide/ ./terminaide/
+COPY terminarcade/ ./terminarcade/
 COPY demo/ ./demo/
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt

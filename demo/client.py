@@ -4,8 +4,7 @@
 This script demonstrates how to use terminaide's built-in games.
 """
 import argparse
-from terminaide.games import play_snake, play_pong, play_tetris, show_index
-
+from ..terminarcade import play_snake, play_pong, play_tetris, show_index
 
 def main():
     """Parse command-line arguments and run the selected game."""
