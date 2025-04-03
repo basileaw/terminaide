@@ -3,6 +3,8 @@
 
 <head>
     <title>{{ title }}</title>
+    <link rel="preconnect" href="{{ mount_path }}">
+    <link rel="dns-prefetch" href="{{ url_for('static', path='favicon.ico') }}">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='favicon.ico') }}">
     <style>
         /* Set background color for the entire viewport */
@@ -36,13 +38,11 @@
             border-radius: 4px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             visibility: hidden;
-            /* Start completely hidden */
         }
 
         #terminal.loaded {
             visibility: visible;
             animation: fadeIn 0.4s ease-in forwards;
-            /* Fade in animation */
         }
 
         @keyframes fadeIn {
@@ -74,32 +74,41 @@
             border-radius: 4px;
         }
     </style>
-
-    <!-- We create a data element to hold our theme configuration -->
+    <!-- Theme data storage -->
     <script id="theme-data" type="application/json">
         {{ theme | tojson | safe }}
     </script>
-
+    <!-- Apply theme immediately to reduce flash of unstyled content -->
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // Safely parse the theme data from our data element
+        (function () {
             const themeData = JSON.parse(document.getElementById('theme-data').textContent);
-
-            // Apply theme settings to CSS variables
             Object.entries(themeData).forEach(function (entry) {
                 const [key, value] = entry;
                 if (value) {
                     document.documentElement.style.setProperty(`--${key}`, value);
                 }
             });
+        })();
+    </script>
+</head>
 
-            // Get current protocol to use for websocket connections
+<body>
+    <div id="loading">Initializing terminal...</div>
+    <iframe id="terminal" src="{{ mount_path }}"></iframe>
+
+    <!-- Main script moved to end of body -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const terminal = document.getElementById('terminal');
+            const loading = document.getElementById('loading');
+
+            // Get current protocol for websocket connections
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             console.log(`Using ${protocol} for WebSocket connections`);
 
             function injectStyles() {
                 try {
-                    const doc = document.getElementById('terminal').contentDocument;
+                    const doc = terminal.contentDocument;
                     const style = doc.createElement('style');
                     style.textContent = `
                         .xterm-viewport {
@@ -118,38 +127,16 @@
                 }
             }
 
-            let attempts = 0;
-            const maxAttempts = 20;
-
-            function tryInject() {
-                if (injectStyles() || attempts++ > maxAttempts) {
-                    setTimeout(function () {
-                        document.body.classList.add('visible');
-                        const loading = document.getElementById('loading');
-                        if (loading) {
-                            loading.style.display = 'none';
-                        }
-                    }, 200);
-                } else {
-                    setTimeout(tryInject, 100);
-                }
-            }
-
             function focusTerminal() {
                 try {
-                    const terminal = document.getElementById('terminal');
-
                     // Focus the iframe
                     terminal.focus();
-
                     // Try to focus the terminal element inside the iframe
                     const terminalDoc = terminal.contentDocument || terminal.contentWindow.document;
-
                     // Find focusable elements in the iframe - first try terminal-specific elements
                     const terminalElement = terminalDoc.querySelector('.xterm-helper-textarea') ||
                         terminalDoc.querySelector('.xterm-textarea') ||
                         terminalDoc.querySelector('.terminal');
-
                     if (terminalElement) {
                         terminalElement.focus();
                     }
@@ -158,20 +145,7 @@
                 }
             }
 
-            document.getElementById('terminal').onload = function () {
-                tryInject();
-
-                // Just a short delay to avoid cursor flash, then fade in
-                setTimeout(function () {
-                    const terminal = document.getElementById('terminal');
-                    terminal.classList.add('loaded');
-
-                    // Focus the terminal after it's fully loaded and visible
-                    setTimeout(focusTerminal, 500);
-                }, 300); // Short delay before fade-in
-            };
-
-            // Additional focus events
+            // Set up event listeners
             window.addEventListener('focus', focusTerminal);
             document.addEventListener('click', function (e) {
                 if (e.target.closest('#terminal')) {
@@ -179,19 +153,37 @@
                 }
             });
 
-            document.getElementById('terminal').onerror = function () {
+            terminal.onload = function () {
+                // Inject styles
+                injectStyles();
+
+                // Body fade-in first
+                setTimeout(function () {
+                    document.body.classList.add('visible');
+                    if (loading) {
+                        loading.style.display = 'none';
+                    }
+
+                    // Terminal fade-in second
+                    setTimeout(function () {
+                        terminal.classList.add('loaded');
+                        // Focus after everything is visible
+                        setTimeout(focusTerminal, 300);
+                    }, 300);
+                }, 200);
+            };
+
+            terminal.onerror = function () {
                 const error = document.createElement('div');
                 error.className = 'error';
                 error.textContent = 'Failed to load terminal. Please refresh the page.';
                 document.body.appendChild(error);
+                if (loading) {
+                    loading.style.display = 'none';
+                }
             };
         });
     </script>
-</head>
-
-<body>
-    <div id="loading">Initializing terminal...</div>
-    <iframe id="terminal" src="{{ mount_path }}"></iframe>
 </body>
 
 </html>
