@@ -7,6 +7,7 @@
 .venv
 .vscode
 dist/
+test.py
 
 terminaide/core/bin/*
 !terminaide/core/bin/.gitkeep
