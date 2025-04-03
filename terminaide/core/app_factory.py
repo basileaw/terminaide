@@ -54,7 +54,7 @@ def generate_function_wrapper(func: Callable) -> Path:
     
     temp_dir = Path(tempfile.gettempdir()) / "terminaide_ephemeral"
     temp_dir.mkdir(exist_ok=True)
-    script_path = temp_dir / f"{func_name}_wrapper.py"
+    script_path = temp_dir / f"{func_name}.py"
     
     # If it's a normal module (not main or mp_main)
     if module_name and module_name not in ("__main__", "__mp_main__"):
@@ -171,7 +171,7 @@ class ServeWithConfig:
             # Create a clean config for script mode
             script_config = type(config)(
                 port=config.port,
-                title=config.title,
+                title=config.title,  # Preserve the explicitly set title
                 theme=config.theme,
                 debug=config.debug,
                 forward_env=config.forward_env,
@@ -183,6 +183,12 @@ class ServeWithConfig:
             )
             script_config._target = ephemeral_path
             script_config._mode = "function"  # Preserve the function mode
+            
+            # Store the original function name to help with title generation
+            script_config._original_function_name = func.__name__
+            
+            # Ensure we're using the title that was set
+            logger.debug(f"Using title: {script_config.title} for function {func.__name__}")
             
             cls.serve_script(script_config)
 

@@ -273,7 +273,7 @@ def create_script_configs(
             else:
                 # Auto-generate title based on script name
                 script_name = Path(script_path).name
-                cfg_data["title"] = f"{script_name} Terminal"
+                cfg_data["title"] = f"{script_name}"
             
             if "port" in script_spec:
                 cfg_data["port"] = script_spec["port"]
@@ -292,7 +292,7 @@ def create_script_configs(
                     route_path=route_path,
                     client_script=script_path,
                     args=args,
-                    title=f"{script_name} Terminal"
+                    title=f"{script_name}"
                 )
             )
         
@@ -307,7 +307,7 @@ def create_script_configs(
                     route_path=route_path,
                     client_script=script_path,
                     args=[],
-                    title=f"{script_name} Terminal"
+                    title=f"{script_name}"
                 )
             )
 

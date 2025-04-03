@@ -216,6 +216,10 @@ def convert_terminaide_config_to_ttyd_config(config: TerminaideConfig, script_pa
         terminal_routes = {"/": script_path}
 
     script_configs = create_script_configs(terminal_routes)
+    
+    # If we have script configs and a custom title is set, apply it to the first script config
+    if script_configs and config.title != "Terminal":
+        script_configs[0].title = config.title
 
     # Convert theme dict to ThemeConfig
     theme_config = ThemeConfig(**(config.theme or {}))
@@ -230,7 +234,7 @@ def convert_terminaide_config_to_ttyd_config(config: TerminaideConfig, script_pa
         theme=theme_config,
         ttyd_options=ttyd_options_config,
         template_override=config.template_override,
-        title=config.title,
+        title=config.title,  # Keep the original title
         debug=config.debug,
         script_configs=script_configs,
         forward_env=config.forward_env

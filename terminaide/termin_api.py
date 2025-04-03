@@ -89,8 +89,12 @@ def serve_script(
     
     # Auto-generate title if not specified
     if "title" not in kwargs and (config is None or config.title == "Terminal"):
-        script_name = Path(script_path).name
-        cfg.title = f"{script_name}"
+        # Check if we're coming from serve_function with a default title
+        if hasattr(cfg, '_original_function_name'):
+            cfg.title = f"{cfg._original_function_name}()"
+        else:
+            script_name = Path(script_path).name
+            cfg.title = f"{script_name}"
     
     ServeWithConfig.serve(cfg)
 

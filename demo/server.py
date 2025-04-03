@@ -40,7 +40,7 @@ def create_custom_root_endpoint(app: FastAPI):
         html_content = f"""<!DOCTYPE html>
         <html>
         <head>
-            <title>Termin-Arcade ({title_mode})</title>
+            <title>{title_mode} Mode</title>
             <link rel="icon" type="image/x-icon" href="{request.url_for('static', path='favicon.ico')}">
             <style>
                 body {{
@@ -358,7 +358,7 @@ def main():
         serve_script(
             instructions_path,
             port=port,
-            title="Terminaide (Intro)",
+            title="Instructions",
             debug=True,
             reload=True    # <-- Enable reload for default mode
         )
@@ -369,7 +369,7 @@ def main():
         serve_function(
             play_asteroids_function,
             port=port,
-            title="Termin-Asteroids (Function)",
+            title="Function Mode",
             debug=True,
             reload=True   # <-- Enable reload for function mode
         )
@@ -380,7 +380,7 @@ def main():
         serve_script(
             CLIENT_SCRIPT,
             port=port,
-            title="Termin-Arcade (Script)",
+            title="Script Mode",
             debug=True,
             reload=True   # <-- Enable reload for script mode
         )
