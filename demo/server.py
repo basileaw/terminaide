@@ -158,7 +158,7 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
         </html>"""
 
 def play_asteroids_function():
-    from ..terminarcade import play_asteroids
+    from terminarcade import play_asteroids
     play_asteroids()
 
 def create_app():
