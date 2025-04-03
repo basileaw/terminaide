@@ -47,5 +47,11 @@ sequence = [
       git tag v$VERSION
       git push && git push --tags
     """ },
-  { cmd = "poetry publish --build -vvv" },
+  { shell = """
+      echo "Please enter your PyPI token:"
+      read -s PYPI_TOKEN
+      export POETRY_PYPI_TOKEN_PYPI=$PYPI_TOKEN
+      poetry publish --build -vvv
+      unset POETRY_PYPI_TOKEN_PYPI
+    """ },
 ]
