@@ -15,10 +15,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from typing import Optional, Dict, Any, Union, List, Callable
 
-from .core.app_config import (
-    TerminaideConfig, 
-    build_config
-)
+from .core.app_config import TerminaideConfig, build_config
 from .core.app_factory import ServeWithConfig, AppFactory
 
 logger = logging.getLogger("terminaide")
@@ -77,9 +74,9 @@ def serve_script(
         config: Configuration options for the terminal
         **kwargs: Additional configuration overrides:
             - port: Web server port (default: 8000)
-            - title: Terminal window title (default: "Terminal")
+            - title: Terminal window title (default: "Script Terminal")
             - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
-            - debug: Enable debug mode (default: False)
+            - debug: Enable debug mode (default: True)
             - reload: Enable auto-reload on code changes (default: False)
             - forward_env: Control environment variable forwarding (default: True)
             - ttyd_options: Options for the ttyd process
@@ -89,6 +86,11 @@ def serve_script(
     cfg = build_config(config, kwargs)
     cfg._target = Path(script_path)
     cfg._mode = "script"
+    
+    # Auto-generate title if not specified
+    if "title" not in kwargs and (config is None or config.title == "Terminal"):
+        script_name = Path(script_path).name
+        cfg.title = f"{script_name} Terminal"
     
     ServeWithConfig.serve(cfg)
 
