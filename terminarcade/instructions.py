@@ -1,4 +1,4 @@
-# default_client.py 
+# instructions.py 
 
 import curses
 import time

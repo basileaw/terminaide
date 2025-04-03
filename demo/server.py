@@ -342,10 +342,9 @@ def main():
 
     # DEFAULT MODE
     if mode == "default":
-        import terminaide
-        default_client_path = Path(terminaide.__file__).parent / "core" / "default_client.py"
+        instructions_path = CURRENT_DIR.parent / "terminarcade" / "instructions.py"
         serve_script(
-            default_client_path,
+            instructions_path,
             port=port,
             title="Terminaide (Intro)",
             debug=True,
