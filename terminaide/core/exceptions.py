@@ -5,7 +5,7 @@ Custom exceptions for the terminaide package.
 
 These exceptions provide specific error cases that may occur during
 ttyd setup, installation, and operation. The exception hierarchy has been
-expanded to support multi-script routing scenarios.
+expanded to support multi-terminal (apps-server) routing scenarios.
 """
 
 from typing import Optional, List
@@ -150,7 +150,7 @@ class RouteNotFoundError(ProxyError):
         self.request_path = request_path
 
 class PortAllocationError(ConfigurationError):
-    """Raised when port allocation fails for multi-script configuration."""
+    """Raised when port allocation fails for multi-terminal (apps-server) configuration."""
     def __init__(self, message: str, attempted_ports: Optional[List[int]] = None):
         port_info = f" (attempted ports: {attempted_ports})" if attempted_ports else ""
         super().__init__(f"{message}{port_info}", field="port")

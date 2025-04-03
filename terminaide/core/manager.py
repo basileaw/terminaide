@@ -1,6 +1,6 @@
 # core/manager.py
 
-""" Manages TTYd processes for single or multi-script setups, ensuring their lifecycle, cleanup, and health monitoring. """
+""" Manages TTYd processes for single (solo-server) or multi-terminal (apps-server) setups, ensuring their lifecycle, cleanup, and health monitoring. """
 
 import os
 import sys
@@ -22,7 +22,7 @@ from .data_models import TTYDConfig, ScriptConfig
 logger = logging.getLogger("terminaide")
 
 class TTYDManager:
-    """ Manages the lifecycle of ttyd processes, including startup, shutdown, health checks, resource cleanup, and port allocation. Supports single or multi-script configurations. """
+    """ Manages the lifecycle of ttyd processes, including startup, shutdown, health checks, resource cleanup, and port allocation. Supports single (solo-server) or multi-terminal (apps-server) configurations. """
 
     def __init__(self, config: TTYDConfig, force_reinstall_ttyd: bool = None):
         """
@@ -187,7 +187,7 @@ class TTYDManager:
             raise TTYDStartupError("No script configurations found")
             
         script_count = len(self.config.script_configs)
-        mode_type = 'multi-script' if self.config.is_multi_script else 'single-script'
+        mode_type = 'apps-server' if self.config.is_multi_script else 'solo-server'
         entry_mode = getattr(self.config, '_mode', 'script')
         logger.info(f"Starting {script_count} ttyd processes ({mode_type} mode via {entry_mode} API)")
         

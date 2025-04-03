@@ -162,7 +162,7 @@ def configure_routes(
 
 def configure_app(app: FastAPI, config: TTYDConfig):
     """Configure the FastAPI app with the TTYDManager, ProxyManager, and routes."""
-    mode = "multi-script" if config.is_multi_script else "single-script"
+    mode = "apps-server" if config.is_multi_script else "solo-server"
     entry_mode = getattr(config, '_mode', 'script')
     logger.info(f"Configuring ttyd service with {config.mount_path} mounting ({entry_mode} API, {mode} mode)")
 
@@ -189,7 +189,7 @@ async def terminaide_lifespan(app: FastAPI, config: TTYDConfig):
     """Lifespan context manager for the TTYDManager and ProxyManager."""
     ttyd_manager, proxy_manager = configure_app(app, config)
 
-    mode = "multi-script" if config.is_multi_script else "single-script"
+    mode = "apps-server" if config.is_multi_script else "solo-server"
     entry_mode = getattr(config, '_mode', 'script')
     logger.info(
         f"Starting ttyd service (mounting: "

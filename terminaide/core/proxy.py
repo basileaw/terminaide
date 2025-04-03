@@ -34,7 +34,7 @@ class ProxyManager:
         entry_mode = getattr(self.config, '_mode', 'script')
         logger.info(
             f"Proxy ready for {len(self.targets)} routes "
-            f"({entry_mode} API, {'multi-script' if self.config.is_multi_script else 'single-script'} mode)"
+            f"({entry_mode} API, {'apps-server' if self.config.is_multi_script else 'solo-server'} mode)"
         )
 
     def _get_request_protocol(self, request: Optional[Request] = None) -> str:
