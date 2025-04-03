@@ -41,7 +41,7 @@ def serve_function(
         config: Configuration options for the terminal
         **kwargs: Additional configuration overrides:
             - port: Web server port (default: 8000)
-            - title: Terminal window title (default: "{func_name}() Terminal")
+            - title: Terminal window title (default: "{func_name}()")
             - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
             - debug: Enable debug mode (default: True)
             - reload: Enable auto-reload on code changes (default: False)
@@ -56,7 +56,7 @@ def serve_function(
     
     # Auto-generate title if not specified
     if "title" not in kwargs and (config is None or config.title == "Terminal"):
-        cfg.title = f"{func.__name__}() Terminal"
+        cfg.title = f"{func.__name__}()"
     
     ServeWithConfig.serve(cfg)
 
@@ -74,7 +74,7 @@ def serve_script(
         config: Configuration options for the terminal
         **kwargs: Additional configuration overrides:
             - port: Web server port (default: 8000)
-            - title: Terminal window title (default: "Script Terminal")
+            - title: Terminal window title (default: "Script Name")
             - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
             - debug: Enable debug mode (default: True)
             - reload: Enable auto-reload on code changes (default: False)
@@ -90,7 +90,7 @@ def serve_script(
     # Auto-generate title if not specified
     if "title" not in kwargs and (config is None or config.title == "Terminal"):
         script_name = Path(script_path).name
-        cfg.title = f"{script_name} Terminal"
+        cfg.title = f"{script_name}"
     
     ServeWithConfig.serve(cfg)
 
