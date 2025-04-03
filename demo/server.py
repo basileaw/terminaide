@@ -1,15 +1,13 @@
 # demo/server.py
-
 """
 Test server for terminaide that demonstrates all three API tiers.
 Usage:
 python server.py                     # Default mode - shows getting started interface
-python server.py function            # Function mode - demo of serve_function() with Asteroids
-python server.py script              # Script mode - demo of serve_script()
-python server.py apps                # Apps mode - HTML page at root, terminal games at routes
-python server.py container           # Run the apps mode in a Docker container
+python server.py --function          # Function mode - demo of serve_function() with Asteroids
+python server.py --script            # Script mode - demo of serve_script()
+python server.py --apps              # Apps mode - HTML page at root, terminal games at routes
+python server.py --container         # Run the apps mode in a Docker container
 """
-
 import os
 import sys
 import json
@@ -26,6 +24,7 @@ from terminaide import logger
 
 CURRENT_DIR = Path(__file__).parent
 CLIENT_SCRIPT = CURRENT_DIR / "client.py"
+
 MODE_HELP = {
     "default": "Default (getting started interface)",
     "function": "Serve function mode (Asteroids)",
@@ -141,7 +140,7 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
             "description": description,
             "client_script": str(CLIENT_SCRIPT),
             "modes": MODE_HELP,
-            "usage": "python server.py [mode]",
+            "usage": "python server.py [--default|--function|--script|--apps|--container]",
             "notes": [
                 "serve_function: Simplest - just pass a function",
                 "serve_script: Simple - pass a script file",
@@ -169,7 +168,7 @@ def create_app():
     mode = os.environ.get("TERMINAIDE_MODE", "default")
     app = FastAPI(title=f"Terminaide - {mode.upper()} Mode")
     description = ""
-
+    
     # Don't try to use any Docker stuff here - just handle the apps mode
     if mode == "apps":
         description = "Apps mode - HTML root + separate terminal routes"
@@ -184,6 +183,7 @@ def create_app():
             debug=True
         )
         create_info_endpoint(app, mode, description)
+    
     return app
 
 def generate_requirements_txt(pyproject_path, temp_dir):
@@ -225,7 +225,6 @@ def build_and_run_container(port=8000):
         logger.info("Connected to Docker daemon")
         project_root = Path(__file__).parent.parent.absolute()
         image_name = project_root.name.lower()
-
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             # Add 'terminarcade' to the list of directories
@@ -239,7 +238,6 @@ def build_and_run_container(port=8000):
                     # Alternatively, create an empty bin directory if it was excluded
                     (dst_dir / 'bin').mkdir(exist_ok=True)
             generate_requirements_txt(project_root / "pyproject.toml", temp_path)
-
             dockerfile_content = """
 FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1
@@ -251,25 +249,22 @@ COPY demo/ ./demo/
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 8000
-CMD ["python", "demo/server.py", "--mode", "apps"]
+CMD ["python", "demo/server.py", "--apps"]
 """
             dockerfile_path = temp_path / "Dockerfile"
             with open(dockerfile_path, "w") as f:
                 f.write(dockerfile_content)
-
             logger.info(f"Building Docker image: {image_name}")
             image, build_logs = client.images.build(
                 path=str(temp_path),
                 tag=image_name,
                 rm=True
             )
-
             for log in build_logs:
                 if 'stream' in log:
                     line = log['stream'].strip()
                     if line:
                         logger.info(f"Build: {line}")
-
             container_name = f"{image_name}-container"
             try:
                 old_container = client.containers.get(container_name)
@@ -277,7 +272,6 @@ CMD ["python", "demo/server.py", "--mode", "apps"]
                 old_container.remove()
             except docker.errors.NotFound:
                 pass
-
             logger.info(f"Starting container {container_name} on port {port}")
             c = client.containers.run(
                 image.id,
@@ -286,11 +280,9 @@ CMD ["python", "demo/server.py", "--mode", "apps"]
                 detach=True,
                 environment={"CONTAINER_MODE": "true"}
             )
-
             logger.info(f"Container {container_name} started (ID: {c.id[:12]})")
             logger.info(f"Access at: http://localhost:{port}")
             logger.info("Streaming container logs (Ctrl+C to stop)")
-
             try:
                 for line in c.logs(stream=True):
                     print(line.decode().strip())
@@ -298,7 +290,6 @@ CMD ["python", "demo/server.py", "--mode", "apps"]
                 logger.info("Stopping container...")
                 c.stop()
                 logger.info("Container stopped")
-
     except Exception as e:
         if "docker" in str(e.__class__):
             logger.error(f"Docker error: {e}")
@@ -309,37 +300,58 @@ CMD ["python", "demo/server.py", "--mode", "apps"]
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode_pos", nargs="?", choices=MODE_HELP.keys(), default="default")
-    parser.add_argument("--mode", choices=MODE_HELP.keys())
+    # Add boolean flags for each mode
+    parser.add_argument("--default", action="store_true", help="Runs the default instructions")
+    parser.add_argument("--function", action="store_true", help="Serves a function")
+    parser.add_argument("--script", action="store_true", help="Serves a script")
+    parser.add_argument("--apps", action="store_true", help="Serves multiple scripts")
+    parser.add_argument("--container", action="store_true", help="Same as serve apps but in a container")
+    
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
-    args.actual_mode = args.mode if args.mode else args.mode_pos
+    
+    # Determine which mode was selected
+    mode_flags = {
+        "default": args.default,
+        "function": args.function,
+        "script": args.script,
+        "apps": args.apps,
+        "container": args.container
+    }
+    
+    # Find selected mode, defaulting to "default" if none specified
+    selected_modes = [mode for mode, flag in mode_flags.items() if flag]
+    
+    if len(selected_modes) > 1:
+        logger.error(f"Only one mode can be selected, but found: {', '.join(selected_modes)}")
+        sys.exit(1)
+    
+    args.actual_mode = selected_modes[0] if selected_modes else "default"
     return args
 
 def main():
     args = parse_args()
     mode = args.actual_mode
     port = args.port
-
     os.environ["TERMINAIDE_MODE"] = mode
+    
     if mode != "container":
         os.environ["WATCHFILES_FORCE_POLLING"] = "0"
         os.environ["WATCHFILES_POLL_DELAY"] = "0.1"
         os.environ["TERMINAIDE_VERBOSE"] = "0"
-
         log_level = "WARNING" if mode != "apps" else "INFO"
         # Set terminaide logger level directly
         logger.setLevel(log_level)
         # Also set uvicorn logger level
         import logging
         logging.getLogger("uvicorn").setLevel(log_level)
-
+        
     logger.info(f"Starting server in {mode.upper()} mode on port {port}")
-
+    
     if mode == "container":
         build_and_run_container(port)
         return
-
+    
     # DEFAULT MODE
     if mode == "default":
         instructions_path = CURRENT_DIR.parent / "terminarcade" / "instructions.py"
@@ -351,7 +363,7 @@ def main():
             reload=True    # <-- Enable reload for default mode
         )
         return
-
+    
     # FUNCTION MODE
     if mode == "function":
         serve_function(
@@ -362,7 +374,7 @@ def main():
             reload=True   # <-- Enable reload for function mode
         )
         return
-
+    
     # SCRIPT MODE
     if mode == "script":
         serve_script(
@@ -373,7 +385,7 @@ def main():
             reload=True   # <-- Enable reload for script mode
         )
         return
-
+    
     # APPS MODE
     if mode == "apps":
         logger.info(f"Visit http://localhost:{port} for the main interface")

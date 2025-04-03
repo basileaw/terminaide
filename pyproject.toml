@@ -29,29 +29,51 @@ docker = "^7.1.0"
 poethepoet = "^0.33.0"
 
 [tool.poe.tasks.serve]
-help = """Run demo server in one of 5 modes:"""
+help = "Serves an instructional demo (no args) or one of four targeted demos (via args):"
 args = [
-  { name = "mode", positional = true, help = "function | script | apps | container | default (no args)" },
+  { name = "function", type = "boolean", help = "Serves a function" },
+  { name = "script", type = "boolean", help = "Serves a script" },
+  { name = "apps", type = "boolean", help = "Serves multiple scripts" },
+  { name = "container", type = "boolean", help = "Same as serve apps but in a container" },
 ]
-cmd = "python demo/server.py ${mode} ${args}"
+cmd = "python demo/server.py ${args}"
 
 [tool.poe.tasks.release]
-help = "Release one of three new versions:"
-args = [{ name = "type", positional = true, help = "patch | minor | major" }]
+help = "Release a new version:"
+args = [
+  { name = "patch", type = "boolean", help = "Increment the patch version (0.0.X)" },
+  { name = "minor", type = "boolean", help = "Increment the minor version (0.X.0)" },
+  { name = "major", type = "boolean", help = "Increment the major version (X.0.0)" },
+]
 sequence = [
-  { cmd = "poetry version ${type}" },
+  { shell = """
+    # Determine which version type to use
+    if [ "${patch}" = "true" ]; then
+      VERSION_TYPE="patch"
+    elif [ "${minor}" = "true" ]; then
+      VERSION_TYPE="minor"
+    elif [ "${major}" = "true" ]; then
+      VERSION_TYPE="major"
+    else
+      echo "Error: Please specify one version type: --patch, --minor, or --major"
+      exit 1
+    fi
+    
+    # Update version
+    poetry version $VERSION_TYPE
+  """ },
   { cmd = "git add pyproject.toml" },
   { shell = """
-      VERSION=$(poetry version -s)
-      git commit -m "release $VERSION"
-      git tag v$VERSION
-      git push && git push --tags
-    """ },
+    VERSION=$(poetry version -s)
+    git commit -m "release $VERSION"
+    git tag v$VERSION
+    git push && git push --tags
+  """ },
   { shell = """
-      echo "Please enter your PyPI token:"
-      read -s PYPI_TOKEN
-      export POETRY_PYPI_TOKEN_PYPI=$PYPI_TOKEN
-      poetry publish --build -vvv
-      unset POETRY_PYPI_TOKEN_PYPI
-    """ },
+    echo "Please enter your PyPI token:"
+    read -s PYPI_TOKEN
+    export POETRY_PYPI_TOKEN_PYPI=$PYPI_TOKEN
+    poetry publish --build -vvv
+    unset POETRY_PYPI_TOKEN_PYPI
+  """ },
 ]
