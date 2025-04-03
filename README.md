@@ -32,7 +32,9 @@ This approach ensures a consistent experience across environments and simplifies
 
 Terminaide offers three API entry points with increasing levels of complexity and flexibility:
 
-### 1. Function Mode (Simplest)
+### Single 
+
+#### Function Mode (Simplest)
 
 The absolute simplest way to serve a Python function directly in a browser terminal:
 
@@ -49,7 +51,7 @@ if __name__ == "__main__":
 
 Just pass any Python function to `serve_function()` and it's instantly web-accessible. No servers to configure, no special code to write.
 
-### 2. Script Mode (Simple)
+#### Script Mode (Simple)
 
 To serve an existing Python script file:
 
@@ -62,7 +64,7 @@ if __name__ == "__main__":
 
 This approach is ideal when you have an existing terminal application that you don't want to modify. Your script runs exactly as it would in a normal terminal, but becomes accessible through any web browser.
 
-### 3. Apps Mode (Advanced)
+### Multi (Apps) Mode
 
 To integrate multiple terminals into a FastAPI application:
 

@@ -248,6 +248,7 @@ def create_script_configs(
     script_configs = []
 
     for route_path, script_spec in terminal_routes.items():
+        # Get script path and args based on the type of script_spec
         if isinstance(script_spec, dict) and "client_script" in script_spec:
             script_value = script_spec["client_script"]
             if isinstance(script_value, list) and len(script_value) > 0:
@@ -266,8 +267,13 @@ def create_script_configs(
                 "args": args
             }
             
+            # Use provided title or auto-generate if not present
             if "title" in script_spec:
                 cfg_data["title"] = script_spec["title"]
+            else:
+                # Auto-generate title based on script name
+                script_name = Path(script_path).name
+                cfg_data["title"] = f"{script_name} Terminal"
             
             if "port" in script_spec:
                 cfg_data["port"] = script_spec["port"]
@@ -277,14 +283,32 @@ def create_script_configs(
         elif isinstance(script_spec, list) and len(script_spec) > 0:
             script_path = script_spec[0]
             args = script_spec[1:]
+            
+            # Auto-generate title based on script name
+            script_name = Path(script_path).name
+            
             script_configs.append(
-                ScriptConfig(route_path=route_path, client_script=script_path, args=args)
+                ScriptConfig(
+                    route_path=route_path,
+                    client_script=script_path,
+                    args=args,
+                    title=f"{script_name} Terminal"
+                )
             )
         
         else:
             script_path = script_spec
+            
+            # Auto-generate title based on script name
+            script_name = Path(script_path).name
+            
             script_configs.append(
-                ScriptConfig(route_path=route_path, client_script=script_path, args=[])
+                ScriptConfig(
+                    route_path=route_path,
+                    client_script=script_path,
+                    args=[],
+                    title=f"{script_name} Terminal"
+                )
             )
 
     if not script_configs:

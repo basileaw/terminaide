@@ -111,7 +111,7 @@ def serve_apps(
         config: Configuration options for the terminals
         **kwargs: Additional configuration overrides:
             - port: Web server port (default: 8000)
-            - title: Default terminal window title (default: "Terminal")
+            - title: Default terminal window title (default: auto-generated based on script name)
             - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
             - debug: Enable debug mode (default: True)
             - ttyd_port: Base port for ttyd processes (default: 7681)
