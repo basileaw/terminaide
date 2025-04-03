@@ -85,6 +85,13 @@ class ServeWithConfig:
     @classmethod
     def display_banner(cls, mode):
         """Display a minimal banner indicating the mode using Rich."""
+        # Check if this is the reloader process or if banner already shown
+        if os.environ.get('TERMINAIDE_BANNER_SHOWN') == '1':
+            return
+        
+        # Set flag to avoid duplicate banners
+        os.environ['TERMINAIDE_BANNER_SHOWN'] = '1'
+        
         try:
             from rich.console import Console
             from rich.panel import Panel
