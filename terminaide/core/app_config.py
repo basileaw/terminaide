@@ -4,22 +4,21 @@
 
 This module contains shared configuration classes and utilities used by different parts of the Terminaide library. It serves as a central point of configuration to avoid circular dependencies. """
 
+import sys
 import logging
 from pathlib import Path
 from dataclasses import dataclass, field
 from contextlib import asynccontextmanager
-from typing import Optional, Dict, Any, Union, Tuple, List, Callable, Awaitable
-import sys
-
-from fastapi import FastAPI, Request, WebSocket
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, Request, WebSocket
+from typing import Optional, Dict, Union, Tuple, List, Callable, Any
 
-from .data_models import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions, create_script_configs
-from .manager import TTYDManager
 from .proxy import ProxyManager
-from .exceptions import TemplateError, ConfigurationError
+from .manager import TTYDManager
+from .exceptions import TemplateError
+from .data_models import TTYDConfig, ThemeConfig, TTYDOptions, create_script_configs
 
 logger = logging.getLogger("terminaide")
 
