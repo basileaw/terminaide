@@ -30,13 +30,13 @@ poethepoet = "^0.33.0"
 
 [tool.poe.tasks.serve]
 help = "Serves an instructional demo (no args) or one of four targeted demos (via args):"
+cmd = "python demo/server.py ${function:+--function} ${script:+--script} ${apps:+--apps} ${container:+--container}"
 args = [
   { name = "function", type = "boolean", help = "Serves a function" },
   { name = "script", type = "boolean", help = "Serves a script" },
   { name = "apps", type = "boolean", help = "Serves multiple scripts" },
-  { name = "container", type = "boolean", help = "Same as serve apps but in a container" },
+  { name = "container", type = "boolean", help = "Serves multiple scripts in a container" },
 ]
-cmd = "python demo/server.py ${args}"
 
 [tool.poe.tasks.release]
 help = "Release a new version:"
