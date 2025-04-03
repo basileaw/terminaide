@@ -116,6 +116,10 @@ class TTYDManager:
 
         theme_json = self.config.theme.model_dump_json()
         cmd.extend(['-t', f'theme={theme_json}'])
+        
+        cmd.extend(['-t', 'cursorInactiveStyle=none'])
+        cmd.extend(['-t', 'cursorWidth=0'])
+        cmd.extend(['-t', 'cursorBlink=True'])
 
         if self.config.ttyd_options.writable:
             cmd.append('--writable')
