@@ -8,5 +8,5 @@
 .vscode
 dist/
 
-terminaide/bin/*
-!terminaide/bin/.gitkeep
+terminaide/core/bin/*
+!terminaide/core/bin/.gitkeep

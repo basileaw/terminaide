@@ -74,7 +74,7 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 # Ensure bin directory exists on import
-bin_dir = Path(__file__).parent / "bin"
+bin_dir = Path(__file__).parent / "core" / "bin"
 bin_dir.mkdir(exist_ok=True)
 
 __all__ = [
