@@ -14,6 +14,7 @@ import inspect
 import logging
 import uvicorn
 import tempfile
+import json
 from pathlib import Path
 from fastapi import FastAPI
 from typing import Callable, Optional
@@ -155,6 +156,10 @@ class ServeWithConfig:
             os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
             
+            # Handle preview_image if provided
+            if hasattr(config, 'preview_image') and config.preview_image:
+                os.environ["TERMINAIDE_PREVIEW_IMAGE"] = str(config.preview_image)
+            
             uvicorn.run(
                 "terminaide.termin_api:function_app_factory",  # Updated
                 factory=True,
@@ -181,6 +186,11 @@ class ServeWithConfig:
                 mount_path=config.mount_path,
                 ttyd_port=config.ttyd_port
             )
+            
+            # Copy preview_image if present
+            if hasattr(config, 'preview_image'):
+                script_config.preview_image = config.preview_image
+                
             script_config._target = ephemeral_path
             script_config._mode = "function"  # Preserve the function mode
             
@@ -213,6 +223,10 @@ class ServeWithConfig:
             os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
             os.environ["TERMINAIDE_MODE"] = config._mode  # Add this to pass mode
+            
+            # Handle preview_image if provided
+            if hasattr(config, 'preview_image') and config.preview_image:
+                os.environ["TERMINAIDE_PREVIEW_IMAGE"] = str(config.preview_image)
             
             uvicorn.run(
                 "terminaide.termin_api:script_app_factory",  # Updated
@@ -318,6 +332,7 @@ class AppFactory:
         debug = (os.environ.get("TERMINAIDE_DEBUG") == "1")
         theme_str = os.environ.get("TERMINAIDE_THEME") or "{}"
         forward_env_str = os.environ.get("TERMINAIDE_FORWARD_ENV", "True")
+        preview_image_str = os.environ.get("TERMINAIDE_PREVIEW_IMAGE")
         
         # Attempt to re-import if not __main__ or __mp_main__
         func = None
@@ -371,6 +386,15 @@ class AppFactory:
             debug=debug,
             forward_env=forward_env
         )
+        
+        # Handle preview_image if provided
+        if preview_image_str:
+            preview_path = Path(preview_image_str)
+            if preview_path.exists():
+                config.preview_image = preview_path
+            else:
+                logger.warning(f"Preview image not found: {preview_image_str}")
+                
         config._target = ephemeral_path
         config._mode = "function"  # Set mode to function
         
@@ -412,6 +436,7 @@ class AppFactory:
         forward_env_str = os.environ.get("TERMINAIDE_FORWARD_ENV", "True")
         # Get the mode from environment, default to script
         mode = os.environ.get("TERMINAIDE_MODE", "script")
+        preview_image_str = os.environ.get("TERMINAIDE_PREVIEW_IMAGE")
         
         import ast
         
@@ -437,6 +462,15 @@ class AppFactory:
             debug=debug,
             forward_env=forward_env
         )
+        
+        # Handle preview_image if provided
+        if preview_image_str:
+            preview_path = Path(preview_image_str)
+            if preview_path.exists():
+                config.preview_image = preview_path
+            else:
+                logger.warning(f"Preview image not found: {preview_image_str}")
+                
         config._target = script_path
         config._mode = mode  # Set the mode from the environment variable
         

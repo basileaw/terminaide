@@ -49,6 +49,7 @@ def serve_function(
             - ttyd_options: Options for the ttyd process
             - template_override: Custom HTML template path
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
+            - preview_image: Custom preview image for social media sharing (default: None)
     """
     cfg = build_config(config, kwargs)
     cfg._target = func
@@ -82,6 +83,7 @@ def serve_script(
             - ttyd_options: Options for the ttyd process
             - template_override: Custom HTML template path
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
+            - preview_image: Custom preview image for social media sharing (default: None)
     """
     cfg = build_config(config, kwargs)
     cfg._target = Path(script_path)
@@ -124,6 +126,8 @@ def serve_apps(
             - ttyd_options: Options for the ttyd processes
             - template_override: Custom HTML template path
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
+            - preview_image: Default preview image for social media sharing (default: None)
+                            Can also be specified per route in terminal_routes config.
     """
     if not terminal_routes:
         logger.warning("No terminal routes provided to serve_apps(). No terminals will be served.")

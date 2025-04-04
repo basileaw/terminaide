@@ -5,7 +5,10 @@
 This module contains shared configuration classes and utilities used by different parts of the Terminaide library. It serves as a central point of configuration to avoid circular dependencies. """
 
 import sys
+import os
+import shutil
 import logging
+import hashlib
 from pathlib import Path
 from dataclasses import dataclass, field
 from contextlib import asynccontextmanager
@@ -49,6 +52,41 @@ def smart_resolve_path(path: Union[str, Path]) -> Path:
     # Return the original if nothing was found
     return original_path
 
+def copy_preview_image_to_static(preview_image: Path) -> str:
+    """
+    Copy a preview image to the static directory with a unique name based on its content.
+    Returns the filename of the copied image in the static directory.
+    """
+    if not preview_image or not preview_image.exists():
+        return "preview.png"  # Use default
+        
+    # Get the static directory
+    static_dir = Path(__file__).parent.parent / "static"
+    static_dir.mkdir(exist_ok=True)
+    
+    # Generate a unique filename based on the image content hash
+    try:
+        # Generate a hash of the file content to create a unique name
+        file_hash = hashlib.md5(preview_image.read_bytes()).hexdigest()[:12]
+        extension = preview_image.suffix.lower()
+        
+        # Only allow common image extensions
+        if extension not in ('.png', '.jpg', '.jpeg', '.gif', '.svg'):
+            logger.warning(f"Unsupported image extension: {extension}. Using default preview.")
+            return "preview.png"
+            
+        new_filename = f"preview_{file_hash}{extension}"
+        new_path = static_dir / new_filename
+        
+        # Copy the file
+        shutil.copy2(preview_image, new_path)
+        logger.debug(f"Copied preview image to {new_path}")
+        
+        return new_filename
+    except Exception as e:
+        logger.warning(f"Failed to copy preview image: {e}. Using default preview.")
+        return "preview.png"
+
 @dataclass
 class TerminaideConfig:
     """Unified configuration for all Terminaide serving modes."""
@@ -66,6 +104,9 @@ class TerminaideConfig:
     template_override: Optional[Path] = None
     trust_proxy_headers: bool = True
     mount_path: str = "/"
+    
+    # Preview image configuration
+    preview_image: Optional[Path] = None
 
     # Proxy settings
     ttyd_port: int = 7681  # Base port for ttyd processes
@@ -128,12 +169,22 @@ def configure_routes(
         terminal_path = config.get_terminal_path_for_route(route_path)
         title = script_config.title or config.title
         
+        # Get preview image path - prefer script_config's image, fall back to config's, then default
+        preview_image = None
+        if script_config.preview_image and script_config.preview_image.exists():
+            preview_image = copy_preview_image_to_static(script_config.preview_image)
+        elif config.preview_image and config.preview_image.exists():
+            preview_image = copy_preview_image_to_static(config.preview_image)
+        else:
+            preview_image = "preview.png"  # Default preview image
+        
         @app.get(route_path, response_class=HTMLResponse)
         async def terminal_interface(
             request: Request,
             route_path=route_path,
             terminal_path=terminal_path,
-            title=title
+            title=title,
+            preview_image=preview_image
         ):
             try:
                 return templates.TemplateResponse(
@@ -142,7 +193,8 @@ def configure_routes(
                         "request": request,
                         "mount_path": terminal_path,
                         "theme": config.theme.model_dump(),
-                        "title": title
+                        "title": title,
+                        "preview_image": preview_image
                     }
                 )
             except Exception as e:
@@ -234,6 +286,7 @@ def convert_terminaide_config_to_ttyd_config(config: TerminaideConfig, script_pa
         theme=theme_config,
         ttyd_options=ttyd_options_config,
         template_override=config.template_override,
+        preview_image=config.preview_image,  # Pass the preview_image to TTYDConfig
         title=config.title,  # Keep the original title
         debug=config.debug,
         script_configs=script_configs,

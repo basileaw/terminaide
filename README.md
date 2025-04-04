@@ -76,6 +76,7 @@ kwargs = {
     "reload": False,             # Enable auto-reload on code changes
     "trust_proxy_headers": True, # Trust X-Forwarded-Proto headers
     "template_override": None,   # Custom HTML template path
+    "preview_image": None,       # Custom preview image for social media sharing
     
     # Terminal appearance
     "theme": {
@@ -164,13 +165,15 @@ serve_apps(
             "client_script": "script3.py",
             "args": ["--mode", "advanced"],
             "title": "Custom Title",
-            "port": 7682      # Specific port for this terminal
+            "port": 7682,      # Specific port for this terminal
+            "preview_image": "path3_preview.png"  # Per-route custom preview
         }
     },
     
     # Additional multi-mode specific options
     mount_path="/",           # Base path for terminal mounting
     ttyd_port=7681,           # Base port for ttyd processes
+    preview_image="default_preview.png",  # Default preview image for all routes
     
     # Plus all options from single mode
     port=8000,
@@ -180,9 +183,9 @@ serve_apps(
 )
 ```
 
-### Examples
+### Termin-Arcade Demo
 
-The `demo/` directory demonstrates these configurations with several ready-to-use demos:
+The `terminaide/` directory demonstrates these configurations with several ready-to-use demos:
 
 ```bash
 poe serve              # Default mode with instructions

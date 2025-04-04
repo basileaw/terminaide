@@ -53,6 +53,7 @@ class ScriptConfig(BaseModel):
     args: List[str] = Field(default_factory=list)
     port: Optional[int] = None
     title: Optional[str] = None
+    preview_image: Optional[Path] = None  # Added preview_image field
 
     @field_validator('client_script')
     @classmethod
@@ -96,6 +97,38 @@ class ScriptConfig(BaseModel):
         
         raise ConfigurationError(error_msg)
 
+    @field_validator('preview_image')
+    @classmethod
+    def validate_preview_image_path(cls, v: Optional[Union[str, Path]]) -> Optional[Path]:
+        """
+        Ensure the preview image file exists if provided, trying:
+        1. The path as provided (relative to CWD or absolute)
+        2. The path relative to the main script being executed
+        """
+        if v is None:
+            return None
+            
+        original_path = Path(v)
+
+        # Strategy 1: Use the path as-is (absolute or relative to CWD)
+        if original_path.is_absolute() or original_path.exists():
+            return original_path.absolute()
+
+        # Strategy 2: Try relative to the main script being run
+        try:
+            main_script = Path(sys.argv[0]).absolute()
+            main_script_dir = main_script.parent
+            image_relative_path = main_script_dir / original_path
+            if image_relative_path.exists():
+                logger.debug(f"Found preview image at {image_relative_path} (relative to main script)")
+                return image_relative_path.absolute()
+        except Exception as e:
+            logger.debug(f"Error resolving preview image path relative to main script: {e}")
+        
+        # If we got here, log a warning but don't fail - we'll fall back to the default
+        logger.warning(f"Preview image does not exist: {v}. Will use default preview image.")
+        return None
+
     @field_validator('route_path')
     @classmethod
     def validate_route_path(cls, v: str) -> str:
@@ -120,6 +153,7 @@ class TTYDConfig(BaseModel):
     theme: ThemeConfig = Field(default_factory=ThemeConfig)
     ttyd_options: TTYDOptions = Field(default_factory=TTYDOptions)
     template_override: Optional[Path] = None
+    preview_image: Optional[Path] = None  # Added preview_image field
     debug: bool = False
     title: str = "Terminal"
     script_configs: List[ScriptConfig] = Field(default_factory=list)
@@ -135,6 +169,18 @@ class TTYDConfig(BaseModel):
         path = Path(v)
         if not path.exists():
             raise ConfigurationError(f"Path does not exist: {path}")
+        return path.absolute()
+        
+    @field_validator('preview_image')
+    @classmethod
+    def validate_preview_image(cls, v: Optional[Union[str, Path]]) -> Optional[Path]:
+        """Ensure preview image exists, if provided."""
+        if v is None:
+            return None
+        path = Path(v)
+        if not path.exists():
+            logger.warning(f"Preview image path does not exist: {path}. Will use default preview image.")
+            return None
         return path.absolute()
 
     @field_validator('mount_path')
@@ -162,8 +208,13 @@ class TTYDConfig(BaseModel):
             seen_routes.add(config.route_path)
         if not self.script_configs and self.client_script:
             self.script_configs.append(
-                ScriptConfig(route_path="/", client_script=self.client_script,
-                             port=self.port, title=self.title)
+                ScriptConfig(
+                    route_path="/", 
+                    client_script=self.client_script,
+                    port=self.port, 
+                    title=self.title,
+                    preview_image=self.preview_image
+                )
             )
         return self
 
@@ -225,7 +276,8 @@ class TTYDConfig(BaseModel):
                 "script": str(config.client_script),
                 "args": config.args,
                 "port": config.port,
-                "title": config.title or self.title
+                "title": config.title or self.title,
+                "preview_image": str(config.preview_image) if config.preview_image else None
             })
         return {
             "mount_path": self.mount_path,
@@ -238,6 +290,7 @@ class TTYDConfig(BaseModel):
             "debug": self.debug,
             "max_clients": self.ttyd_options.max_clients,
             "auth_required": self.ttyd_options.credential_required,
+            "preview_image": str(self.preview_image) if self.preview_image else None,
             "script_configs": script_info
         }
 
@@ -277,6 +330,10 @@ def create_script_configs(
             
             if "port" in script_spec:
                 cfg_data["port"] = script_spec["port"]
+                
+            # Handle preview_image if provided in the script_spec
+            if "preview_image" in script_spec:
+                cfg_data["preview_image"] = script_spec["preview_image"]
             
             script_configs.append(ScriptConfig(**cfg_data))
         
