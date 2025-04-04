@@ -300,33 +300,15 @@ CMD ["python", "demo/server.py", "--apps"]
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    # Add boolean flags for each mode
-    parser.add_argument("--default", action="store_true", help="Runs the default instructions")
-    parser.add_argument("--function", action="store_true", help="Serves a function")
-    parser.add_argument("--script", action="store_true", help="Serves a script")
-    parser.add_argument("--apps", action="store_true", help="Serves multiple scripts")
-    parser.add_argument("--container", action="store_true", help="Same as serve apps but in a container")
-    
+    # Add a single positional argument for mode
+    parser.add_argument("mode", nargs="?", default="default", 
+                       choices=["default", "function", "script", "apps", "container"],
+                       help="Server mode to run")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
     
-    # Determine which mode was selected
-    mode_flags = {
-        "default": args.default,
-        "function": args.function,
-        "script": args.script,
-        "apps": args.apps,
-        "container": args.container
-    }
-    
-    # Find selected mode, defaulting to "default" if none specified
-    selected_modes = [mode for mode, flag in mode_flags.items() if flag]
-    
-    if len(selected_modes) > 1:
-        logger.error(f"Only one mode can be selected, but found: {', '.join(selected_modes)}")
-        sys.exit(1)
-    
-    args.actual_mode = selected_modes[0] if selected_modes else "default"
+    # Store the mode directly
+    args.actual_mode = args.mode
     return args
 
 def main():
