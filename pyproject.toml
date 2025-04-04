@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "terminaide"
-version = "0.0.7"
+version = "0.0.8"
 description = "Serve Python CLI applications in the browser using ttyd"
 repository = "https://github.com/anotherbazeinthewall/terminaide"
 authors = ["Alex Basile <basileaw@gmail.com>"]
@@ -38,4 +38,4 @@ cmd = "python demo/server.py ${args}"
 [tool.poe.tasks.release]
 help = "Release one of three new versions:"
 args = [{ name = "type", positional = true, help = "patch | minor | major" }]
-cmd = "python utilities/release.py ${args}"
+cmd = "python utilities/release.py ${type}"
