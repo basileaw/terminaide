@@ -6,7 +6,6 @@ import argparse
 import subprocess
 from getpass import getpass
 from subprocess import CalledProcessError
-
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("type", choices=["patch", "minor", "major"], help="Version type to release")
@@ -40,17 +39,20 @@ def main():
     run_command(["poetry", "version", args.type], "version update")
     version_result = run_command(["poetry", "version", "-s"], "version retrieval")
     version = version_result.stdout.strip()
+    tag = f"v{version}"
     print(f"New version: {version}")
     print("Git Operations")
     run_command(["git", "add", "pyproject.toml"], "git add")
     run_command(["git", "commit", "-m", f"release {version}"], "git commit")
-    run_command(["git", "tag", f"v{version}"], "git tag")
+    run_command(["git", "tag", tag], "git tag")
     push_result = run_command(["git", "push"], "git push", exit_on_error=False)
-    tags_result = run_command(["git", "push", "--tags"], "git push tags", exit_on_error=False)
+    tags_result = run_command(["git", "push", "origin", tag], "git push tag", exit_on_error=False)
     if not push_result or not tags_result:
         print("Git push operations failed. You may need to manually push commits and tags.")
-        print("You can do this with:\n git push\n git push --tags")
-    proceed = input("\nDo you want to continue with package publishing anyway? (y/n): ")
+        print(f"You can do this with:\n git push\n git push origin {tag}")
+        proceed = input("\nDo you want to continue with package publishing anyway? (y/n): ")
+    else:
+        proceed = input("\nDo you want to continue with package publishing? (y/n): ")
     if proceed.lower() != 'y':
         print("Aborting release process.")
         return
