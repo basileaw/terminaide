@@ -1,13 +1,13 @@
-# demo/server.py
+# terminarcade/server.py
 
 """
 Test server for terminaide that demonstrates all three API tiers.
 Usage:
-python server.py                     # Default mode - shows getting started interface
-python server.py --function          # Function mode - demo of serve_function() with Asteroids
-python server.py --script            # Script mode - demo of serve_script()
-python server.py --apps              # Apps mode - HTML page at root, terminal games at routes
-python server.py --container         # Run the apps mode in a Docker container
+python terminarcade/server.py                     # Default mode - shows getting started interface
+python terminarcade/server.py --function          # Function mode - demo of serve_function() with Asteroids
+python terminarcade/server.py --script            # Script mode - demo of serve_script()
+python terminarcade/server.py --apps              # Apps mode - HTML page at root, terminal games at routes
+python terminarcade/server.py --container         # Run the apps mode in a Docker container
 """
 
 import os
@@ -143,7 +143,7 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
             "description": description,
             "client_script": str(CLIENT_SCRIPT),
             "modes": MODE_HELP,
-            "usage": "python server.py [--default|--function|--script|--apps|--container]",
+            "usage": "python terminarcade/server.py [--default|--function|--script|--apps|--container]",
             "notes": [
                 "serve_function: Simplest - just pass a function",
                 "serve_script: Simple - pass a script file",
@@ -230,8 +230,8 @@ def build_and_run_container(port=8000):
         image_name = project_root.name.lower()
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            # Add 'terminarcade' to the list of directories
-            for directory in ["terminaide", "demo", "terminarcade"]:  # Add "terminarcade" here
+            # Update directory list - no more separate demo directory
+            for directory in ["terminaide", "terminarcade"]:
                 src_dir = project_root / directory
                 dst_dir = temp_path / directory
                 if src_dir.exists():
@@ -248,11 +248,10 @@ ENV PYTHONPATH=/app
 WORKDIR /app
 COPY terminaide/ ./terminaide/
 COPY terminarcade/ ./terminarcade/
-COPY demo/ ./demo/
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 8000
-CMD ["python", "demo/server.py", "--apps"]
+CMD ["python", "terminarcade/server.py", "apps"]
 """
             dockerfile_path = temp_path / "Dockerfile"
             with open(dockerfile_path, "w") as f:
@@ -339,7 +338,7 @@ def main():
     
     # DEFAULT MODE
     if mode == "default":
-        instructions_path = CURRENT_DIR.parent / "terminarcade" / "instructions.py"
+        instructions_path = CURRENT_DIR / "instructions.py"
         serve_script(
             instructions_path,
             port=port,
@@ -376,7 +375,7 @@ def main():
         logger.info(f"Visit http://localhost:{port} for the main interface")
         logger.info(f"Visit http://localhost:{port}/info for details")
         uvicorn.run(
-            "demo.server:create_app",
+            "terminarcade.server:create_app",
             factory=True,
             host="0.0.0.0",
             port=port,

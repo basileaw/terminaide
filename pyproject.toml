@@ -32,7 +32,7 @@ help = """Run demo server in one of 5 modes:"""
 args = [
   { name = "mode", positional = true, help = "instructions (no args) | function | script | apps | container" },
 ]
-cmd = "python demo/server.py ${args}"
+cmd = "python terminarcade/server.py ${mode}"
 
 [tool.poe.tasks.release]
 help = "Release one of three new versions:"
