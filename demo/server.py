@@ -1,4 +1,5 @@
 # demo/server.py
+
 """
 Test server for terminaide that demonstrates all three API tiers.
 Usage:
@@ -8,19 +9,21 @@ python server.py --script            # Script mode - demo of serve_script()
 python server.py --apps              # Apps mode - HTML page at root, terminal games at routes
 python server.py --container         # Run the apps mode in a Docker container
 """
+
 import os
 import sys
 import json
 import shutil
+import uvicorn
 import argparse
 import tempfile
 import subprocess
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from terminaide import serve_function, serve_script, serve_apps
-import uvicorn
+
 from terminaide import logger
+from terminaide import serve_function, serve_script, serve_apps
 
 CURRENT_DIR = Path(__file__).parent
 CLIENT_SCRIPT = CURRENT_DIR / "client.py"

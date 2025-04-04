@@ -38,4 +38,4 @@ cmd = "python demo/server.py ${args}"
 [tool.poe.tasks.release]
 help = "Release one of three new versions:"
 args = [{ name = "type", positional = true, help = "patch | minor | major" }]
-script = "utilities.release:release"
+cmd = "python utilities/release.py ${args}"
