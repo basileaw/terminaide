@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "terminaide"
-version = "0.0.11"
+version = "0.0.12"
 description = "Serve Python CLI applications in the browser using ttyd"
 repository = "https://github.com/anotherbazeinthewall/terminaide"
 authors = ["Alex Basile <basileaw@gmail.com>"]
@@ -22,6 +22,7 @@ pydantic = ">=2.4.2"
 readchar = "^4.2.1"
 uvicorn = ">=0.24.0"
 rich = "^14.0.0"
+bs4 = "^0.0.2"
 
 [tool.poetry.group.dev.dependencies]
 docker = "^7.1.0"

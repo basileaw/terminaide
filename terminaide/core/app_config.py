@@ -57,7 +57,10 @@ def copy_preview_image_to_static(preview_image: Path) -> str:
     Copy a preview image to the static directory with a unique name based on its content.
     Returns the filename of the copied image in the static directory.
     """
+    logger.debug(f"copy_preview_image_to_static called with: {preview_image}")
+    
     if not preview_image or not preview_image.exists():
+        logger.debug(f"Preview image doesn't exist, using default: {preview_image}")
         return "preview.png"  # Use default
         
     # Get the static directory
@@ -80,7 +83,7 @@ def copy_preview_image_to_static(preview_image: Path) -> str:
         
         # Copy the file
         shutil.copy2(preview_image, new_path)
-        logger.debug(f"Copied preview image to {new_path}")
+        logger.debug(f"Copied preview image from {preview_image} to {new_path}")
         
         return new_filename
     except Exception as e:
@@ -169,14 +172,32 @@ def configure_routes(
         terminal_path = config.get_terminal_path_for_route(route_path)
         title = script_config.title or config.title
         
+        # Debug logging for preview image config
+        logger.debug(f"Script config preview_image: {script_config.preview_image}")
+        logger.debug(f"Config preview_image: {config.preview_image}")
+        
         # Get preview image path - prefer script_config's image, fall back to config's, then default
-        preview_image = None
-        if script_config.preview_image and script_config.preview_image.exists():
-            preview_image = copy_preview_image_to_static(script_config.preview_image)
-        elif config.preview_image and config.preview_image.exists():
-            preview_image = copy_preview_image_to_static(config.preview_image)
+        preview_image = "preview.png"  # Default fallback
+        
+        # Try script config preview first
+        if script_config.preview_image:
+            logger.debug(f"Using script config preview image: {script_config.preview_image}")
+            if script_config.preview_image.exists():
+                preview_image = copy_preview_image_to_static(script_config.preview_image)
+            else:
+                logger.warning(f"Script preview image doesn't exist: {script_config.preview_image}")
+        
+        # If no script preview or it failed, try global config
+        elif config.preview_image:
+            logger.debug(f"Using global config preview image: {config.preview_image}")
+            if config.preview_image.exists():
+                preview_image = copy_preview_image_to_static(config.preview_image)
+            else:
+                logger.warning(f"Global preview image doesn't exist: {config.preview_image}")
         else:
-            preview_image = "preview.png"  # Default preview image
+            logger.debug("No custom preview images configured, using default")
+            
+        logger.debug(f"Final preview image for route {route_path}: {preview_image}")
         
         @app.get(route_path, response_class=HTMLResponse)
         async def terminal_interface(
@@ -187,6 +208,7 @@ def configure_routes(
             preview_image=preview_image
         ):
             try:
+                logger.debug(f"Rendering template with preview_image={preview_image}")
                 return templates.TemplateResponse(
                     template_file,
                     {
@@ -272,6 +294,10 @@ def convert_terminaide_config_to_ttyd_config(config: TerminaideConfig, script_pa
     # If we have script configs and a custom title is set, apply it to the first script config
     if script_configs and config.title != "Terminal":
         script_configs[0].title = config.title
+
+    # Debug log for preview_image
+    if hasattr(config, 'preview_image') and config.preview_image:
+        logger.debug(f"Converting preview_image from TerminaideConfig: {config.preview_image}")
 
     # Convert theme dict to ThemeConfig
     theme_config = ThemeConfig(**(config.theme or {}))
