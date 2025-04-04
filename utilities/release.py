@@ -1,14 +1,17 @@
 # utilities/release.py
+
 import os
 import sys
 import argparse
 import subprocess
 from getpass import getpass
 from subprocess import CalledProcessError
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("type", choices=["patch", "minor", "major"], help="Version type to release")
     return parser.parse_args()
+
 def run_command(cmd, description, exit_on_error=True, env=None):
     print(f"Executing: {' '.join(cmd)}")
     try:
@@ -35,10 +38,24 @@ def run_command(cmd, description, exit_on_error=True, env=None):
             sys.exit(e.returncode)
         else:
             print(f"\nContinuing despite error in {description}")
-        return None
+            return None
+
+def check_unstaged_changes():
+    result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
+    if result.stdout.strip():
+        print("Error: There are unstaged changes in the repository:")
+        print(result.stdout)
+        print("Please commit or stash these changes before running the release process.")
+        sys.exit(1)
+
 def main():
     args = parse_args()
     print("Starting Release Process")
+
+    # Check for unstaged changes
+    print("Checking for unstaged changes...")
+    check_unstaged_changes()
+
     # Get current version before making any changes
     current_version = run_command(["poetry", "version", "-s"], "version check").stdout.strip()
     run_command(["poetry", "version", args.type], "version update")
@@ -46,26 +63,32 @@ def main():
     version = version_result.stdout.strip()
     tag = f"v{version}"
     print(f"New version: {version}")
+
     print("Git Operations")
     run_command(["git", "add", "pyproject.toml"], "git add")
     run_command(["git", "commit", "-m", f"release {version}"], "git commit")
     run_command(["git", "tag", tag], "git tag")
+
     push_result = run_command(["git", "push"], "git push", exit_on_error=False)
     tags_result = run_command(["git", "push", "origin", tag], "git push tag", exit_on_error=False)
+
     if not push_result or not tags_result:
         print("Git push operations failed. You may need to manually push commits and tags.")
         print(f"You can do this with:\n git push\n git push origin {tag}")
         proceed = input("\nDo you want to continue with package publishing anyway? (y/n): ")
     else:
         proceed = input("\nDo you want to continue with package publishing? (y/n): ")
+
     if proceed.lower() != 'y':
         print("Aborting release process.")
         return
+
     print("PyPI Publishing")
     print("Please enter your PyPI token (input will be hidden):")
     token = getpass()
     env = os.environ.copy()
     env["POETRY_PYPI_TOKEN_PYPI"] = token
+
     try:
         run_command(["poetry", "publish", "--build"], "poetry publish", exit_on_error=True, env=env)
         print(f"Successfully released version {version}!")
@@ -74,5 +97,6 @@ def main():
     finally:
         if "POETRY_PYPI_TOKEN_PYPI" in os.environ:
             del os.environ["POETRY_PYPI_TOKEN_PYPI"]
+
 if __name__ == "__main__":
     main()
