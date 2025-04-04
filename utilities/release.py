@@ -1,5 +1,4 @@
 # utilities/release.py
-
 import os
 import sys
 import argparse
@@ -29,6 +28,10 @@ def run_command(cmd, description, exit_on_error=True, env=None):
             print(e.stderr)
         if exit_on_error:
             print(f"\nAborting release process due to error in {description}")
+            # Cleanup: reset version if we failed after version bump
+            if description == "git commit":
+                subprocess.run(["git", "checkout", "pyproject.toml"], capture_output=True)
+                print("Reset pyproject.toml to previous state")
             sys.exit(e.returncode)
         else:
             print(f"\nContinuing despite error in {description}")
@@ -36,6 +39,8 @@ def run_command(cmd, description, exit_on_error=True, env=None):
 def main():
     args = parse_args()
     print("Starting Release Process")
+    # Get current version before making any changes
+    current_version = run_command(["poetry", "version", "-s"], "version check").stdout.strip()
     run_command(["poetry", "version", args.type], "version update")
     version_result = run_command(["poetry", "version", "-s"], "version retrieval")
     version = version_result.stdout.strip()
