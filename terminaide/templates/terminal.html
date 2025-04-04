@@ -6,6 +6,10 @@
     <link rel="preconnect" href="{{ mount_path }}">
     <link rel="dns-prefetch" href="{{ url_for('static', path='favicon.ico') }}">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='favicon.ico') }}">
+    <!-- Social Media Preview Tags -->
+    <meta property="og:title" content="{{ title }}">
+    <meta property="og:image" content="{{ url_for('static', path='preview.png') }}">
+    <meta property="og:type" content="website">
     <style>
         /* Set background color for the entire viewport */
         html {
