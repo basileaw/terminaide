@@ -1,102 +1,86 @@
-# utilities/release.py
+#!/usr/bin/env python3
 
-import os
-import sys
 import argparse
 import subprocess
-from getpass import getpass
-from subprocess import CalledProcessError
+import sys
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("type", choices=["patch", "minor", "major"], help="Version type to release")
-    return parser.parse_args()
-
-def run_command(cmd, description, exit_on_error=True, env=None):
-    print(f"Executing: {' '.join(cmd)}")
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True, env=env)
-        if result.stdout.strip():
-            print(result.stdout.strip())
-        return result
-    except CalledProcessError as e:
-        print(f"Error during {description}")
-        print(f"Command: {' '.join(cmd)}")
-        print(f"Exit code: {e.returncode}")
-        if e.stdout:
-            print("Standard output:")
-            print(e.stdout)
-        if e.stderr:
-            print("Standard error:")
-            print(e.stderr)
-        if exit_on_error:
-            print(f"\nAborting release process due to error in {description}")
-            # Cleanup: reset version if we failed after version bump
-            if description == "git commit":
-                subprocess.run(["git", "checkout", "pyproject.toml"], capture_output=True)
-                print("Reset pyproject.toml to previous state")
-            sys.exit(e.returncode)
-        else:
-            print(f"\nContinuing despite error in {description}")
-            return None
-
-def check_unstaged_changes():
-    result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
-    if result.stdout.strip():
-        print("Error: There are unstaged changes in the repository:")
-        print(result.stdout)
-        print("Please commit or stash these changes before running the release process.")
-        sys.exit(1)
+def run(cmd, check=True):
+    """
+    Run a shell command and return stdout. Raise CalledProcessError if fails.
+    """
+    result = subprocess.run(cmd, text=True, capture_output=True)
+    if check and result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            returncode=result.returncode,
+            cmd=cmd,
+            output=result.stdout,
+            stderr=result.stderr
+        )
+    return result.stdout.strip()
 
 def main():
-    args = parse_args()
-    print("Starting Release Process")
+    parser = argparse.ArgumentParser(description="Bump version, commit, tag, and push.")
+    parser.add_argument("type", choices=["patch", "minor", "major"], help="Version bump type.")
+    parser.add_argument("--dry-run", action="store_true", help="Perform a dry run without pushing changes.")
+    args = parser.parse_args()
 
-    # Check for unstaged changes
-    print("Checking for unstaged changes...")
-    check_unstaged_changes()
+    dry_run = args.dry_run
 
-    # Get current version before making any changes
-    current_version = run_command(["poetry", "version", "-s"], "version check").stdout.strip()
-    run_command(["poetry", "version", args.type], "version update")
-    version_result = run_command(["poetry", "version", "-s"], "version retrieval")
-    version = version_result.stdout.strip()
-    tag = f"v{version}"
-    print(f"New version: {version}")
+    # Step 1: Check for clean git state
+    status = run(["git", "status", "--porcelain"], check=False)
+    if status:
+        print("Error: Repository has uncommitted changes. Commit or stash them first.")
+        sys.exit(1)
 
-    print("Git Operations")
-    run_command(["git", "add", "pyproject.toml"], "git add")
-    run_command(["git", "commit", "-m", f"release {version}"], "git commit")
-    run_command(["git", "tag", tag], "git tag")
-
-    push_result = run_command(["git", "push"], "git push", exit_on_error=False)
-    tags_result = run_command(["git", "push", "origin", tag], "git push tag", exit_on_error=False)
-
-    if not push_result or not tags_result:
-        print("Git push operations failed. You may need to manually push commits and tags.")
-        print(f"You can do this with:\n git push\n git push origin {tag}")
-        proceed = input("\nDo you want to continue with package publishing anyway? (y/n): ")
-    else:
-        proceed = input("\nDo you want to continue with package publishing? (y/n): ")
-
-    if proceed.lower() != 'y':
-        print("Aborting release process.")
-        return
-
-    print("PyPI Publishing")
-    print("Please enter your PyPI token (input will be hidden):")
-    token = getpass()
-    env = os.environ.copy()
-    env["POETRY_PYPI_TOKEN_PYPI"] = token
+    # Record current commit to enable rollback
+    old_commit = run(["git", "rev-parse", "HEAD"])
 
     try:
-        run_command(["poetry", "publish", "--build"], "poetry publish", exit_on_error=True, env=env)
-        print(f"Successfully released version {version}!")
-    except Exception as e:
-        print(f"Error during package publishing: {str(e)}")
-    finally:
-        if "POETRY_PYPI_TOKEN_PYPI" in os.environ:
-            del os.environ["POETRY_PYPI_TOKEN_PYPI"]
+        # Step 2: Version bump
+        old_version = run(["poetry", "version", "-s"])
+        run(["poetry", "version", args.type])
+        new_version = run(["poetry", "version", "-s"])
+
+        # Step 3: Commit changes
+        run(["git", "add", "pyproject.toml"])
+        commit_message = f"release {new_version}"
+        run(["git", "commit", "-m", commit_message])
+
+        # Step 4: Create tag
+        tag_name = f"v{new_version}"
+        run(["git", "tag", tag_name])
+
+        # Step 5: Push if not dry run
+        if dry_run:
+            print(f"[DRY-RUN] Would push commit and tag '{tag_name}' to origin.")
+        else:
+            print(f"Pushing commit and tag '{tag_name}' to origin...")
+            run(["git", "push", "origin", "HEAD"])
+            run(["git", "push", "origin", tag_name])
+
+        print(f"Success! Version {new_version} is committed and tagged as {tag_name}.")
+
+    except subprocess.CalledProcessError as e:
+        print("\nError occurred, rolling back changes...")
+        print(f"Command: {' '.join(e.cmd)}")
+        if e.output:
+            print(f"Output:\n{e.output}")
+        if e.stderr:
+            print(f"Error:\n{e.stderr}")
+
+        # Rollback steps
+        print("Resetting pyproject.toml...")
+        run(["git", "checkout", "pyproject.toml"], check=False)
+
+        print("Resetting commit...")
+        run(["git", "reset", "--hard", old_commit], check=False)
+
+        if 'new_version' in locals():
+            print("Deleting tag...")
+            run(["git", "tag", "-d", f"v{new_version}"], check=False)
+
+        print("All changes rolled back. Exiting with error.")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
