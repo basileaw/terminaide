@@ -5,9 +5,6 @@ import subprocess
 import sys
 
 def run(cmd, check=True):
-    """
-    Run a shell command and return stdout. Raise CalledProcessError if fails.
-    """
     result = subprocess.run(cmd, text=True, capture_output=True)
     if check and result.returncode != 0:
         raise subprocess.CalledProcessError(
@@ -21,7 +18,7 @@ def run(cmd, check=True):
 def main():
     parser = argparse.ArgumentParser(description="Bump version, commit, tag, and push.")
     parser.add_argument("type", choices=["patch", "minor", "major"], help="Version bump type.")
-    parser.add_argument("--dry-run", action="store_true", help="Perform a dry run without pushing changes.")
+    parser.add_argument("--dry-run", action="store_true", help="Simulate without making changes.")
     args = parser.parse_args()
 
     dry_run = args.dry_run
@@ -32,54 +29,53 @@ def main():
         print("Error: Repository has uncommitted changes. Commit or stash them first.")
         sys.exit(1)
 
-    # Record current commit to enable rollback
+    # Record current state for rollback (not strictly needed for dry run)
     old_commit = run(["git", "rev-parse", "HEAD"])
+    old_version = run(["poetry", "version", "-s"])
 
-    try:
-        # Step 2: Version bump
-        old_version = run(["poetry", "version", "-s"])
-        run(["poetry", "version", args.type])
+    # Step 2: Determine new version
+    new_version_cmd = ["poetry", "version", args.type]
+    if dry_run:
+        print(f"[DRY-RUN] Would run: {' '.join(new_version_cmd)}")
+        new_version = "<new-version>"
+    else:
+        run(new_version_cmd)
         new_version = run(["poetry", "version", "-s"])
 
-        # Step 3: Commit changes
-        run(["git", "add", "pyproject.toml"])
-        commit_message = f"release {new_version}"
-        run(["git", "commit", "-m", commit_message])
+    tag_name = f"v{new_version}"
+    commit_message = f"release {new_version}"
 
-        # Step 4: Create tag
-        tag_name = f"v{new_version}"
-        run(["git", "tag", tag_name])
-
-        # Step 5: Push if not dry run
+    try:
         if dry_run:
-            print(f"[DRY-RUN] Would push commit and tag '{tag_name}' to origin.")
+            print(f"[DRY-RUN] Would git add pyproject.toml")
+            print(f"[DRY-RUN] Would commit with message: '{commit_message}'")
+            print(f"[DRY-RUN] Would create git tag: {tag_name}")
+            print(f"[DRY-RUN] Would push commit and tag to origin")
         else:
+            run(["git", "add", "pyproject.toml"])
+            run(["git", "commit", "-m", commit_message])
+            run(["git", "tag", tag_name])
             print(f"Pushing commit and tag '{tag_name}' to origin...")
             run(["git", "push", "origin", "HEAD"])
             run(["git", "push", "origin", tag_name])
 
-        print(f"Success! Version {new_version} is committed and tagged as {tag_name}.")
+        print(f"Success! Version {new_version} {'(dry run)' if dry_run else ''}")
 
     except subprocess.CalledProcessError as e:
-        print("\nError occurred, rolling back changes...")
+        print("\nError occurred.")
         print(f"Command: {' '.join(e.cmd)}")
         if e.output:
             print(f"Output:\n{e.output}")
         if e.stderr:
             print(f"Error:\n{e.stderr}")
 
-        # Rollback steps
-        print("Resetting pyproject.toml...")
-        run(["git", "checkout", "pyproject.toml"], check=False)
+        if not dry_run:
+            # Rollback if actual changes were made
+            print("Rolling back changes...")
+            run(["git", "checkout", "pyproject.toml"], check=False)
+            run(["git", "reset", "--hard", old_commit], check=False)
+            run(["git", "tag", "-d", tag_name], check=False)
 
-        print("Resetting commit...")
-        run(["git", "reset", "--hard", old_commit], check=False)
-
-        if 'new_version' in locals():
-            print("Deleting tag...")
-            run(["git", "tag", "-d", f"v{new_version}"], check=False)
-
-        print("All changes rolled back. Exiting with error.")
         sys.exit(1)
 
 if __name__ == "__main__":
