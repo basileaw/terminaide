@@ -23,6 +23,7 @@ poetry add terminaide
 ```
 
 Terminaide automatically installs and manages its own ttyd binary within the package, with no reliance on system-installed versions:
+
 - On Linux: Pre-built binaries are downloaded automatically
 - On macOS: The binary is compiled from source (requires Xcode Command Line Tools)
 
@@ -188,19 +189,19 @@ serve_apps(
 The `terminaide/` directory demonstrates these configurations with several ready-to-use demos:
 
 ```bash
-poe serve              # Default mode with instructions
-poe serve function     # Function mode - demo of serve_function()
-poe serve script       # Script mode - demo of serve_script()
-poe serve apps         # Apps mode - HTML page at root with multiple terminals
-poe serve container    # Run in Docker container
+make serve              # Default mode with instructions
+make serve function     # Function mode - demo of serve_function()
+make serve script       # Script mode - demo of serve_script()
+make serve apps         # Apps mode - HTML page at root with multiple terminals
+make serve container    # Run in Docker container
 ```
 
 ### Pre-Requisites
 
+- Docker
 - Python 3.12+
-- Linux or macOS (Windows support on roadmap)
+- Linux or macOS 
 - macOS users need Xcode Command Line Tools (`xcode-select --install`)
-- Docker/Poe for demos
 
 ## Limitations
 

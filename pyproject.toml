@@ -26,16 +26,3 @@ bs4 = "^0.0.2"
 
 [tool.poetry.group.dev.dependencies]
 docker = "^7.1.0"
-poethepoet = "^0.33.0"
-
-[tool.poe.tasks.serve]
-help = """Run demo server in one of 5 modes:"""
-args = [
-  { name = "mode", positional = true, help = "instructions (no args) | function | script | apps | container" },
-]
-cmd = "python terminarcade/server.py ${mode}"
-
-[tool.poe.tasks.release]
-help = "Release one of three new versions:"
-args = [{ name = "type", positional = true, help = "patch | minor | major" }]
-cmd = "python utilities/release.py ${type}"
