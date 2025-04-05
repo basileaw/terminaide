@@ -1,4 +1,4 @@
-# core/app_factory.py
+# terminaide/core/app_factory.py
 
 """
 Factory functions and app builders for Terminaide serving modes.
@@ -29,6 +29,7 @@ from .app_config import (
 
 logger = logging.getLogger("terminaide")
 
+
 def inline_source_code_wrapper(func: Callable) -> Optional[str]:
     """
     Attempt to inline the source code of 'func' if it's in __main__ or __mp_main__.
@@ -44,6 +45,7 @@ def inline_source_code_wrapper(func: Callable) -> Optional[str]:
 {source_code}
 if __name__ == "__main__":
     {func_name}()"""
+
 
 def generate_function_wrapper(func: Callable) -> Path:
     """
@@ -75,39 +77,51 @@ if __name__ == "__main__":
     
     # Last resort: error script
     script_path.write_text(
-        f'print("ERROR: cannot reload function {func_name} from module={module_name}, no source found.")\n',
+        f'print("ERROR: cannot reload function {func_name} from module={module_name}")\n',
         encoding="utf-8"
     )
     return script_path
 
+
 class ServeWithConfig:
     """Class responsible for handling the serving implementation for different modes."""
-    
+
+    @staticmethod
+    def add_proxy_middleware_if_needed(app: FastAPI, config: TerminaideConfig) -> None:
+        """
+        Adds proxy header middleware if trust_proxy_headers=True in config.
+        This ensures that X-Forwarded-Proto from proxies like ngrok is respected,
+        preventing mixed-content errors behind HTTPS tunnels or load balancers.
+        """
+        if config.trust_proxy_headers:
+            try:
+                from .middleware import ProxyHeaderMiddleware
+                # Make sure it isn't already added
+                if not any(m.cls.__name__ == "ProxyHeaderMiddleware" for m in getattr(app, "user_middleware", [])):
+                    app.add_middleware(ProxyHeaderMiddleware)
+                    logger.info("Added proxy header middleware for HTTPS detection")
+            except Exception as e:
+                logger.warning(f"Failed to add proxy header middleware: {e}")
+
     @classmethod
     def display_banner(cls, mode):
         """Display a minimal banner indicating the mode using Rich."""
-        # Check if this is the reloader process or if banner already shown
         if os.environ.get('TERMINAIDE_BANNER_SHOWN') == '1':
             return
-        
-        # Set flag to avoid duplicate banners
         os.environ['TERMINAIDE_BANNER_SHOWN'] = '1'
         
         try:
             from rich.console import Console
             from rich.panel import Panel
             
-            # Select color based on mode
             mode_colors = {
                 "function": "dark_orange",
                 "script": "blue", 
                 "apps": "magenta"
             }
-            
             color = mode_colors.get(mode, "yellow")
             mode_upper = mode.upper()
             
-            # Create and display minimal panel
             console = Console(highlight=False)
             panel = Panel(
                 f"TERMINAIDE {mode_upper} SERVER",
@@ -115,22 +129,17 @@ class ServeWithConfig:
                 expand=False,
                 padding=(0, 1)
             )
-            
-            # Ensure this appears first
             console.print(panel)
         except ImportError:
-            # Fallback if Rich is not installed
             mode_upper = mode.upper()
             banner = f"== TERMINAIDE SERVING IN {mode_upper} MODE =="
-            print(f"\033[1m\033[92m{banner}\033[0m")  # Bold green
+            print(f"\033[1m\033[92m{banner}\033[0m")
         
-        # Also log through standard logging
         logger.debug(f"Starting Terminaide in {mode_upper} mode")
-    
+
     @classmethod
     def serve(cls, config) -> None:
         """Serves the application based on the configuration mode."""
-        # Display banner before any mode-specific handling
         cls.display_banner(config._mode)
         
         if config._mode == "function":
@@ -156,12 +165,11 @@ class ServeWithConfig:
             os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
             
-            # Handle preview_image if provided
             if hasattr(config, 'preview_image') and config.preview_image:
                 os.environ["TERMINAIDE_PREVIEW_IMAGE"] = str(config.preview_image)
             
             uvicorn.run(
-                "terminaide.termin_api:function_app_factory",  # Updated
+                "terminaide.termin_api:function_app_factory",
                 factory=True,
                 host="0.0.0.0",
                 port=config.port,
@@ -173,10 +181,9 @@ class ServeWithConfig:
             func = config._target
             ephemeral_path = generate_function_wrapper(func)
             
-            # Create a clean config for script mode
             script_config = type(config)(
                 port=config.port,
-                title=config.title,  # Preserve the explicitly set title
+                title=config.title,
                 theme=config.theme,
                 debug=config.debug,
                 forward_env=config.forward_env,
@@ -186,18 +193,13 @@ class ServeWithConfig:
                 mount_path=config.mount_path,
                 ttyd_port=config.ttyd_port
             )
-            
-            # Copy preview_image if present
             if hasattr(config, 'preview_image'):
                 script_config.preview_image = config.preview_image
-                
-            script_config._target = ephemeral_path
-            script_config._mode = "function"  # Preserve the function mode
             
-            # Store the original function name to help with title generation
+            script_config._target = ephemeral_path
+            script_config._mode = "function"
             script_config._original_function_name = func.__name__
             
-            # Ensure we're using the title that was set
             logger.debug(f"Using title: {script_config.title} for function {func.__name__}")
             
             cls.serve_script(script_config)
@@ -215,21 +217,18 @@ class ServeWithConfig:
             return
         
         if config.reload:
-            # Reload mode
             os.environ["TERMINAIDE_SCRIPT_PATH"] = str(script_path)
             os.environ["TERMINAIDE_PORT"] = str(config.port)
             os.environ["TERMINAIDE_TITLE"] = config.title
             os.environ["TERMINAIDE_DEBUG"] = "1" if config.debug else "0"
             os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
-            os.environ["TERMINAIDE_MODE"] = config._mode  # Add this to pass mode
-            
-            # Handle preview_image if provided
+            os.environ["TERMINAIDE_MODE"] = config._mode
             if hasattr(config, 'preview_image') and config.preview_image:
                 os.environ["TERMINAIDE_PREVIEW_IMAGE"] = str(config.preview_image)
             
             uvicorn.run(
-                "terminaide.termin_api:script_app_factory",  # Updated
+                "terminaide.termin_api:script_app_factory",
                 factory=True,
                 host="0.0.0.0",
                 port=config.port,
@@ -239,11 +238,11 @@ class ServeWithConfig:
         else:
             # Direct mode
             app = FastAPI(title=f"Terminaide - {config.title}")
+            # <-- ADD PROXY MIDDLEWARE FOR SOLO MODES -->
+            cls.add_proxy_middleware_if_needed(app, config)
             
-            # Convert to TTYDConfig
             ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)
             
-            # Setup routes and lifecycle
             original_lifespan = app.router.lifespan_context
             
             @asynccontextmanager
@@ -257,9 +256,6 @@ class ServeWithConfig:
                         yield
             
             app.router.lifespan_context = terminaide_merged_lifespan
-            
-            # print(f"\033[96m> URL: \033[1mhttp://localhost:{config.port}\033[0m")
-            # print("\033[96m> Press Ctrl+C to exit\033[0m")
             
             def handle_exit(sig, frame):
                 print("\033[93mShutting down...\033[0m")
@@ -281,7 +277,6 @@ class ServeWithConfig:
         app = config._app
         terminal_routes = config._target
         
-        # Import middleware here to avoid circular imports
         if config.trust_proxy_headers:
             try:
                 from .middleware import ProxyHeaderMiddleware
@@ -291,7 +286,6 @@ class ServeWithConfig:
             except Exception as e:
                 logger.warning(f"Failed to add proxy header middleware: {e}")
         
-        # Convert to TTYDConfig
         ttyd_config = convert_terminaide_config_to_ttyd_config(config)
         
         sentinel_attr = "_terminaide_lifespan_attached"
@@ -317,7 +311,7 @@ class ServeWithConfig:
 
 class AppFactory:
     """Factory class for creating FastAPI applications based on environment variables."""
-    
+
     @classmethod
     def function_app_factory(cls) -> FastAPI:
         """
@@ -333,8 +327,7 @@ class AppFactory:
         theme_str = os.environ.get("TERMINAIDE_THEME") or "{}"
         forward_env_str = os.environ.get("TERMINAIDE_FORWARD_ENV", "True")
         preview_image_str = os.environ.get("TERMINAIDE_PREVIEW_IMAGE")
-        
-        # Attempt to re-import if not __main__ or __mp_main__
+
         func = None
         if func_mod and func_mod not in ("__main__", "__mp_main__"):
             try:
@@ -342,19 +335,16 @@ class AppFactory:
                 func = getattr(mod, func_name, None)
             except:
                 logger.warning(f"Failed to import {func_name} from {func_mod}")
-        
-        # If it's __main__ or __mp_main__, see if we can find the function object in sys.modules
+
         if func is None and func_mod in ("__main__", "__mp_main__"):
             candidate_mod = sys.modules.get(func_mod)
             if candidate_mod and hasattr(candidate_mod, func_name):
                 func = getattr(candidate_mod, func_name)
-        
+
         ephemeral_path = None
-        
         if func is not None and callable(func):
             ephemeral_path = generate_function_wrapper(func)
         else:
-            # If we still can't get the function, create an error script
             temp_dir = Path(tempfile.gettempdir()) / "terminaide_ephemeral"
             temp_dir.mkdir(exist_ok=True)
             ephemeral_path = temp_dir / f"{func_name}_cannot_reload.py"
@@ -362,23 +352,23 @@ class AppFactory:
                 f'print("ERROR: cannot reload function {func_name} from module={func_mod}")\n',
                 encoding="utf-8"
             )
-        
+
         import ast
-        
         theme = {}
         try:
             theme = ast.literal_eval(theme_str)
         except:
             pass
-        
+
         forward_env = True
         try:
             forward_env = ast.literal_eval(forward_env_str)
         except:
             pass
-        
+
         app = FastAPI(title=f"Terminaide - {title}")
-        
+
+        # Build config so we can add proxy middleware, etc.
         config = TerminaideConfig(
             port=int(port_str),
             title=title,
@@ -386,28 +376,26 @@ class AppFactory:
             debug=debug,
             forward_env=forward_env
         )
-        
-        # Handle preview_image if provided
+
         if preview_image_str:
             preview_path = Path(preview_image_str)
             if preview_path.exists():
                 config.preview_image = preview_path
             else:
                 logger.warning(f"Preview image not found: {preview_image_str}")
-                
+
         config._target = ephemeral_path
-        config._mode = "function"  # Set mode to function
-        
-        # Show banner for reloaded app
+        config._mode = "function"
+
         ServeWithConfig.display_banner(config._mode)
-        
-        # Direct setup instead of recursive uvicorn call
-        script_path = config._target
-        ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)
-        
-        # Setup routes and lifecycle
+
+        # <-- ADD PROXY MIDDLEWARE FOR RELOAD MODE -->
+        ServeWithConfig.add_proxy_middleware_if_needed(app, config)
+
+        ttyd_config = convert_terminaide_config_to_ttyd_config(config, ephemeral_path)
+
         original_lifespan = app.router.lifespan_context
-        
+
         @asynccontextmanager
         async def merged_lifespan(_app: FastAPI):
             if original_lifespan is not None:
@@ -417,9 +405,9 @@ class AppFactory:
             else:
                 async with terminaide_lifespan(_app, ttyd_config):
                     yield
-        
+
         app.router.lifespan_context = merged_lifespan
-        
+
         return app
 
     @classmethod
@@ -434,27 +422,25 @@ class AppFactory:
         debug = (os.environ.get("TERMINAIDE_DEBUG") == "1")
         theme_str = os.environ.get("TERMINAIDE_THEME") or "{}"
         forward_env_str = os.environ.get("TERMINAIDE_FORWARD_ENV", "True")
-        # Get the mode from environment, default to script
         mode = os.environ.get("TERMINAIDE_MODE", "script")
         preview_image_str = os.environ.get("TERMINAIDE_PREVIEW_IMAGE")
-        
+
         import ast
-        
         theme = {}
         try:
             theme = ast.literal_eval(theme_str)
         except:
             pass
-        
+
         forward_env = True
         try:
             forward_env = ast.literal_eval(forward_env_str)
         except:
             pass
-        
+
         script_path = Path(script_path_str)
         app = FastAPI(title=f"Terminaide - {title}")
-        
+
         config = TerminaideConfig(
             port=int(port_str),
             title=title,
@@ -462,27 +448,26 @@ class AppFactory:
             debug=debug,
             forward_env=forward_env
         )
-        
-        # Handle preview_image if provided
+
         if preview_image_str:
             preview_path = Path(preview_image_str)
             if preview_path.exists():
                 config.preview_image = preview_path
             else:
                 logger.warning(f"Preview image not found: {preview_image_str}")
-                
+
         config._target = script_path
-        config._mode = mode  # Set the mode from the environment variable
-        
-        # Show banner for reloaded app
+        config._mode = mode
+
         ServeWithConfig.display_banner(config._mode)
-        
-        # Direct setup instead of recursive uvicorn call
+
+        # <-- ADD PROXY MIDDLEWARE FOR RELOAD MODE -->
+        ServeWithConfig.add_proxy_middleware_if_needed(app, config)
+
         ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)
-        
-        # Setup routes and lifecycle
+
         original_lifespan = app.router.lifespan_context
-        
+
         @asynccontextmanager
         async def merged_lifespan(_app: FastAPI):
             if original_lifespan is not None:
@@ -492,7 +477,7 @@ class AppFactory:
             else:
                 async with terminaide_lifespan(_app, ttyd_config):
                     yield
-        
+
         app.router.lifespan_context = merged_lifespan
-        
+
         return app

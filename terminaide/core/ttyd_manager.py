@@ -118,7 +118,7 @@ class TTYDManager:
         cmd.extend(['-t', f'theme={theme_json}'])
         
         cmd.extend(['-t', 'cursorInactiveStyle=none'])
-        cmd.extend(['-t', 'cursorWidth=0'])
+        # cmd.extend(['-t', 'cursorWidth=0'])
         cmd.extend(['-t', 'cursorBlink=True'])
 
         if self.config.ttyd_options.writable:
