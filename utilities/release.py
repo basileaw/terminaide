@@ -5,11 +5,15 @@ import subprocess
 import sys
 import time
 import requests
+import itertools
+from pathlib import Path
+
+# ANSI color codes
+GREEN = "\033[92m"
+RED = "\033[91m"
+RESET = "\033[0m"
 
 def run(cmd, check=True):
-    """
-    Run a shell command and return stdout. Raise CalledProcessError if fails.
-    """
     result = subprocess.run(cmd, text=True, capture_output=True)
     if check and result.returncode != 0:
         raise subprocess.CalledProcessError(
@@ -21,33 +25,53 @@ def run(cmd, check=True):
     return result.stdout.strip()
 
 def wait_for_pypi(package_name, expected_version, max_retries=12, interval=5):
-    """
-    Poll PyPI for up to (max_retries) times, waiting (interval) seconds
-    between polls. If version is found, return. Otherwise, warn after timeout.
-    """
-    print(f"Polling PyPI for version {expected_version} of '{package_name}'...")
-
-    for attempt in range(max_retries):
-        print(f"Attempt {attempt+1}/{max_retries}...")
+    sys.stdout.write(f"Polling PyPI for version {expected_version} of '{package_name}'")
+    sys.stdout.flush()
+    for _ in range(max_retries):
         try:
             response = requests.get(f"https://pypi.org/pypi/{package_name}/json", timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 latest_version = data["info"]["version"]
                 if latest_version == expected_version:
-                    print(f"PyPI has version {expected_version}. Publication confirmed.")
+                    sys.stdout.write(f"\n{GREEN} {expected_version} published!{RESET}\n")
+                    sys.stdout.flush()
                     return
-                else:
-                    print(f"Current PyPI version is {latest_version}. Waiting for {expected_version}...")
-            else:
-                print(f"PyPI responded with status {response.status_code}. Retrying...")
-        except requests.exceptions.RequestException as e:
-            print(f"Request to PyPI failed ({e}). Retrying...")
-
+        except requests.exceptions.RequestException:
+            pass
+        sys.stdout.write(".")
+        sys.stdout.flush()
         time.sleep(interval)
+    sys.stdout.write(f"\n{RED}Timed out waiting for {expected_version} on PyPI.{RESET}\n")
+    sys.stdout.flush()
 
-    print(f"Timed out waiting for {expected_version} on PyPI after {max_retries*interval} seconds.")
-    print("It might still be processing. Check again later if needed.")
+def confirm_proceed(current_version, new_version, dry_run):
+    print(f"--- Release Confirmation ---")
+    print(f"Current version: {current_version}")
+    print(f"New version: {new_version}")
+    print(f"Dry run: {'Yes' if dry_run else 'No'}")
+    print(f"Actions to be performed:")
+    print(f" - Bump version in pyproject.toml")
+    print(f" - Commit version bump")
+    print(f" - Create git tag")
+    print(f" - Push commit and tag to origin")
+    if not dry_run:
+        print(f" - Trigger GitHub Action to publish to PyPI")
+        print(f" - Poll PyPI to confirm publication")
+    else:
+        print(f" - (Dry run mode, no changes will be made)")
+    print(f"----------------------------")
+    response = input("Proceed? (Y/n): ").strip().lower()
+    if response not in ("", "y", "yes"):
+        print(f"{RED}Aborted by user.{RESET}")
+        sys.exit(0)
+
+def check_publish_workflow_exists():
+    workflow_file = Path(".github/workflows/publish.yml")
+    if not workflow_file.is_file():
+        print(f"{RED}Error: publish.yml not found at .github/workflows/publish.yml.{RESET}")
+        print(f"{RED}Ensure your GitHub Action is set up before releasing.{RESET}")
+        sys.exit(1)
 
 def main():
     parser = argparse.ArgumentParser(description="Bump version, commit, tag, push, and poll PyPI.")
@@ -56,70 +80,64 @@ def main():
     args = parser.parse_args()
 
     dry_run = args.dry_run
-    package_name = "terminaide"  # Update if your package name changes
+    package_name = "terminaide"
 
-    # Step 1: Check for clean git state
+    # Check publish.yml exists
+    check_publish_workflow_exists()
+
+    # Check clean git state
     status = run(["git", "status", "--porcelain"], check=False)
     if status:
-        print("Error: Repository has uncommitted changes. Commit or stash them first.")
+        print(f"{RED}Error: Repository has uncommitted changes. Commit or stash them first.{RESET}")
         sys.exit(1)
 
-    # Record current commit for potential rollback
     old_commit = run(["git", "rev-parse", "HEAD"])
-    old_version = run(["poetry", "version", "-s"])  # e.g. 0.0.24
+    current_version = run(["poetry", "version", "-s"])
 
-    # Step 2: Determine new version (simulate or real)
-    new_version_cmd = ["poetry", "version", args.type]
     if dry_run:
-        print(f"[DRY-RUN] Would run: {' '.join(new_version_cmd)}")
         new_version = "<new-version>"
     else:
-        run(new_version_cmd)
-        new_version = run(["poetry", "version", "-s"])  # e.g. 0.0.25
+        version_output = run(["poetry", "version", args.type, "--dry-run"])
+        new_version = version_output.split()[-1]
 
+    confirm_proceed(current_version, new_version, dry_run)
+
+    version_cmd = ["poetry", "version", args.type]
     commit_message = f"release {new_version}"
     tag_name = f"v{new_version}"
 
     try:
         if dry_run:
+            print(f"[DRY-RUN] Would run: {' '.join(version_cmd)}")
             print(f"[DRY-RUN] Would git add pyproject.toml")
-            print(f"[DRY-RUN] Would commit with message '{commit_message}'")
-            print(f"[DRY-RUN] Would create git tag '{tag_name}'")
+            print(f"[DRY-RUN] Would commit with message: '{commit_message}'")
+            print(f"[DRY-RUN] Would create git tag: '{tag_name}'")
             print(f"[DRY-RUN] Would push commit and tag to origin")
         else:
-            # Step 3: Commit changes
+            run(version_cmd)
+            new_version = run(["poetry", "version", "-s"])
             run(["git", "add", "pyproject.toml"])
             run(["git", "commit", "-m", commit_message])
-
-            # Step 4: Tag
             run(["git", "tag", tag_name])
-
-            # Step 5: Push
             print(f"Pushing commit and tag '{tag_name}' to origin...")
             run(["git", "push", "origin", "HEAD"])
             run(["git", "push", "origin", tag_name])
-
-        # Step 6: Poll PyPI (only if not dry-run)
-        if not dry_run:
             wait_for_pypi(package_name, new_version)
 
-        print(f"Done! Version {new_version} {'(dry run)' if dry_run else ''}")
+        print(f"{GREEN}Done! Version {new_version}{' (dry run)' if dry_run else ''}.{RESET}")
 
     except subprocess.CalledProcessError as e:
-        print("\nError occurred.")
+        print(f"{RED}Error occurred during release process.{RESET}")
         print(f"Command: {' '.join(e.cmd)}")
         if e.output:
             print(f"Output:\n{e.output}")
         if e.stderr:
             print(f"Error:\n{e.stderr}")
-
         if not dry_run:
-            # Rollback if actual changes were made
             print("Rolling back changes...")
             run(["git", "checkout", "pyproject.toml"], check=False)
             run(["git", "reset", "--hard", old_commit], check=False)
             run(["git", "tag", "-d", tag_name], check=False)
-
         sys.exit(1)
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "terminaide"
-version = "0.0.25"
+version = "0.0.28"
 description = "Serve Python CLI applications in the browser using ttyd"
 repository = "https://github.com/anotherbazeinthewall/terminaide"
 authors = ["Alex Basile <basileaw@gmail.com>"]
