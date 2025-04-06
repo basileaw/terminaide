@@ -34,7 +34,7 @@ def wait_for_pypi(package_name, expected_version, max_retries=12, interval=5):
                 data = response.json()
                 latest_version = data["info"]["version"]
                 if latest_version == expected_version:
-                    sys.stdout.write(f"\n{GREEN} {expected_version} published!{RESET}\n")
+                    sys.stdout.write(f"\n{GREEN}v{expected_version} successfully published to PyPi!{RESET}\n")
                     sys.stdout.flush()
                     return
         except requests.exceptions.RequestException:
@@ -148,8 +148,6 @@ def main():
             run(["git", "push", "origin", tag_name])
             if not args.skip_pypi_check:
                 wait_for_pypi(package_name, new_version)
-
-        print(f"{GREEN}Done! Version {new_version}{' (dry run)' if dry_run else ''}.{RESET}")
 
     except subprocess.CalledProcessError as e:
         print(f"{RED}Error occurred during release process.{RESET}")
