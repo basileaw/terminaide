@@ -3,6 +3,7 @@
 
 <head>
     <title>{{ title }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="preconnect" href="{{ mount_path }}">
     <link rel="dns-prefetch" href="{{ url_for('static', path='favicon.ico') }}">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', path='favicon.ico') }}">
@@ -15,17 +16,27 @@
         html {
             background: var(--background);
             min-height: 100%;
+            height: 100%;
+            box-sizing: border-box;
+        }
+
+        *,
+        *:before,
+        *:after {
+            box-sizing: inherit;
         }
 
         body {
             opacity: 0;
             transition: opacity 1s ease-in;
-            margin: 0 auto;
+            margin: 0;
             background: var(--background);
             color: var(--text-color);
-            padding: clamp(.5rem, 2vw, 2rem);
-            width: clamp(300px, 90vw, 1200px);
-            max-height: 90vh;
+            padding: clamp(.5rem, 2vw, 1rem);
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
                 Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
         }
@@ -34,10 +45,19 @@
             opacity: 1;
         }
 
+        .terminal-container {
+            position: relative;
+            width: 100%;
+            flex: 1;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
         /* Terminal starts hidden and fades in when loaded */
         #terminal {
+            position: absolute;
             width: 100%;
-            height: 90vh;
+            height: 100%;
             border: 0;
             border-radius: 4px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -98,7 +118,9 @@
 
 <body>
     <div id="loading">Initializing terminal...</div>
-    <iframe id="terminal" src="{{ mount_path }}"></iframe>
+    <div class="terminal-container">
+        <iframe id="terminal" src="{{ mount_path }}"></iframe>
+    </div>
 
     <!-- Main script moved to end of body -->
     <script>
@@ -123,8 +145,32 @@
                             justify-content: center !important;
                             align-items: center !important;
                         }
+                        /* Ensure font size is appropriate on all devices */
+                        .xterm .xterm-text-layer {
+                            font-size: 16px !important;
+                        }
+                        .xterm .xterm-rows {
+                            font-size: 16px !important;
+                        }
+                        /* Improve touch interaction */
+                        @media (max-width: 768px) {
+                            .xterm .xterm-text-layer {
+                                font-size: 18px !important;
+                            }
+                            .xterm .xterm-rows {
+                                font-size: 18px !important;
+                            }
+                        }
                     `;
                     doc.head.appendChild(style);
+
+                    // Add viewport meta tag to iframe if missing
+                    if (!doc.querySelector('meta[name="viewport"]')) {
+                        const meta = doc.createElement('meta');
+                        meta.name = "viewport";
+                        meta.content = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
+                        doc.head.appendChild(meta);
+                    }
                     return true;
                 } catch {
                     return false;
