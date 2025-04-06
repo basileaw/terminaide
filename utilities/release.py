@@ -5,7 +5,7 @@ import subprocess
 import sys
 import time
 import requests
-import itertools
+import os
 from pathlib import Path
 
 # ANSI color codes
@@ -45,8 +45,9 @@ def wait_for_pypi(package_name, expected_version, max_retries=12, interval=5):
     sys.stdout.write(f"\n{RED}Timed out waiting for {expected_version} on PyPI.{RESET}\n")
     sys.stdout.flush()
 
-def confirm_proceed(current_version, new_version, dry_run):
+def confirm_proceed(package_name, current_version, new_version, dry_run):
     print(f"--- Release Confirmation ---")
+    print(f"Package name: {package_name}")
     print(f"Current version: {current_version}")
     print(f"New version: {new_version}")
     print(f"Dry run: {'Yes' if dry_run else 'No'}")
@@ -66,24 +67,47 @@ def confirm_proceed(current_version, new_version, dry_run):
         print(f"{RED}Aborted by user.{RESET}")
         sys.exit(0)
 
-def check_publish_workflow_exists():
-    workflow_file = Path(".github/workflows/publish.yml")
+def check_publish_workflow_exists(workflow_path=None):
+    if workflow_path is None:
+        workflow_path = ".github/workflows/publish.yml"
+    workflow_file = Path(workflow_path)
     if not workflow_file.is_file():
-        print(f"{RED}Error: publish.yml not found at .github/workflows/publish.yml.{RESET}")
+        print(f"{RED}Error: publish workflow not found at {workflow_path}.{RESET}")
         print(f"{RED}Ensure your GitHub Action is set up before releasing.{RESET}")
         sys.exit(1)
+
+def get_package_name():
+    try:
+        # Try to extract package name from pyproject.toml
+        if Path("pyproject.toml").exists():
+            content = Path("pyproject.toml").read_text()
+            # Look for name = "package_name" in pyproject.toml
+            for line in content.split("\n"):
+                if line.strip().startswith("name = "):
+                    # Extract the package name from quotes
+                    name = line.split("=")[1].strip()
+                    name = name.strip('"').strip("'")
+                    return name
+    except Exception as e:
+        print(f"{RED}Error extracting package name from pyproject.toml: {e}{RESET}")
+        
+    # If automatic detection fails, prompt the user
+    return input("Enter the package name: ").strip()
 
 def main():
     parser = argparse.ArgumentParser(description="Bump version, commit, tag, push, and poll PyPI.")
     parser.add_argument("type", choices=["patch", "minor", "major"], help="Version bump type.")
     parser.add_argument("--dry-run", action="store_true", help="Simulate without making changes.")
+    parser.add_argument("--package-name", help="Override the package name (auto-detected from pyproject.toml by default).")
+    parser.add_argument("--workflow-path", help="Path to the GitHub publish workflow (default: .github/workflows/publish.yml).")
+    parser.add_argument("--skip-pypi-check", action="store_true", help="Skip checking PyPI for the new version.")
     args = parser.parse_args()
 
     dry_run = args.dry_run
-    package_name = "terminaide"
+    package_name = args.package_name or get_package_name()
 
-    # Check publish.yml exists
-    check_publish_workflow_exists()
+    # Check publish workflow exists
+    check_publish_workflow_exists(args.workflow_path)
 
     # Check clean git state
     status = run(["git", "status", "--porcelain"], check=False)
@@ -100,7 +124,7 @@ def main():
         version_output = run(["poetry", "version", args.type, "--dry-run"])
         new_version = version_output.split()[-1]
 
-    confirm_proceed(current_version, new_version, dry_run)
+    confirm_proceed(package_name, current_version, new_version, dry_run)
 
     version_cmd = ["poetry", "version", args.type]
     commit_message = f"release {new_version}"
@@ -122,7 +146,8 @@ def main():
             print(f"Pushing commit and tag '{tag_name}' to origin...")
             run(["git", "push", "origin", "HEAD"])
             run(["git", "push", "origin", tag_name])
-            wait_for_pypi(package_name, new_version)
+            if not args.skip_pypi_check:
+                wait_for_pypi(package_name, new_version)
 
         print(f"{GREEN}Done! Version {new_version}{' (dry run)' if dry_run else ''}.{RESET}")
 
