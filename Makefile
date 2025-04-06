@@ -8,8 +8,9 @@ serve:
 
 # Release new version: make release patch
 release:
-	@printf "Make => \033[1;36m"
+	@printf "Make => \033[1;34m"
 	python utilities/release.py $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
+	@exit 0
 
 # Prevent Make from treating extra args as targets
 %:
