@@ -1,6 +1,5 @@
 # Terminaide
-![PyPI - Version](https://img.shields.io/pypi/v/terminaide) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/terminaide) ![License](https://img.shields.io/github/license/anotherbazeinthewall/terminaide)
-
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/terminaide) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![PyPI - Version](https://img.shields.io/pypi/v/terminaide) 
 
 A handy Python library for serving CLI applications in a browser. Terminaide allows developers to instantly web-enable terminal-based Python applications without packaging or distribution overhead, making it ideal for prototypes, demos, and applications with small user bases.
 
