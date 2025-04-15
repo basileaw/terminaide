@@ -1,7 +1,7 @@
 # pyproject.toml
 [project]
 name = "terminaide"
-version = "0.1.1"
+version = "0.1.2"
 description = "Serve Python CLI applications in the browser using ttyd"
 readme = "README.md"
 license = { text = "MIT" }
