@@ -881,5 +881,5 @@ dev = ["docker"]
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.12,<4.0"
-content-hash = "3fc77bef6abfc7b39d4411383767899ff2ea6d8c908e85e9cb6f4c8de850f808"
+python-versions = ">=3.12"
+content-hash = "a2dde5df9de1e1b268b1cd3b7c27abff03fae8500c6a50da84731806c8f6841d"

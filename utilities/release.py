@@ -169,14 +169,19 @@ def main():
     try:
         if dry_run:
             console.print(f"[bold yellow][DRY-RUN] Would run: {' '.join(version_cmd)}")
-            console.print(f"[bold yellow][DRY-RUN] Would git add pyproject.toml")
+            console.print(f"[bold yellow][DRY-RUN] Would run: poetry lock")
+            console.print(f"[bold yellow][DRY-RUN] Would git add pyproject.toml poetry.lock")
             console.print(f"[bold yellow][DRY-RUN] Would commit with message: '{commit_message}'")
             console.print(f"[bold yellow][DRY-RUN] Would create git tag: '{tag_name}'")
             console.print(f"[bold yellow][DRY-RUN] Would push commit and tag to origin")
         else:
             run(version_cmd)
             new_version = run(["poetry", "version", "-s"])
-            run(["git", "add", "pyproject.toml"])
+            # Add poetry lock step
+            console.print("Updating poetry.lock file...")
+            run(["poetry", "lock"])
+            # Add both files to git
+            run(["git", "add", "pyproject.toml", "poetry.lock"])
             run(["git", "commit", "-m", commit_message])
             run(["git", "tag", tag_name])
             console.print(f"Pushing commit and tag '{tag_name}' to origin...")
