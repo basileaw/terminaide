@@ -6,7 +6,7 @@ description = "Serve Python CLI applications in the browser using ttyd"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Alex Basile", email = "basileaw@gmail.com" }]
-requires-python = ">=3.12,<4.0"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.104.0",
     "jinja2>=3.1.2",
