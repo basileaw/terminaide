@@ -1,15 +1,14 @@
-#!/usr/bin/env python3
+# release.py
 
-import argparse
-import subprocess
 import sys
 import time
 import requests
-import os
-from pathlib import Path
-from rich.console import Console
-from rich.panel import Panel
+import argparse
+import subprocess
 from rich import box
+from pathlib import Path
+from rich.panel import Panel
+from rich.console import Console
 
 console = Console()
 
@@ -25,28 +24,37 @@ def run(cmd, check=True):
     return result.stdout.strip()
 
 def wait_for_pypi(package_name, expected_version, max_retries=12, interval=5):
-    spinner_chars = ['/', '-', '\\', '|']
-    console.print(f"Polling PyPI for version {expected_version} of '{package_name}'", end="")
-    for i in range(max_retries):
-        for char in spinner_chars:
-            console.print(f"\r[bold]Polling PyPI for version {expected_version} of '{package_name}' {char}", end="")
+    spinner = "|/-\\"
+    idx = 0
+    repo_url = run(["git", "config", "--get", "remote.origin.url"]).strip()
+    # Convert SSH URL to HTTPS if necessary
+    if repo_url.startswith("git@github.com:"):
+        repo_url = repo_url.replace("git@github.com:", "https://github.com/")
+    if repo_url.endswith(".git"):
+        repo_url = repo_url[:-4]
+    actions_url = f"{repo_url}/actions"
+
+    console.print(f"Waiting for version {expected_version} to appear on PyPI...")
+    
+    for _ in range(max_retries):
+        for _ in range(4):  # 4 ticks per interval
+            console.print(f"\r[bold]Polling PyPI {spinner[idx]} ", end="")
+            idx = (idx + 1) % len(spinner)
             time.sleep(interval / 4)
             
-            # Check PyPI after a full spinner rotation
-            if char == '|':
-                try:
-                    response = requests.get(f"https://pypi.org/pypi/{package_name}/json", timeout=10)
-                    if response.status_code == 200:
-                        data = response.json()
-                        latest_version = data["info"]["version"]
-                        if latest_version == expected_version:
-                            console.print(f"\r[bold green]Polling PyPI for version {expected_version} of '{package_name}' 👍 ")
-                            console.print(f"[bold green]v{expected_version} successfully published to PyPi!")
-                            return
-                except requests.exceptions.RequestException:
-                    pass
-        
-    console.print(f"\r[bold red]Timed out waiting for {expected_version} on PyPI. ❌")
+        try:
+            response = requests.get(f"https://pypi.org/pypi/{package_name}/json", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                latest_version = data["info"]["version"]
+                if latest_version == expected_version:
+                    console.print(f"\r[bold green]✓ Version {expected_version} successfully published to PyPI!")
+                    return
+        except requests.exceptions.RequestException:
+            pass
+    
+    console.print(f"\r[bold red]✗ Timed out waiting for version {expected_version} on PyPI.")
+    console.print(f"[bold blue]Check progress at: {actions_url}")
 
 def confirm_proceed(package_name, current_version, new_version, dry_run):
     actions = [
