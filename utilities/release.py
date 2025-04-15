@@ -38,7 +38,7 @@ def wait_for_pypi(package_name, expected_version, max_retries=12, interval=5):
     
     for _ in range(max_retries):
         for _ in range(4):  # 4 ticks per interval
-            console.print(f"\r[bold]Polling PyPI {spinner[idx]} ", end="")
+            print(f"\rPolling PyPI {spinner[idx]}", end="", flush=True)
             idx = (idx + 1) % len(spinner)
             time.sleep(interval / 4)
             
@@ -48,12 +48,14 @@ def wait_for_pypi(package_name, expected_version, max_retries=12, interval=5):
                 data = response.json()
                 latest_version = data["info"]["version"]
                 if latest_version == expected_version:
-                    console.print(f"\r[bold green]✓ Version {expected_version} successfully published to PyPI!")
+                    print("\r", end="")  # Clear the spinner line
+                    console.print(f"[bold green]✓ Version {expected_version} successfully published to PyPI!")
                     return
         except requests.exceptions.RequestException:
             pass
     
-    console.print(f"\r[bold red]✗ Timed out waiting for version {expected_version} on PyPI.")
+    print("\r", end="")  # Clear the spinner line
+    console.print(f"[bold red]✗ Timed out waiting for version {expected_version} on PyPI.")
     console.print(f"[bold blue]Check progress at: {actions_url}")
 
 def confirm_proceed(package_name, current_version, new_version, dry_run):
