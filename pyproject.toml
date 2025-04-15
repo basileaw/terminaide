@@ -1,23 +1,24 @@
 # pyproject.toml
+
 [project]
-name = "terminaide"
-version = "0.1.6"
-description = "Serve Python CLI applications in the browser using ttyd"
-readme = "README.md"
-license = { text = "MIT" }
-authors = [{ name = "Alex Basile", email = "basileaw@gmail.com" }]
-requires-python = ">=3.12"
+authors = [{name = "Alex Basile", email = "basileaw@gmail.com"}]
 dependencies = [
-    "fastapi>=0.104.0",
-    "jinja2>=3.1.2",
-    "httpx>=0.25.0",
-    "websockets>=12.0",
-    "pydantic>=2.4.2",
-    "readchar>=4.2.1",
-    "uvicorn>=0.24.0",
-    "rich>=14.0.0",
-    "bs4>=0.0.2",
+  "fastapi>=0.104.0",
+  "jinja2>=3.1.2",
+  "httpx>=0.25.0",
+  "websockets>=12.0",
+  "pydantic>=2.4.2",
+  "readchar>=4.2.1",
+  "uvicorn>=0.24.0",
+  "rich>=14.0.0",
+  "bs4>=0.0.2",
 ]
+description = "Serve Python CLI applications in the browser using ttyd"
+license = {text = "MIT"}
+name = "terminaide"
+readme = "README.md"
+requires-python = ">=3.12"
+version = "0.1.6"
 
 [project.optional-dependencies]
 dev = ["docker>=7.1.0"]
@@ -26,5 +27,5 @@ dev = ["docker>=7.1.0"]
 repository = "https://github.com/anotherbazeinthewall/terminaide"
 
 [build-system]
-requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core"]
