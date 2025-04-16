@@ -18,7 +18,7 @@ license = {text = "MIT"}
 name = "terminaide"
 readme = "README.md"
 requires-python = ">=3.12"
-version = "0.1.6"
+version = "0.1.7"
 
 [project.optional-dependencies]
 dev = ["docker>=7.1.0"]
