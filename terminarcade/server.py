@@ -33,13 +33,16 @@ MODE_HELP = {
     "function": "Serve function mode (Asteroids)",
     "script": "Serve script mode",
     "apps": "Apps mode (HTML + routes)",
-    "container": "Docker container mode (same as apps)"
+    "container": "Docker container mode (same as apps)",
 }
+
 
 def create_custom_root_endpoint(app: FastAPI):
     @app.get("/", response_class=HTMLResponse)
     async def custom_root(request: Request):
-        title_mode = "Container" if os.environ.get("CONTAINER_MODE") == "true" else "Apps"
+        title_mode = (
+            "Container" if os.environ.get("CONTAINER_MODE") == "true" else "Apps"
+        )
         html_content = f"""<!DOCTYPE html>
         <html>
         <head>
@@ -135,6 +138,7 @@ def create_custom_root_endpoint(app: FastAPI):
         </html>"""
         return HTMLResponse(html_content)
 
+
 def create_info_endpoint(app: FastAPI, mode: str, description: str):
     @app.get("/info", response_class=HTMLResponse)
     async def info(request: Request):
@@ -147,8 +151,8 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
             "notes": [
                 "serve_function: Simplest - just pass a function",
                 "serve_script: Simple - pass a script file",
-                "serve_apps: Advanced - integrate with FastAPI"
-            ]
+                "serve_apps: Advanced - integrate with FastAPI",
+            ],
         }
         return f"""<!DOCTYPE html>
         <html>
@@ -159,9 +163,12 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
         <body><pre>{json.dumps(info_dict, indent=2)}</pre></body>
         </html>"""
 
+
 def play_asteroids_function():
     from terminarcade import play_asteroids
+
     play_asteroids()
+
 
 def create_app():
     """
@@ -171,7 +178,7 @@ def create_app():
     mode = os.environ.get("TERMINAIDE_MODE", "default")
     app = FastAPI(title=f"Terminaide - {mode.upper()} Mode")
     description = ""
-    
+
     # Don't try to use any Docker stuff here - just handle the apps mode
     if mode == "apps":
         description = "Apps mode - HTML root + separate terminal routes"
@@ -179,52 +186,86 @@ def create_app():
         serve_apps(
             app,
             terminal_routes={
-                "/snake": {"client_script": [CLIENT_SCRIPT, "--snake"], "title": "Termin-Arcade (Snake)"},
-                "/tetris": {"client_script": [CLIENT_SCRIPT, "--tetris"], "title": "Termin-Arcade (Tetris)"},
-                "/pong":   {"client_script": [CLIENT_SCRIPT, "--pong"],   "title": "Termin-Arcade (Pong)"}
+                "/snake": {
+                    "client_script": [CLIENT_SCRIPT, "--snake"],
+                    "title": "Termin-Arcade (Snake)",
+                },
+                "/tetris": {
+                    "client_script": [CLIENT_SCRIPT, "--tetris"],
+                    "title": "Termin-Arcade (Tetris)",
+                },
+                "/pong": {
+                    "client_script": [CLIENT_SCRIPT, "--pong"],
+                    "title": "Termin-Arcade (Pong)",
+                },
             },
-            debug=True
+            debug=True,
         )
         create_info_endpoint(app, mode, description)
-    
+
     return app
+
 
 def generate_requirements_txt(pyproject_path, temp_dir):
     try:
         logger.info("Generating requirements.txt (excluding dev)")
         req_path = Path(temp_dir) / "requirements.txt"
-        result = subprocess.run(
-            ["poetry", "export", "--without", "dev", "--format", "requirements.txt"],
-            cwd=pyproject_path.parent, capture_output=True, text=True, check=True
-        )
+
+        # Read pyproject.toml as text
+        with open(pyproject_path) as f:
+            lines = f.readlines()
+
+        # Find dependencies section and collect dependencies
+        deps = []
+        in_deps = False
+        for line in lines:
+            if "dependencies = [" in line:
+                in_deps = True
+                continue
+            elif in_deps and "]" in line:
+                break
+            elif in_deps and ("'" in line or '"' in line):
+                # Extract package name without version
+                dep = line.strip().strip("\",'")
+                if ">=" in dep:
+                    dep = dep.split(">=")[0].strip()
+                if dep:
+                    deps.append(dep)
+
+        if not deps:
+            raise ValueError("No dependencies found in pyproject.toml")
+
+        # Write to requirements.txt
         with open(req_path, "w") as f:
-            f.write(result.stdout)
+            for dep in deps:
+                f.write(f"{dep}\n")
+
         logger.info(f"Requirements file at {req_path}")
         return req_path
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to generate requirements: {e}\nPoetry output: {e.stderr}")
-        sys.exit(1)
+
     except Exception as e:
         logger.error(f"Failed to generate requirements: {e}")
         sys.exit(1)
 
+
 def build_and_run_container(port=8000):
     try:
         import docker
-        
+
         # Get the correct Docker socket location from the context
-        context_result = subprocess.run(['docker', 'context', 'inspect'], 
-                                     capture_output=True, text=True)
+        context_result = subprocess.run(
+            ["docker", "context", "inspect"], capture_output=True, text=True
+        )
         if context_result.returncode == 0:
             context_data = json.loads(context_result.stdout)
-            if context_data and 'Endpoints' in context_data[0]:
-                docker_host = context_data[0]['Endpoints']['docker']['Host']
+            if context_data and "Endpoints" in context_data[0]:
+                docker_host = context_data[0]["Endpoints"]["docker"]["Host"]
                 client = docker.DockerClient(base_url=docker_host)
         else:
             client = docker.from_env()
-            
+
         client.ping()
-        
+
         logger.info("Connected to Docker daemon")
         project_root = Path(__file__).parent.parent.absolute()
         image_name = project_root.name.lower()
@@ -236,10 +277,15 @@ def build_and_run_container(port=8000):
                 dst_dir = temp_path / directory
                 if src_dir.exists():
                     # Basic solution - ensure bin directory exists but is empty
-                    shutil.copytree(src_dir, dst_dir, ignore=lambda src, names:
-                        ['ttyd'] if os.path.basename(src) == 'bin' else [])
+                    shutil.copytree(
+                        src_dir,
+                        dst_dir,
+                        ignore=lambda src, names: (
+                            ["ttyd"] if os.path.basename(src) == "bin" else []
+                        ),
+                    )
                     # Alternatively, create an empty bin directory if it was excluded
-                    (dst_dir / 'bin').mkdir(exist_ok=True)
+                    (dst_dir / "bin").mkdir(exist_ok=True)
             generate_requirements_txt(project_root / "pyproject.toml", temp_path)
             dockerfile_content = """
 FROM python:3.12-slim
@@ -258,13 +304,11 @@ CMD ["python", "terminarcade/server.py", "apps"]
                 f.write(dockerfile_content)
             logger.info(f"Building Docker image: {image_name}")
             image, build_logs = client.images.build(
-                path=str(temp_path),
-                tag=image_name,
-                rm=True
+                path=str(temp_path), tag=image_name, rm=True
             )
             for log in build_logs:
-                if 'stream' in log:
-                    line = log['stream'].strip()
+                if "stream" in log:
+                    line = log["stream"].strip()
                     if line:
                         logger.info(f"Build: {line}")
             container_name = f"{image_name}-container"
@@ -280,7 +324,7 @@ CMD ["python", "terminarcade/server.py", "apps"]
                 name=container_name,
                 ports={f"8000/tcp": port},
                 detach=True,
-                environment={"CONTAINER_MODE": "true"}
+                environment={"CONTAINER_MODE": "true"},
             )
             logger.info(f"Container {container_name} started (ID: {c.id[:12]})")
             logger.info(f"Access at: http://localhost:{port}")
@@ -300,25 +344,31 @@ CMD ["python", "terminarcade/server.py", "apps"]
             logger.error(f"Error: {e}")
         sys.exit(1)
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
     # Add a single positional argument for mode
-    parser.add_argument("mode", nargs="?", default="default", 
-                       choices=["default", "function", "script", "apps", "container"],
-                       help="Server mode to run")
+    parser.add_argument(
+        "mode",
+        nargs="?",
+        default="default",
+        choices=["default", "function", "script", "apps", "container"],
+        help="Server mode to run",
+    )
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
-    
+
     # Store the mode directly
     args.actual_mode = args.mode
     return args
+
 
 def main():
     args = parse_args()
     mode = args.actual_mode
     port = args.port
     os.environ["TERMINAIDE_MODE"] = mode
-    
+
     if mode != "container":
         os.environ["WATCHFILES_FORCE_POLLING"] = "0"
         os.environ["WATCHFILES_POLL_DELAY"] = "0.1"
@@ -328,14 +378,15 @@ def main():
         logger.setLevel(log_level)
         # Also set uvicorn logger level
         import logging
+
         logging.getLogger("uvicorn").setLevel(log_level)
-        
+
     logger.info(f"Starting server in {mode.upper()} mode on port {port}")
-    
+
     if mode == "container":
         build_and_run_container(port)
         return
-    
+
     # DEFAULT MODE
     if mode == "default":
         instructions_path = CURRENT_DIR / "instructions.py"
@@ -344,10 +395,10 @@ def main():
             port=port,
             title="Instructions",
             debug=True,
-            reload=True    # <-- Enable reload for default mode
+            reload=True,  # <-- Enable reload for default mode
         )
         return
-    
+
     # FUNCTION MODE
     if mode == "function":
         serve_function(
@@ -355,10 +406,10 @@ def main():
             port=port,
             title="Function Mode",
             debug=True,
-            reload=True   # <-- Enable reload for function mode
+            reload=True,  # <-- Enable reload for function mode
         )
         return
-    
+
     # SCRIPT MODE
     if mode == "script":
         serve_script(
@@ -366,10 +417,10 @@ def main():
             port=port,
             title="Script Mode",
             debug=True,
-            reload=True   # <-- Enable reload for script mode
+            reload=True,  # <-- Enable reload for script mode
         )
         return
-    
+
     # APPS MODE
     if mode == "apps":
         logger.info(f"Visit http://localhost:{port} for the main interface")
@@ -380,8 +431,9 @@ def main():
             host="0.0.0.0",
             port=port,
             reload=True,
-            reload_dirs=[str(CURRENT_DIR.parent)]
+            reload_dirs=[str(CURRENT_DIR.parent)],
         )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
