@@ -10,9 +10,13 @@ ARGS := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
 # Define a function to execute commands with nice output and handle arguments
 # Usage: $(call task,command)
 define task
-	@printf "Make => $(BLUE)$(1) $(ARGS)$(RESET)\n"
-	@$(1) $(ARGS)
-	@exit 0
+@printf "Make => $(BLUE)$(1) $(ARGS)$(RESET)\n" && \
+{ set -a; [ -f .env ] && . .env; set +a; PYTHONPATH=. $(1) $(ARGS); \
+  status=$$?; \
+  if [ $$status -eq 130 ]; then \
+    printf "\n$(BLUE)Process terminated by user$(RESET)\n"; \
+  fi; \
+  exit $$status; }
 endef
 
 # Run demo server
