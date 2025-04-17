@@ -126,6 +126,11 @@ class TTYDManager:
         else:
             cmd.append('-R')
         
+        # Use effective_script_path to get the actual script to run (direct script or function wrapper)
+        script_path = script_config.effective_script_path
+        if script_path is None:
+            raise TTYDStartupError(f"Script path not set for route {script_config.route_path}")
+            
         # Find the cursor_manager.py path
         cursor_manager_path = Path(__file__).parent / "cursor_manager.py"
         
@@ -134,12 +139,13 @@ class TTYDManager:
         
         # Use cursor manager if it exists and is enabled
         if cursor_mgmt_enabled and cursor_manager_path.exists():
-            logger.debug(f"Using cursor manager for script: {script_config.client_script}")
-            python_cmd = [sys.executable, str(cursor_manager_path), str(script_config.client_script)]
+            target_desc = f"function wrapper script" if script_config.is_function_based else "script"
+            logger.debug(f"Using cursor manager for {target_desc}: {script_path}")
+            python_cmd = [sys.executable, str(cursor_manager_path), str(script_path)]
         else:
             if cursor_mgmt_enabled and not cursor_manager_path.exists():
                 logger.warning(f"Cursor manager not found at {cursor_manager_path}, using direct execution")
-            python_cmd = [sys.executable, str(script_config.client_script)]
+            python_cmd = [sys.executable, str(script_path)]
             
         if script_config.args:
             python_cmd.extend(script_config.args)
@@ -189,7 +195,14 @@ class TTYDManager:
         script_count = len(self.config.script_configs)
         mode_type = 'apps-server' if self.config.is_multi_script else 'solo-server'
         entry_mode = getattr(self.config, '_mode', 'script')
-        logger.info(f"Starting {script_count} ttyd processes ({mode_type} mode via {entry_mode} API)")
+        
+        # Count function-based routes
+        function_count = sum(1 for cfg in self.config.script_configs if cfg.is_function_based)
+        script_count_str = f"{script_count} ttyd processes"
+        if function_count > 0:
+            script_count_str += f" ({function_count} function-based, {script_count - function_count} script-based)"
+            
+        logger.info(f"Starting {script_count_str} ({mode_type} mode via {entry_mode} API)")
         
         success_count = 0
         for script_config in self.config.script_configs:
@@ -248,8 +261,10 @@ class TTYDManager:
                     raise TTYDStartupError(stderr=stderr)
                     
                 if self.is_process_running(route_path):
+                    # Add info about function vs script based
+                    route_type = "function-based" if script_config.is_function_based else "script-based"
                     # Single consolidated log message after successful start
-                    logger.info(f"Started ttyd: {route_path} (port:{port}, pid:{process.pid})")
+                    logger.info(f"Started ttyd ({route_type}): {route_path} (port:{port}, pid:{process.pid})")
                     return
                     
                 time.sleep(check_interval)
@@ -351,19 +366,28 @@ class TTYDManager:
         for cfg in self.config.script_configs:
             route_path = cfg.route_path
             running = self.is_process_running(route_path)
+            
+            # Add info about whether this is a function-based route
             processes_health.append({
                 "route_path": route_path,
-                "script": str(cfg.client_script),
+                "script": str(cfg.effective_script_path),
                 "status": "running" if running else "stopped",
                 "uptime": self.get_process_uptime(route_path),
                 "port": cfg.port,
                 "pid": self.processes.get(route_path).pid if running else None,
-                "title": cfg.title or self.config.title
+                "title": cfg.title or self.config.title,
+                "is_function_based": cfg.is_function_based
             })
             
-        # Log a compact summary of process health
+        # Log a compact summary of process health with function info
         running_count = sum(1 for p in processes_health if p["status"] == "running")
-        logger.debug(f"Health check: {running_count}/{len(processes_health)} processes running")
+        function_count = sum(1 for p in processes_health if p.get("is_function_based", False))
+        
+        if function_count > 0:
+            logger.debug(f"Health check: {running_count}/{len(processes_health)} processes running "
+                         f"({function_count} function-based, {len(processes_health) - function_count} script-based)")
+        else:
+            logger.debug(f"Health check: {running_count}/{len(processes_health)} processes running")
         
         entry_mode = getattr(self.config, '_mode', 'script')
         
@@ -372,6 +396,8 @@ class TTYDManager:
             "ttyd_path": str(self._ttyd_path) if self._ttyd_path else None,
             "is_multi_script": self.config.is_multi_script,
             "process_count": len(self.processes),
+            "function_count": function_count,
+            "script_count": len(processes_health) - function_count,
             "mounting": "root" if self.config.is_root_mounted else "non-root",
             "entry_mode": entry_mode,  # Add entry mode to health check
             **self.config.get_health_check_info()

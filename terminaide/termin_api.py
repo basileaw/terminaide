@@ -103,7 +103,7 @@ def serve_script(
 
 def serve_apps(
     app: FastAPI,
-    terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any]]],
+    terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any], Callable]],
     config: Optional[TerminaideConfig] = None,
     **kwargs) -> None:
     """Integrate multiple terminals into a FastAPI application.
@@ -113,11 +113,18 @@ def serve_apps(
     
     Args:
         app: FastAPI application to extend
-        terminal_routes: Dictionary mapping paths to scripts
+        terminal_routes: Dictionary mapping paths to scripts or functions. Each value can be:
+            - A string or Path object pointing to a script file
+            - A Python callable function object
+            - A list [script_path, arg1, arg2, ...] for scripts with arguments
+            - A dictionary with advanced configuration:
+                - For scripts: {"client_script": "path.py", "args": [...], ...}
+                - For functions: {"function": callable_func, ...}
+                - Other options: "title", "port", "preview_image", etc.
         config: Configuration options for the terminals
         **kwargs: Additional configuration overrides:
             - port: Web server port (default: 8000)
-            - title: Default terminal window title (default: auto-generated based on script name)
+            - title: Default terminal window title (default: auto-generated)
             - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
             - debug: Enable debug mode (default: True)
             - ttyd_port: Base port for ttyd processes (default: 7681)
@@ -128,6 +135,37 @@ def serve_apps(
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
             - preview_image: Default preview image for social media sharing (default: None)
                             Can also be specified per route in terminal_routes config.
+                            
+    Examples:
+        ```python
+        from fastapi import FastAPI
+        from terminaide import serve_apps
+        
+        app = FastAPI()
+        
+        @app.get("/")
+        async def root():
+            return {"message": "Welcome to my terminal app"}
+        
+        # Define a function to serve in a terminal
+        def hello():
+            name = input("What's your name? ")
+            print(f"Hello, {name}!")
+        
+        # Configure terminals with both scripts and functions
+        serve_apps(
+            app,
+            terminal_routes={
+                "/cli1": "script1.py",              # Script path
+                "/cli2": hello,                     # Function
+                "/cli3": ["script2.py", "--debug"], # Script with arguments
+                "/cli4": {                          # Advanced function config
+                    "function": hello,
+                    "title": "Interactive Greeting"
+                }
+            }
+        )
+        ```
     """
     if not terminal_routes:
         logger.warning("No terminal routes provided to serve_apps(). No terminals will be served.")

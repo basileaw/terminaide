@@ -6,7 +6,7 @@ import os
 import sys
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, Union, List
+from typing import Dict, Any, Optional, Union, List, Callable
 from pydantic import (
     BaseModel, Field, field_validator, model_validator
 )
@@ -49,20 +49,27 @@ class ThemeConfig(BaseModel):
 class ScriptConfig(BaseModel):
     """ Configuration for a single terminal route, including the script path, port assignment, and optional custom title. """
     route_path: str
-    client_script: Path
+    client_script: Optional[Path] = None
     args: List[str] = Field(default_factory=list)
     port: Optional[int] = None
     title: Optional[str] = None
     preview_image: Optional[Path] = None  # Added preview_image field
+    function_object: Optional[Callable] = None
+    _function_wrapper_path: Optional[Path] = None
 
     @field_validator('client_script')
     @classmethod
-    def validate_script_path(cls, v: Union[str, Path]) -> Path:
+    def validate_script_path(cls, v: Optional[Union[str, Path]]) -> Optional[Path]:
         """
         Ensure the script file exists, trying:
         1. The path as provided (relative to CWD or absolute)
         2. The path relative to the main script being executed
+        
+        Returns None if no script path is provided (function-based route).
         """
+        if v is None:
+            return None
+            
         original_path = Path(v)
 
         # Strategy 1: Use the path as-is (absolute or relative to CWD)
@@ -144,10 +151,36 @@ class ScriptConfig(BaseModel):
     def validate_args(cls, v: List[str]) -> List[str]:
         """Convert all args to strings."""
         return [str(arg) for arg in v]
+        
+    @model_validator(mode='after')
+    def validate_script_or_function(self) -> 'ScriptConfig':
+        """Ensure either client_script or function_object is provided."""
+        if self.client_script is None and self.function_object is None:
+            raise ConfigurationError(
+                "Either client_script or function_object must be provided for route " + 
+                f"'{self.route_path}'"
+            )
+        return self
+        
+    @property
+    def is_function_based(self) -> bool:
+        """Returns True if this route uses a function instead of a script."""
+        return self.function_object is not None
+        
+    def set_function_wrapper_path(self, path: Path) -> None:
+        """Set the path to the generated wrapper script for a function."""
+        self._function_wrapper_path = path
+        
+    @property
+    def effective_script_path(self) -> Path:
+        """Returns the script path to use (either direct script or generated function wrapper)."""
+        if self.is_function_based and self._function_wrapper_path is not None:
+            return self._function_wrapper_path
+        return self.client_script
 
 class TTYDConfig(BaseModel):
     """ Main configuraion for terminaide, handling root vs. non-root mounting, multiple scripts, and other settings like theme and debug mode. """
-    client_script: Path
+    client_script: Optional[Path] = None
     mount_path: str = "/"
     port: int = Field(default=7681, gt=1024, lt=65535)
     theme: ThemeConfig = Field(default_factory=ThemeConfig)
@@ -206,6 +239,8 @@ class TTYDConfig(BaseModel):
             if config.route_path in seen_routes:
                 raise ConfigurationError(f"Duplicate route path: {config.route_path}")
             seen_routes.add(config.route_path)
+            
+        # Add a default script config if needed
         if not self.script_configs and self.client_script:
             self.script_configs.append(
                 ScriptConfig(
@@ -273,7 +308,8 @@ class TTYDConfig(BaseModel):
         for config in self.script_configs:
             script_info.append({
                 "route_path": config.route_path,
-                "script": str(config.client_script),
+                "script": str(config.effective_script_path),
+                "is_function": config.is_function_based,
                 "args": config.args,
                 "port": config.port,
                 "title": config.title or self.title,
@@ -295,15 +331,69 @@ class TTYDConfig(BaseModel):
         }
 
 def create_script_configs(
-    terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any]]]
+    terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any], Callable]]
 ) -> List[ScriptConfig]:
-    """Convert the terminal_routes dictionary into a list of ScriptConfig objects."""
+    """
+    Convert the terminal_routes dictionary into a list of ScriptConfig objects.
+    
+    Now supports:
+    - Script paths (str/Path)
+    - Functions (Callable)
+    - Lists with script path and args
+    - Dictionaries with advanced config for scripts or functions
+    """
     script_configs = []
 
-    for route_path, script_spec in terminal_routes.items():
-        # Get script path and args based on the type of script_spec
-        if isinstance(script_spec, dict) and "client_script" in script_spec:
-            script_value = script_spec["client_script"]
+    for route_path, route_spec in terminal_routes.items():
+        # Handle direct callable function
+        if callable(route_spec):
+            func = route_spec
+            func_name = getattr(func, "__name__", "function")
+            
+            script_configs.append(
+                ScriptConfig(
+                    route_path=route_path,
+                    function_object=func,
+                    client_script=None,
+                    args=[],
+                    title=f"{func_name}()"
+                )
+            )
+            continue
+            
+        # Handle dictionary configuration that might contain a function
+        if isinstance(route_spec, dict) and "function" in route_spec:
+            func = route_spec["function"]
+            if not callable(func):
+                raise ConfigurationError(f"'function' value for route {route_path} is not callable")
+                
+            func_name = getattr(func, "__name__", "function")
+            
+            cfg_data = {
+                "route_path": route_path,
+                "function_object": func,
+                "client_script": None,
+                "args": []
+            }
+            
+            # Use provided title or auto-generate
+            if "title" in route_spec:
+                cfg_data["title"] = route_spec["title"]
+            else:
+                cfg_data["title"] = f"{func_name}()"
+                
+            if "port" in route_spec:
+                cfg_data["port"] = route_spec["port"]
+                
+            if "preview_image" in route_spec:
+                cfg_data["preview_image"] = route_spec["preview_image"]
+                
+            script_configs.append(ScriptConfig(**cfg_data))
+            continue
+        
+        # Handle script path in dictionary
+        if isinstance(route_spec, dict) and "client_script" in route_spec:
+            script_value = route_spec["client_script"]
             if isinstance(script_value, list) and len(script_value) > 0:
                 script_path = script_value[0]
                 args = script_value[1:]
@@ -311,8 +401,8 @@ def create_script_configs(
                 script_path = script_value
                 args = []
             
-            if "args" in script_spec:
-                args = script_spec["args"]
+            if "args" in route_spec:
+                args = route_spec["args"]
             
             cfg_data = {
                 "route_path": route_path,
@@ -321,25 +411,27 @@ def create_script_configs(
             }
             
             # Use provided title or auto-generate if not present
-            if "title" in script_spec:
-                cfg_data["title"] = script_spec["title"]
+            if "title" in route_spec:
+                cfg_data["title"] = route_spec["title"]
             else:
                 # Auto-generate title based on script name
                 script_name = Path(script_path).name
                 cfg_data["title"] = f"{script_name}"
             
-            if "port" in script_spec:
-                cfg_data["port"] = script_spec["port"]
+            if "port" in route_spec:
+                cfg_data["port"] = route_spec["port"]
                 
             # Handle preview_image if provided in the script_spec
-            if "preview_image" in script_spec:
-                cfg_data["preview_image"] = script_spec["preview_image"]
+            if "preview_image" in route_spec:
+                cfg_data["preview_image"] = route_spec["preview_image"]
             
             script_configs.append(ScriptConfig(**cfg_data))
+            continue
         
-        elif isinstance(script_spec, list) and len(script_spec) > 0:
-            script_path = script_spec[0]
-            args = script_spec[1:]
+        # Handle script path with args as list
+        if isinstance(route_spec, list) and len(route_spec) > 0:
+            script_path = route_spec[0]
+            args = route_spec[1:]
             
             # Auto-generate title based on script name
             script_name = Path(script_path).name
@@ -352,23 +444,24 @@ def create_script_configs(
                     title=f"{script_name}"
                 )
             )
+            continue
         
-        else:
-            script_path = script_spec
-            
-            # Auto-generate title based on script name
-            script_name = Path(script_path).name
-            
-            script_configs.append(
-                ScriptConfig(
-                    route_path=route_path,
-                    client_script=script_path,
-                    args=[],
-                    title=f"{script_name}"
-                )
+        # Handle simple script path (str/Path)
+        script_path = route_spec
+        
+        # Auto-generate title based on script name
+        script_name = Path(script_path).name
+        
+        script_configs.append(
+            ScriptConfig(
+                route_path=route_path,
+                client_script=script_path,
+                args=[],
+                title=f"{script_name}"
             )
+        )
 
     if not script_configs:
-        raise ConfigurationError("No valid script configuration provided")
+        raise ConfigurationError("No valid script or function configuration provided")
 
     return script_configs

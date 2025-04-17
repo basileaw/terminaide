@@ -17,7 +17,7 @@ import tempfile
 import json
 from pathlib import Path
 from fastapi import FastAPI
-from typing import Callable, Optional
+from typing import Callable, Optional, Dict
 from contextlib import asynccontextmanager
 
 from .app_config import (
@@ -277,6 +277,19 @@ class ServeWithConfig:
         app = config._app
         terminal_routes = config._target
         
+        # Process function-based routes to generate ephemeral script wrappers
+        ttyd_config = convert_terminaide_config_to_ttyd_config(config)
+        
+        # Generate wrapper scripts for all function-based routes
+        for script_config in ttyd_config.script_configs:
+            if script_config.is_function_based:
+                func = script_config.function_object
+                if func is not None:
+                    logger.debug(f"Generating wrapper script for function '{func.__name__}' at route {script_config.route_path}")
+                    wrapper_path = generate_function_wrapper(func)
+                    script_config.set_function_wrapper_path(wrapper_path)
+                    logger.debug(f"Function '{func.__name__}' will use wrapper script at {wrapper_path}")
+
         if config.trust_proxy_headers:
             try:
                 from .middleware import ProxyHeaderMiddleware
@@ -285,8 +298,6 @@ class ServeWithConfig:
                     logger.info("Added proxy header middleware for HTTPS detection")
             except Exception as e:
                 logger.warning(f"Failed to add proxy header middleware: {e}")
-        
-        ttyd_config = convert_terminaide_config_to_ttyd_config(config)
         
         sentinel_attr = "_terminaide_lifespan_attached"
         if getattr(app.state, sentinel_attr, False):

@@ -25,13 +25,18 @@ from .data_models import TTYDConfig, ThemeConfig, TTYDOptions, create_script_con
 
 logger = logging.getLogger("terminaide")
 
-def smart_resolve_path(path: Union[str, Path]) -> Path:
+def smart_resolve_path(path: Union[str, Path, Callable]) -> Union[Path, Callable]:
     """ Resolves a path using a predictable strategy:
-    1. First try the path as-is (absolute or relative to CWD)
-    2. Then try relative to the main script being run (sys.argv[0])
+    1. If it's a callable function, return it as-is
+    2. First try the path as-is (absolute or relative to CWD)
+    3. Then try relative to the main script being run (sys.argv[0])
 
     This approach is both flexible and predictable.
     """
+    # If path is a callable function, return it directly
+    if callable(path):
+        return path
+        
     original_path = Path(path)
 
     # Strategy 1: Use the path as-is (absolute or relative to CWD)
@@ -288,6 +293,9 @@ def convert_terminaide_config_to_ttyd_config(config: TerminaideConfig, script_pa
         terminal_routes = config._target
     elif script_path is not None:
         terminal_routes = {"/": script_path}
+    elif callable(config._target):
+        # Handle function target for serve_function mode
+        terminal_routes = {"/": config._target}
 
     script_configs = create_script_configs(terminal_routes)
     
@@ -306,7 +314,7 @@ def convert_terminaide_config_to_ttyd_config(config: TerminaideConfig, script_pa
     ttyd_options_config = TTYDOptions(**(config.ttyd_options or {}))
 
     ttyd_config = TTYDConfig(
-        client_script=script_configs[0].client_script if script_configs else None,
+        client_script=script_configs[0].client_script if script_configs and not script_configs[0].is_function_based else None,
         mount_path=config.mount_path,
         port=config.ttyd_port,
         theme=theme_config,

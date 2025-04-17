@@ -10,7 +10,7 @@ management automatically across supported platforms.
 The package offers three entry points with increasing complexity:
 1. serve_function: The simplest way to serve a Python function in a browser terminal
 2. serve_script: Simple path to serve a Python script file in a terminal
-3. serve_apps: Advanced path to integrate multiple terminals into a FastAPI application
+3. serve_apps: Advanced path to integrate multiple terminals (both functions and scripts) into a FastAPI application
 
 Supported Platforms:
 - Linux x86_64 (Docker containers)

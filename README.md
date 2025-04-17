@@ -119,6 +119,8 @@ kwargs = {
 
 The Apps Server extends the capabilities of the Solo Server to integrate multiple terminals into an existing FastAPI application. This approach gives you more control over routing, allows multiple terminals to coexist with regular web endpoints, and provides additional configuration options.
 
+You can use both functions and scripts in your terminal routes:
+
 ```python
 from fastapi import FastAPI
 from terminaide import serve_apps
@@ -131,14 +133,30 @@ app = FastAPI()
 async def root():
     return {"message": "Welcome to my terminal app"}
 
+# Define a function to serve in a terminal
+def greeting():
+    name = input("What's your name? ")
+    print(f"Hello, {name}!")
+    favorite = input("What's your favorite programming language? ")
+    print(f"{favorite} is a great choice!")
+
 serve_apps(
     app,
     terminal_routes={
+        # Script-based terminals
         "/cli1": "script1.py",
         "/cli2": ["script2.py", "--arg1", "value"],
         "/cli3": {
             "client_script": "script3.py",
             "title": "Advanced CLI"
+        },
+        
+        # Function-based terminals
+        "/hello": greeting,
+        "/admin": {
+            "function": greeting,
+            "title": "Admin Greeting Terminal",
+            "preview_image": "admin_preview.png"
         }
     }
 )
@@ -155,20 +173,25 @@ The Apps Server includes all the configuration options from the Solo Server, plu
 serve_apps(
     # Required parameters
     app,                      # FastAPI application
-    terminal_routes={         # Dictionary mapping paths to scripts
-        # Basic format
+    terminal_routes={         # Dictionary mapping paths to scripts or functions
+        # Script formats
         "/path1": "script1.py",
-        
-        # With arguments
         "/path2": ["script2.py", "--arg1", "value"],
-        
-        # Advanced configuration
         "/path3": {
             "client_script": "script3.py",
             "args": ["--mode", "advanced"],
             "title": "Custom Title",
             "port": 7682,      # Specific port for this terminal
             "preview_image": "path3_preview.png"  # Per-route custom preview
+        },
+        
+        # Function formats
+        "/func1": my_function,
+        "/func2": {
+            "function": my_function,
+            "title": "Function Terminal",
+            "port": 7683,      # Specific port for this terminal
+            "preview_image": "function_preview.png"  # Per-route custom preview
         }
     },
     
@@ -212,3 +235,12 @@ Terminaide is designed to support rapid prototype deployments for small user bas
 - Basic security features (though ttyd authentication is supported)
 - Windows installation not yet supported
 - Terminal capabilities limited to what ttyd provides
+
+## Function Reloading Considerations
+
+When using functions with `serve_apps()`, note the following:
+
+- Functions defined in your main application file will work seamlessly
+- Functions imported from separate modules work best when using `reload=False` (default)
+- When using `reload=True`, imported functions might not reload properly due to Uvicorn's reloading mechanism
+- For best development experience with imported functions, consider using script mode instead
