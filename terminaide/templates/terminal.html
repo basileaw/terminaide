@@ -132,9 +132,25 @@
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             console.log(`Using ${protocol} for WebSocket connections`);
 
+            // Track if terminal sizing is complete
+            let terminalSizingComplete = false;
+
             function injectStyles() {
                 try {
-                    const doc = terminal.contentDocument;
+                    const doc = terminal.contentDocument || terminal.contentWindow.document;
+
+                    // First, inject a style to hide the terminal until sizing is complete
+                    const hideStyle = doc.createElement('style');
+                    hideStyle.id = 'hide-until-sized';
+                    hideStyle.textContent = `
+                        /* Hide terminal elements until sizing is complete */
+                        .xterm {
+                            visibility: hidden !important;
+                        }
+                    `;
+                    doc.head.appendChild(hideStyle);
+
+                    // Now add our regular styles
                     const style = doc.createElement('style');
                     style.textContent = `
                         .xterm-viewport {
@@ -171,8 +187,215 @@
                         meta.content = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
                         doc.head.appendChild(meta);
                     }
+
+                    // Function to reveal terminal once sizing is complete
+                    function revealTerminal() {
+                        if (terminalSizingComplete) {
+                            const hideStyle = doc.getElementById('hide-until-sized');
+                            if (hideStyle) {
+                                hideStyle.remove();
+                                console.log("Terminal revealed after sizing");
+                            }
+                        }
+                    }
+
+                    // Inject our early initialization script
+                    const earlyScript = doc.createElement('script');
+                    earlyScript.textContent = `
+                        // This script runs as soon as possible
+                        (function() {
+                            // Set up a MutationObserver to detect when terminal elements are added
+                            const observer = new MutationObserver(function(mutations) {
+                                for (const mutation of mutations) {
+                                    if (mutation.addedNodes && mutation.addedNodes.length) {
+                                        for (const node of mutation.addedNodes) {
+                                            if (node.classList && node.classList.contains('xterm')) {
+                                                console.log("Terminal element detected via MutationObserver");
+                                                window.__terminalElementDetected = true;
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                            
+                            // Start observing document body for terminal elements
+                            observer.observe(document.body, { childList: true, subtree: true });
+                        })();
+                    `;
+                    doc.head.appendChild(earlyScript);
+
+                    // Inject our main terminal sizing script
+                    const script = doc.createElement('script');
+                    script.textContent = `
+                        // Main terminal sizing script
+                        (function() {
+                            // FONT SIZE CONFIGURATION - CHANGE THIS VALUE TO ADJUST SIZE
+                            const DESKTOP_FONT_SIZE = 20; // Change this value to adjust size
+                            
+                            // Track sizing status
+                            let sizingComplete = false;
+                            
+                            // Function to mark sizing as complete and signal the parent window
+                            function markSizingComplete() {
+                                if (!sizingComplete) {
+                                    sizingComplete = true;
+                                    console.log("Terminal sizing complete");
+                                    window.parent.postMessage({ type: 'terminal-sizing-complete' }, '*');
+                                    
+                                    // Find and remove the hiding style
+                                    const hideStyle = document.getElementById('hide-until-sized');
+                                    if (hideStyle) {
+                                        hideStyle.remove();
+                                    }
+                                }
+                            }
+                            
+                            // Function to adjust font size based on device
+                            function adjustTerminalFontSize() {
+                                // Check if on desktop
+                                const isDesktop = window.innerWidth >= 769;
+                                
+                                // Skip sizing for mobile
+                                if (!isDesktop) {
+                                    markSizingComplete();
+                                    return;
+                                }
+                                
+                                // Get the ttyd terminal instance
+                                if (window.term) {
+                                    try {
+                                        console.log("Applying desktop font size: " + DESKTOP_FONT_SIZE + "px");
+                                        
+                                        // Try to set font size, multiple approaches
+                                        if (typeof window.term.setOption === 'function') {
+                                            window.term.setOption('fontSize', DESKTOP_FONT_SIZE);
+                                            console.log("Set terminal font size via term.setOption");
+                                        } 
+                                        else if (window.term.options && typeof window.term.options === 'object') {
+                                            window.term.options.fontSize = DESKTOP_FONT_SIZE;
+                                            console.log("Set terminal font size via term.options");
+                                        }
+                                        
+                                        // Force resize to apply changes
+                                        if (typeof window.term.fit === 'function') {
+                                            window.term.fit();
+                                            console.log("Called term.fit()");
+                                        }
+                                        else if (typeof window.term.resize === 'function') {
+                                            // Get current dimensions
+                                            const cols = window.term.cols || 80;
+                                            const rows = window.term.rows || 24;
+                                            window.term.resize(cols, rows);
+                                            console.log("Called term.resize()");
+                                        }
+                                        
+                                        // Mark sizing as complete
+                                        setTimeout(markSizingComplete, 50);
+                                    } catch (e) {
+                                        console.warn("Error adjusting terminal font size:", e);
+                                        markSizingComplete(); // Mark complete even if there's an error
+                                    }
+                                }
+                            }
+                            
+                            // Try to detect terminal as early as possible
+                            function detectAndAdjustTerminal() {
+                                // Check if term object is available directly
+                                if (window.term) {
+                                    console.log("Terminal object found directly");
+                                    adjustTerminalFontSize();
+                                    return true;
+                                }
+                                
+                                // Check for ttyd.terminal
+                                if (window.ttyd && window.ttyd.terminal) {
+                                    console.log("Found ttyd.terminal object");
+                                    window.term = window.ttyd.terminal;
+                                    adjustTerminalFontSize();
+                                    return true;
+                                }
+                                
+                                // Look through global objects for terminal-like object
+                                for (const key in window) {
+                                    if (window[key] && 
+                                        typeof window[key] === 'object' && 
+                                        (
+                                            (window[key].options && window[key].options.fontSize) ||
+                                            (typeof window[key].setOption === 'function')
+                                        )
+                                    ) {
+                                        console.log("Found potential terminal object:", key);
+                                        window.term = window[key];
+                                        adjustTerminalFontSize();
+                                        return true;
+                                    }
+                                }
+                                
+                                return false;
+                            }
+                            
+                            // Start immediate detection
+                            if (!detectAndAdjustTerminal()) {
+                                // If not found, set up detection with different strategies
+                                
+                                // Strategy 1: Poll for terminal object
+                                const pollInterval = setInterval(function() {
+                                    if (detectAndAdjustTerminal()) {
+                                        clearInterval(pollInterval);
+                                    }
+                                }, 20); // Check very frequently
+                                
+                                // Strategy 2: Use DOM events to detect terminal creation
+                                if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                                    // Document already loaded, check if terminal element exists
+                                    if (document.querySelector('.terminal') || document.querySelector('.xterm')) {
+                                        console.log("Terminal element found in DOM");
+                                        detectAndAdjustTerminal();
+                                    }
+                                }
+                                
+                                // Strategy 3: Listen for terminal-specific objects
+                                const termCheckInterval = setInterval(function() {
+                                    if (window.__terminalElementDetected) {
+                                        console.log("Terminal element detected, checking for terminal object");
+                                        if (detectAndAdjustTerminal()) {
+                                            clearInterval(termCheckInterval);
+                                        }
+                                    }
+                                }, 20);
+                                
+                                // Safety fallback - if sizing not complete after 3 seconds, mark it as complete anyway
+                                setTimeout(function() {
+                                    if (!sizingComplete) {
+                                        console.warn("Terminal sizing timed out, marking as complete");
+                                        markSizingComplete();
+                                    }
+                                }, 3000);
+                            }
+                            
+                            // Re-adjust on window resize
+                            window.addEventListener('resize', function() {
+                                // Only resize if we have previously detected the terminal
+                                if (window.term) {
+                                    setTimeout(adjustTerminalFontSize, 100);
+                                }
+                            });
+                        })();
+                    `;
+                    doc.head.appendChild(script);
+
+                    // Listen for message from iframe when sizing is complete
+                    window.addEventListener('message', function (event) {
+                        if (event.data && event.data.type === 'terminal-sizing-complete') {
+                            console.log("Received sizing complete message from iframe");
+                            terminalSizingComplete = true;
+                            revealTerminal();
+                        }
+                    });
+
                     return true;
-                } catch {
+                } catch (err) {
+                    console.error("Style injection error:", err);
                     return false;
                 }
             }
@@ -214,12 +437,26 @@
                         loading.style.display = 'none';
                     }
 
-                    // Terminal fade-in second
+                    // Terminal fade-in second, but only after sizing is complete or timeout
+                    const waitForSizing = setInterval(function () {
+                        if (terminalSizingComplete) {
+                            clearInterval(waitForSizing);
+                            terminal.classList.add('loaded');
+                            // Focus after everything is visible
+                            setTimeout(focusTerminal, 300);
+                        }
+                    }, 50);
+
+                    // Fallback timeout - don't wait forever
                     setTimeout(function () {
-                        terminal.classList.add('loaded');
-                        // Focus after everything is visible
-                        setTimeout(focusTerminal, 300);
-                    }, 300);
+                        if (!terminalSizingComplete) {
+                            console.warn("Terminal sizing timeout - showing terminal anyway");
+                            clearInterval(waitForSizing);
+                            terminalSizingComplete = true;
+                            terminal.classList.add('loaded');
+                            setTimeout(focusTerminal, 300);
+                        }
+                    }, 3000);
                 }, 200);
             };
 
