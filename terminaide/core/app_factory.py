@@ -1,3 +1,12 @@
+# terminaide/core/app_factory.py
+
+"""
+Factory functions and app builders for Terminaide serving modes.
+
+This module contains implementation classes that handle different serving modes
+(function, script, apps) and the factory functions used with Uvicorn's reload feature.
+"""
+
 import os
 import sys
 import signal
@@ -5,10 +14,9 @@ import inspect
 import logging
 import uvicorn
 import tempfile
-import json
 from pathlib import Path
 from fastapi import FastAPI
-from typing import Callable, Optional, Dict
+from typing import Callable, Optional
 from contextlib import asynccontextmanager
 
 from .app_config import (
@@ -21,10 +29,10 @@ from .app_config import (
 logger = logging.getLogger("terminaide")
 
 
-def inline_source_code_wrapper(func: Callable, bootstrap: str) -> Optional[str]:
+def inline_source_code_wrapper(func: Callable) -> Optional[str]:
     """
-    Inline fallback for functions defined in __main__ or __mp_main__.
-    Accepts the bootstrap string to prepend (e.g., sys.path injection).
+    Attempt to inline the source code of 'func' if it's in __main__ or __mp_main__.
+    Return the wrapper code as a string, or None if we can't get source code.
     """
     try:
         source_code = inspect.getsource(func)
@@ -32,20 +40,19 @@ def inline_source_code_wrapper(func: Callable, bootstrap: str) -> Optional[str]:
         return None
 
     func_name = func.__name__
-    return (
-        f"# Ephemeral inline function from main or mp_main\n"
-        f"{bootstrap}"
-        f"{source_code}\n"
-        f'if __name__ == "__main__":\n'
-        f"    {func_name}()"
-    )
+    return f"""# Ephemeral inline function from main or mp_main
+{source_code}
+if __name__ == "__main__":
+    {func_name}()"""
 
 
 def generate_function_wrapper(func: Callable) -> Path:
     """
-    Generate an ephemeral script for the given function.
-    Adds sys.path bootstrap for portability.
+    Generate an ephemeral script for the given function. If it's in a real module,
+    we do the normal import approach. If it's in __main__ or __mp_main__, inline fallback.
     """
+    import inspect
+
     func_name = func.__name__
     module_name = getattr(func, "__module__", None)
 
@@ -53,16 +60,21 @@ def generate_function_wrapper(func: Callable) -> Path:
     temp_dir.mkdir(exist_ok=True)
     script_path = temp_dir / f"{func_name}.py"
 
-    # ✅ Capture current sys.path for injection
-    current_sys_path = list(sys.path)
-    sys_path_injection = "\n".join(
-        f'sys.path.insert(0, r"{p}")'
-        for p in current_sys_path
-        if p and isinstance(p, str)
-    )
-    bootstrap = f"import sys\n{sys_path_injection}\n\n"
+    # Determine the original source directory of the function
+    try:
+        source_file = inspect.getsourcefile(func) or inspect.getfile(func)
+        source_dir = os.path.dirname(os.path.abspath(source_file))
+    except Exception:
+        source_dir = os.getcwd()  # fallback to current dir if all else fails
 
-    # Handle normal module import
+    # Inject original source dir and cwd into sys.path
+    bootstrap = (
+        "import sys, os\n"
+        f'sys.path.insert(0, r"{source_dir}")\n'
+        "sys.path.insert(0, os.getcwd())\n\n"
+    )
+
+    # If it's a normal module (not main or mp_main)
     if module_name and module_name not in ("__main__", "__mp_main__"):
         wrapper_code = (
             f"# Ephemeral script for function {func_name} from module {module_name}\n"
@@ -74,18 +86,25 @@ def generate_function_wrapper(func: Callable) -> Path:
         script_path.write_text(wrapper_code, encoding="utf-8")
         return script_path
 
-    # Inline fallback
-    inline_code = inline_source_code_wrapper(func, bootstrap)
-    if inline_code:
-        script_path.write_text(inline_code, encoding="utf-8")
+    # Inline fallback (if __main__ or dynamically defined)
+    try:
+        source_code = inspect.getsource(func)
+        wrapper_code = (
+            f"# Inline wrapper for {func_name} (from __main__ or dynamic)\n"
+            f"{bootstrap}"
+            f"{source_code}\n"
+            f'if __name__ == "__main__":\n'
+            f"    {func_name}()"
+        )
+        script_path.write_text(wrapper_code, encoding="utf-8")
         return script_path
-
-    # Fallback error
-    script_path.write_text(
-        f'print("ERROR: cannot reload function {func_name} from module={module_name}")\n',
-        encoding="utf-8",
-    )
-    return script_path
+    except Exception:
+        # Last resort: static error fallback
+        script_path.write_text(
+            f'print("ERROR: cannot reload function {func_name} from module={module_name}")\n',
+            encoding="utf-8",
+        )
+        return script_path
 
 
 class ServeWithConfig:
