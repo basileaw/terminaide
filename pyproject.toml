@@ -1,31 +1,28 @@
-# pyproject.toml
-
-[project]
-authors = [{name = "Alex Basile", email = "basileaw@gmail.com"}]
-dependencies = [
-  "fastapi>=0.104.0",
-  "jinja2>=3.1.2",
-  "httpx>=0.25.0",
-  "websockets>=12.0",
-  "pydantic>=2.4.2",
-  "readchar>=4.2.1",
-  "uvicorn>=0.24.0",
-  "rich>=14.0.0",
-  "bs4>=0.0.2",
-]
-description = "Serve Python CLI applications in the browser using ttyd"
-license = {text = "MIT"}
+[tool.poetry]
 name = "terminaide"
-readme = "README.md"
-requires-python = ">=3.12"
 version = "0.2.0"
-
-[project.optional-dependencies]
-dev = ["docker>=7.1.0"]
-
-[project.urls]
+description = "Serve Python CLI applications in the browser using ttyd"
+authors = ["Alex Basile <basileaw@gmail.com>"]
+license = "MIT"
+readme = "README.md"
 repository = "https://github.com/anotherbazeinthewall/terminaide"
+packages = [{ include = "terminaide" }]
+
+[tool.poetry.dependencies]
+python = ">=3.12"
+fastapi = ">=0.104.0"
+jinja2 = ">=3.1.2"
+httpx = ">=0.25.0"
+websockets = ">=12.0"
+pydantic = ">=2.4.2"
+readchar = ">=4.2.1"
+uvicorn = ">=0.24.0"
+rich = ">=14.0.0"
+bs4 = ">=0.0.2"
+
+[tool.poetry.group.dev.dependencies]
+docker = ">=7.1.0"
 
 [build-system]
-build-backend = "poetry.core.masonry.api"
 requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
