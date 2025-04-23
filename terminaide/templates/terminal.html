@@ -121,12 +121,12 @@
     <div class="terminal-container">
         <iframe id="terminal" src="{{ mount_path }}"></iframe>
     </div>
-
     <!-- Main script moved to end of body -->
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const terminal = document.getElementById('terminal');
             const loading = document.getElementById('loading');
+            const terminalContainer = document.querySelector('.terminal-container');
 
             // Get current protocol for websocket connections
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -134,6 +134,29 @@
 
             // Track if terminal sizing is complete
             let terminalSizingComplete = false;
+
+            // Detect various browsers and platforms
+            const userAgent = navigator.userAgent;
+            const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+            const isIOSChrome = isIOS && /CriOS/i.test(userAgent);
+            const isIOSSafari = isIOS && /Safari/i.test(userAgent) && !/Chrome/i.test(userAgent);
+            const isIOSFirefox = isIOS && /FxiOS/i.test(userAgent);
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+
+            console.log("Browser detection:", {
+                isIOS: isIOS,
+                isIOSChrome: isIOSChrome,
+                isIOSSafari: isIOSSafari,
+                isIOSFirefox: isIOSFirefox,
+                isMobile: isMobile
+            });
+
+            // Store original viewport dimensions
+            let originalViewportHeight = window.innerHeight;
+            let originalViewportWidth = window.innerWidth;
+
+            // Keep track of keyboard visibility
+            let isKeyboardVisible = false;
 
             function injectStyles() {
                 try {
@@ -150,9 +173,10 @@
                     `;
                     doc.head.appendChild(hideStyle);
 
-                    // Now add our regular styles
-                    const style = doc.createElement('style');
-                    style.textContent = `
+                    // Base styles for all browsers
+                    const baseStyle = doc.createElement('style');
+                    baseStyle.id = 'base-terminal-styles';
+                    baseStyle.textContent = `
                         .xterm-viewport {
                             overflow: hidden !important;
                         }
@@ -178,7 +202,90 @@
                             }
                         }
                     `;
-                    doc.head.appendChild(style);
+                    doc.head.appendChild(baseStyle);
+
+                    // Chrome on iOS specific fixes
+                    if (isIOSChrome) {
+                        console.log("Applying Chrome iOS specific fixes");
+                        const chromeFixStyle = doc.createElement('style');
+                        chromeFixStyle.id = 'chrome-ios-fixes';
+                        chromeFixStyle.textContent = `
+                            /* Reset container styling for Chrome iOS */
+                            html, body {
+                                width: 100% !important;
+                                height: 100% !important;
+                                margin: 0 !important;
+                                padding: 0 !important;
+                                overflow: hidden !important;
+                                position: fixed !important;
+                                top: 0 !important;
+                                left: 0 !important;
+                                right: 0 !important;
+                                bottom: 0 !important;
+                                background-color: var(--background, #000) !important;
+                                color: var(--text-color, #fff) !important;
+                            }
+                            
+                            /* Force consistent terminal styling */
+                            #terminal-container, .terminal-container {
+                                position: absolute !important;
+                                top: 0 !important;
+                                left: 0 !important;
+                                right: 0 !important;
+                                bottom: 0 !important;
+                                width: 100% !important;
+                                height: 100% !important;
+                                margin: 0 !important;
+                                padding: 0 !important;
+                                overflow: hidden !important;
+                            }
+                            
+                            /* Terminal element fixes */
+                            .terminal.xterm, 
+                            .xterm-viewport, 
+                            .xterm-screen, 
+                            .xterm-text-layer, 
+                            .xterm-rows {
+                                width: 100% !important;
+                                height: 100% !important;
+                                background-color: var(--background, #000) !important;
+                                color: var(--text-color, #fff) !important;
+                                font-family: monospace !important;
+                                font-size: 18px !important;
+                                line-height: 1.2 !important;
+                                overflow: hidden !important;
+                                -webkit-font-smoothing: antialiased !important;
+                            }
+                            
+                            /* Force hardware acceleration */
+                            .terminal.xterm {
+                                transform: translateZ(0) !important;
+                                -webkit-transform: translateZ(0) !important;
+                                backface-visibility: hidden !important;
+                                -webkit-backface-visibility: hidden !important;
+                                perspective: 1000 !important;
+                                -webkit-perspective: 1000 !important;
+                            }
+                            
+                            /* Ensure input handling works */
+                            .xterm-helper-textarea {
+                                position: absolute !important;
+                                opacity: 0 !important;
+                                left: 0 !important;
+                                top: 0 !important;
+                                width: 0 !important;
+                                height: 0 !important;
+                                z-index: -10 !important;
+                            }
+                            
+                            /* Prevent animations that might cause issues */
+                            .terminal *, .xterm * {
+                                transition: none !important;
+                                animation: none !important;
+                            }
+                        `;
+                        doc.head.appendChild(chromeFixStyle);
+                    }
 
                     // Add viewport meta tag to iframe if missing
                     if (!doc.querySelector('meta[name="viewport"]')) {
@@ -212,6 +319,14 @@
                                             if (node.classList && node.classList.contains('xterm')) {
                                                 console.log("Terminal element detected via MutationObserver");
                                                 window.__terminalElementDetected = true;
+                                                
+                                                // Force repaint for Chrome iOS
+                                                if (${isIOSChrome}) {
+                                                    console.log("Forcing Chrome iOS repaint");
+                                                    node.style.display = 'none';
+                                                    void node.offsetHeight; // Force reflow
+                                                    node.style.display = '';
+                                                }
                                             }
                                         }
                                     }
@@ -224,7 +339,7 @@
                     `;
                     doc.head.appendChild(earlyScript);
 
-                    // Inject our main terminal sizing script
+                    // Inject our main terminal sizing script with mobile keyboard handling
                     const script = doc.createElement('script');
                     script.textContent = `
                         // Main terminal sizing script
@@ -234,6 +349,25 @@
                             
                             // Track sizing status
                             let sizingComplete = false;
+                            
+                            // Browser detection (passed from parent)
+                            const isIOS = ${isIOS};
+                            const isIOSChrome = ${isIOSChrome};
+                            const isIOSSafari = ${isIOSSafari};
+                            const isIOSFirefox = ${isIOSFirefox};
+                            const isMobile = ${isMobile};
+                            
+                            // Variables to track keyboard state
+                            let isKeyboardVisible = false;
+                            let originalHeight = window.innerHeight;
+                            
+                            // Fix specific to Chrome on iOS
+                            if (isIOSChrome) {
+                                // Keep a connection between Chrome and the parent frame active
+                                setInterval(function() {
+                                    window.parent.postMessage({ type: 'chrome-ios-heartbeat' }, '*');
+                                }, 1000);
+                            }
                             
                             // Function to mark sizing as complete and signal the parent window
                             function markSizingComplete() {
@@ -250,12 +384,223 @@
                                 }
                             }
                             
+                            // Force repaint for Chrome iOS
+                            function forceRepaint() {
+                                if (!isIOSChrome) return;
+                                
+                                try {
+                                    const terminalElements = document.querySelectorAll('.terminal, .xterm, .xterm-viewport, .xterm-screen');
+                                    terminalElements.forEach(function(elem) {
+                                        // Store original visibility
+                                        const originalVisibility = elem.style.visibility;
+                                        // Hide
+                                        elem.style.visibility = 'hidden';
+                                        // Force reflow
+                                        void elem.offsetHeight;
+                                        // Restore
+                                        elem.style.visibility = originalVisibility;
+                                    });
+                                    console.log("Forced Chrome iOS repaint");
+                                } catch (e) {
+                                    console.warn("Repaint error:", e);
+                                }
+                            }
+                            
+                            // Function to adjust terminal for mobile keyboard
+                            function handleMobileKeyboard() {
+                                if (!isMobile) return; // Only proceed on mobile
+                                
+                                // Use visualViewport if available (modern browsers)
+                                if (window.visualViewport) {
+                                    // Store initial values if not already stored
+                                    if (!originalHeight) {
+                                        originalHeight = window.visualViewport.height;
+                                    }
+                                    
+                                    // Set up visualViewport event listener for resize events
+                                    window.visualViewport.addEventListener('resize', function() {
+                                        console.log("visualViewport resize event");
+                                        console.log("Current height: " + window.visualViewport.height + ", Original: " + originalHeight);
+                                        
+                                        // Detect keyboard visibility based on height change threshold (>25% reduction)
+                                        const heightReduction = (originalHeight - window.visualViewport.height) / originalHeight;
+                                        const newKeyboardVisible = heightReduction > 0.25;
+                                        
+                                        // Only take action if keyboard state has changed
+                                        if (newKeyboardVisible !== isKeyboardVisible) {
+                                            isKeyboardVisible = newKeyboardVisible;
+                                            console.log("Keyboard visibility changed to: " + isKeyboardVisible);
+                                            
+                                            // When the keyboard appears
+                                            if (isKeyboardVisible) {
+                                                // Apply fixed sizing to prevent layout shifts
+                                                document.body.style.height = originalHeight + 'px';
+                                                
+                                                // Fix terminal sizing
+                                                if (window.term) {
+                                                    // Save current cols and rows
+                                                    const currentCols = window.term.cols;
+                                                    const currentRows = window.term.rows;
+                                                    
+                                                    // Prevent automatic resizing
+                                                    if (window.term._core && window.term._core.viewport) {
+                                                        window.term._savedViewportElement = window.term._core.viewport.element;
+                                                        window.term._savedViewportScrollArea = window.term._core.viewport.scrollArea;
+                                                    }
+                                                    
+                                                    console.log("Fixed terminal size during keyboard visibility");
+                                                    
+                                                    // Chrome iOS needs special handling
+                                                    if (isIOSChrome) {
+                                                        forceRepaint();
+                                                    }
+                                                    
+                                                    // Send message to the parent about keyboard visibility
+                                                    window.parent.postMessage({ 
+                                                        type: 'keyboard-visible', 
+                                                        visible: true,
+                                                        viewport: {
+                                                            width: window.visualViewport.width,
+                                                            height: window.visualViewport.height,
+                                                            scale: window.visualViewport.scale
+                                                        }
+                                                    }, '*');
+                                                }
+                                            } 
+                                            // When the keyboard disappears
+                                            else {
+                                                // Restore flexible layout
+                                                document.body.style.height = '';
+                                                
+                                                // Restore terminal sizing
+                                                if (window.term) {
+                                                    // Allow automatic resizing again
+                                                    if (window.term._core && window.term._savedViewportElement) {
+                                                        window.term._core.viewport.element = window.term._savedViewportElement;
+                                                        window.term._core.viewport.scrollArea = window.term._savedViewportScrollArea;
+                                                        delete window.term._savedViewportElement;
+                                                        delete window.term._savedViewportScrollArea;
+                                                    }
+                                                    
+                                                    // Trigger a resize
+                                                    setTimeout(function() {
+                                                        if (typeof window.term.fit === 'function') {
+                                                            window.term.fit();
+                                                        }
+                                                    }, 50);
+                                                    
+                                                    console.log("Restored terminal sizing after keyboard hidden");
+                                                    
+                                                    // Chrome iOS needs special handling
+                                                    if (isIOSChrome) {
+                                                        forceRepaint();
+                                                    }
+                                                    
+                                                    // Send message to the parent
+                                                    window.parent.postMessage({ 
+                                                        type: 'keyboard-visible', 
+                                                        visible: false 
+                                                    }, '*');
+                                                }
+                                            }
+                                        }
+                                    });
+                                    
+                                    console.log("Set up visualViewport resize listener for keyboard detection");
+                                }
+                                
+                                // For browsers without visualViewport (fallback)
+                                else {
+                                    window.addEventListener('resize', function() {
+                                        const newHeight = window.innerHeight;
+                                        
+                                        // Only proceed if we have stored the original height
+                                        if (originalHeight) {
+                                            // Detect keyboard visibility based on height change
+                                            const heightReduction = (originalHeight - newHeight) / originalHeight;
+                                            const newKeyboardVisible = heightReduction > 0.25;
+                                            
+                                            // Only take action if keyboard state has changed
+                                            if (newKeyboardVisible !== isKeyboardVisible) {
+                                                isKeyboardVisible = newKeyboardVisible;
+                                                console.log("Keyboard visibility changed to: " + isKeyboardVisible);
+                                                
+                                                // Apply similar handling as above
+                                                // When the keyboard appears
+                                                if (isKeyboardVisible) {
+                                                    // Apply fixed sizing to prevent layout shifts
+                                                    document.body.style.height = originalHeight + 'px';
+                                                    
+                                                    // Fix terminal sizing
+                                                    if (window.term) {
+                                                        // Prevent automatic resizing by saving current state
+                                                        if (window.term._core && window.term._core.viewport) {
+                                                            window.term._savedViewportElement = window.term._core.viewport.element;
+                                                            window.term._savedViewportScrollArea = window.term._core.viewport.scrollArea;
+                                                        }
+                                                        
+                                                        console.log("Fixed terminal size during keyboard visibility (fallback)");
+                                                        
+                                                        // Chrome iOS needs special handling
+                                                        if (isIOSChrome) {
+                                                            forceRepaint();
+                                                        }
+                                                    }
+                                                } 
+                                                // When the keyboard disappears
+                                                else {
+                                                    // Restore flexible layout
+                                                    document.body.style.height = '';
+                                                    
+                                                    // Restore terminal sizing
+                                                    if (window.term) {
+                                                        // Allow automatic resizing again
+                                                        if (window.term._core && window.term._savedViewportElement) {
+                                                            window.term._core.viewport.element = window.term._savedViewportElement;
+                                                            window.term._core.viewport.scrollArea = window.term._savedViewportScrollArea;
+                                                            delete window.term._savedViewportElement;
+                                                            delete window.term._savedViewportScrollArea;
+                                                        }
+                                                        
+                                                        // Trigger a resize
+                                                        setTimeout(function() {
+                                                            if (typeof window.term.fit === 'function') {
+                                                                window.term.fit();
+                                                            }
+                                                        }, 50);
+                                                        
+                                                        console.log("Restored terminal sizing after keyboard hidden (fallback)");
+                                                        
+                                                        // Chrome iOS needs special handling
+                                                        if (isIOSChrome) {
+                                                            forceRepaint();
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            // Store original height if not already done
+                                            originalHeight = newHeight;
+                                        }
+                                    });
+                                    
+                                    console.log("Set up window resize listener as fallback for keyboard detection");
+                                }
+                            }
+                            
+                            // Set up mobile keyboard detection
+                            if (isMobile) {
+                                setTimeout(function() {
+                                    handleMobileKeyboard();
+                                }, 100);
+                            }
+                            
                             // Function to adjust font size based on device
                             function adjustTerminalFontSize() {
                                 // Check if on desktop
                                 const isDesktop = window.innerWidth >= 769;
                                 
-                                // Skip sizing for mobile
+                                // Skip font sizing for mobile
                                 if (!isDesktop) {
                                     markSizingComplete();
                                     return;
@@ -334,6 +679,39 @@
                                 return false;
                             }
                             
+                            // Chrome iOS needs additional help
+                            if (isIOSChrome) {
+                                // Inject additional helper functions
+                                window.__fixChromeTerminal = function() {
+                                    // Find all terminal elements
+                                    const termElements = document.querySelectorAll('.terminal, .xterm');
+                                    if (termElements.length > 0) {
+                                        console.log("Found terminal elements to fix:", termElements.length);
+                                        
+                                        termElements.forEach(function(elem) {
+                                            // Apply inline styles
+                                            elem.style.position = 'absolute';
+                                            elem.style.width = '100%';
+                                            elem.style.height = '100%';
+                                            elem.style.backgroundColor = 'var(--background, #000)';
+                                            elem.style.color = 'var(--text-color, #fff)';
+                                            
+                                            // Force repaint
+                                            elem.style.display = 'none';
+                                            void elem.offsetHeight;
+                                            elem.style.display = '';
+                                        });
+                                        
+                                        console.log("Applied Chrome iOS element fixes");
+                                    }
+                                };
+                                
+                                // Call this function on load and periodically
+                                setTimeout(window.__fixChromeTerminal, 500);
+                                setTimeout(window.__fixChromeTerminal, 1000);
+                                setTimeout(window.__fixChromeTerminal, 2000);
+                            }
+                            
                             // Start immediate detection
                             if (!detectAndAdjustTerminal()) {
                                 // If not found, set up detection with different strategies
@@ -373,31 +751,142 @@
                                 }, 3000);
                             }
                             
-                            // Re-adjust on window resize
+                            // Re-adjust on window resize - modified to avoid unnecessary resizing on mobile keyboard
                             window.addEventListener('resize', function() {
                                 // Only resize if we have previously detected the terminal
-                                if (window.term) {
+                                // and we're not on mobile with keyboard visible
+                                if (window.term && (!isMobile || !isKeyboardVisible)) {
                                     setTimeout(adjustTerminalFontSize, 100);
+                                }
+                                
+                                // Chrome iOS special handling on resize
+                                if (isIOSChrome && window.__fixChromeTerminal) {
+                                    setTimeout(window.__fixChromeTerminal, 100);
                                 }
                             });
                         })();
                     `;
                     doc.head.appendChild(script);
 
-                    // Listen for message from iframe when sizing is complete
+                    // Listen for messages from iframe
                     window.addEventListener('message', function (event) {
                         if (event.data && event.data.type === 'terminal-sizing-complete') {
                             console.log("Received sizing complete message from iframe");
                             terminalSizingComplete = true;
                             revealTerminal();
                         }
-                    });
+                        // Handle keyboard visibility messages from iframe
+                        if (event.data && event.data.type === 'keyboard-visible') {
+                            console.log("Received keyboard visibility message:", event.data.visible);
 
+                            // Update our tracking variable
+                            isKeyboardVisible = event.data.visible;
+
+                            // Apply handling to parent window if needed
+                            if (event.data.visible) {
+                                // Apply any parent window adjustments needed when keyboard is visible
+                                // Fix the terminal container height
+                                if (terminalContainer) {
+                                    terminalContainer.style.height = originalViewportHeight + 'px';
+                                    terminalContainer.style.maxHeight = originalViewportHeight + 'px';
+                                }
+                            } else {
+                                // Restore when keyboard is hidden
+                                if (terminalContainer) {
+                                    terminalContainer.style.height = '';
+                                    terminalContainer.style.maxHeight = '';
+                                }
+                            }
+                        }
+                        // Chrome iOS heartbeat
+                        if (event.data && event.data.type === 'chrome-ios-heartbeat') {
+                            // Keep connection active
+                        }
+                    });
                     return true;
                 } catch (err) {
                     console.error("Style injection error:", err);
                     return false;
                 }
+            }
+
+            // Store initial viewport dimensions
+            originalViewportHeight = window.innerHeight;
+            originalViewportWidth = window.innerWidth;
+
+            // Special handling for Chrome on iOS
+            if (isIOSChrome) {
+                console.log("Setting up additional Chrome iOS handlers in parent window");
+
+                // Force repaint of the iframe periodically
+                const chromeIOSRefreshInterval = setInterval(function () {
+                    if (terminal && terminal.contentWindow) {
+                        try {
+                            terminal.style.display = 'none';
+                            void terminal.offsetHeight; // Force reflow
+                            terminal.style.display = '';
+
+                            // Try to message the iframe
+                            terminal.contentWindow.postMessage({ type: 'force-repaint' }, '*');
+                        } catch (err) {
+                            console.warn("Chrome iOS refresh error:", err);
+                        }
+                    }
+                }, 3000);
+
+                // Add explicit style to fix Chrome iOS container
+                const chromeIOSStyle = document.createElement('style');
+                chromeIOSStyle.textContent = `
+                    /* Chrome iOS fixes for parent container */
+                    @media screen and (-webkit-min-device-pixel-ratio: 0) {
+                        .terminal-container {
+                            -webkit-transform: translateZ(0);
+                            transform: translateZ(0);
+                            backface-visibility: hidden;
+                            -webkit-backface-visibility: hidden;
+                            perspective: 1000;
+                            -webkit-perspective: 1000;
+                            overflow: hidden !important;
+                        }
+                        #terminal {
+                            -webkit-transform: translateZ(0);
+                            transform: translateZ(0);
+                            backface-visibility: hidden;
+                            -webkit-backface-visibility: hidden;
+                            overflow: hidden !important;
+                        }
+                    }
+                `;
+                document.head.appendChild(chromeIOSStyle);
+            }
+
+            // Handle keyboard visibility in parent window for mobile
+            if (isMobile && window.visualViewport) {
+                console.log("Setting up parent window visualViewport handling");
+
+                window.visualViewport.addEventListener('resize', function () {
+                    console.log("Parent visualViewport resize:",
+                        "height:", window.visualViewport.height,
+                        "original:", originalViewportHeight);
+
+                    // Check if this is likely a keyboard appearance
+                    const heightReduction = (originalViewportHeight - window.visualViewport.height) / originalViewportHeight;
+                    const keyboardVisible = heightReduction > 0.25;
+
+                    if (keyboardVisible) {
+                        // Fix terminal container height to prevent resizing
+                        if (terminalContainer) {
+                            terminalContainer.style.height = originalViewportHeight + 'px';
+                            terminalContainer.style.maxHeight = originalViewportHeight + 'px';
+                        }
+                    } else {
+                        // Restore flexible sizing
+                        if (terminalContainer) {
+                            terminalContainer.style.height = '';
+                            terminalContainer.style.maxHeight = '';
+                        }
+                    }
+                });
             }
 
             function focusTerminal() {
@@ -426,17 +915,44 @@
                 }
             });
 
+            // Mobile-specific touch handler to help with keyboard focus issues
+            if (isMobile) {
+                terminal.addEventListener('touchend', function (e) {
+                    // Small delay to ensure the touch registers properly
+                    setTimeout(focusTerminal, 50);
+                });
+            }
+
+            // Chrome iOS specific handlers
+            if (isIOSChrome) {
+                // Add additional event listener to force refocus
+                document.addEventListener('touchend', function (e) {
+                    if (e.target.closest('#terminal')) {
+                        setTimeout(function () {
+                            try {
+                                // Try to focus with a user-initiated event
+                                focusTerminal();
+                                // Also try to signal the iframe
+                                if (terminal && terminal.contentWindow) {
+                                    terminal.contentWindow.postMessage({ type: 'force-focus' }, '*');
+                                }
+                            } catch (err) {
+                                console.warn("Chrome iOS focus error:", err);
+                            }
+                        }, 100);
+                    }
+                });
+            }
+
             terminal.onload = function () {
                 // Inject styles
                 injectStyles();
-
                 // Body fade-in first
                 setTimeout(function () {
                     document.body.classList.add('visible');
                     if (loading) {
                         loading.style.display = 'none';
                     }
-
                     // Terminal fade-in second, but only after sizing is complete or timeout
                     const waitForSizing = setInterval(function () {
                         if (terminalSizingComplete) {
@@ -444,9 +960,13 @@
                             terminal.classList.add('loaded');
                             // Focus after everything is visible
                             setTimeout(focusTerminal, 300);
+
+                            // For Chrome iOS, try an additional focus attempt
+                            if (isIOSChrome) {
+                                setTimeout(focusTerminal, 800);
+                            }
                         }
                     }, 50);
-
                     // Fallback timeout - don't wait forever
                     setTimeout(function () {
                         if (!terminalSizingComplete) {
@@ -459,7 +979,6 @@
                     }, 3000);
                 }, 200);
             };
-
             terminal.onerror = function () {
                 const error = document.createElement('div');
                 error.className = 'error';
