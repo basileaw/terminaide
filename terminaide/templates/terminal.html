@@ -820,13 +820,10 @@
 
                 // Force repaint of the iframe periodically
                 const chromeIOSRefreshInterval = setInterval(function () {
-                    if (terminal && terminal.contentWindow) {
+                    if (terminal && terminal.contentWindow && !terminal.classList.contains('animation-complete')) {
                         try {
-                            terminal.style.display = 'none';
-                            void terminal.offsetHeight; // Force reflow
-                            terminal.style.display = '';
-
-                            // Try to message the iframe
+                            // Don't change display property which affects animations
+                            // Just message the iframe
                             terminal.contentWindow.postMessage({ type: 'force-repaint' }, '*');
                         } catch (err) {
                             console.warn("Chrome iOS refresh error:", err);
@@ -947,36 +944,49 @@
             terminal.onload = function () {
                 // Inject styles
                 injectStyles();
+
+                // Flag to ensure animations only run once
+                let animationComplete = false;
+
                 // Body fade-in first
                 setTimeout(function () {
-                    document.body.classList.add('visible');
-                    if (loading) {
-                        loading.style.display = 'none';
-                    }
-                    // Terminal fade-in second, but only after sizing is complete or timeout
-                    const waitForSizing = setInterval(function () {
-                        if (terminalSizingComplete) {
-                            clearInterval(waitForSizing);
-                            terminal.classList.add('loaded');
-                            // Focus after everything is visible
-                            setTimeout(focusTerminal, 300);
+                    if (!animationComplete) {
+                        document.body.classList.add('visible');
+                        if (loading) {
+                            loading.style.display = 'none';
+                        }
 
-                            // For Chrome iOS, try an additional focus attempt
-                            if (isIOSChrome) {
-                                setTimeout(focusTerminal, 800);
+                        // Terminal fade-in second, but only after sizing is complete or timeout
+                        const waitForSizing = setInterval(function () {
+                            if (terminalSizingComplete && !animationComplete) {
+                                clearInterval(waitForSizing);
+                                terminal.classList.add('loaded');
+                                terminal.classList.add('animation-complete'); // Add marker class
+                                animationComplete = true; // Set flag
+
+                                // Focus after everything is visible
+                                setTimeout(focusTerminal, 300);
+
+                                // For Chrome iOS, try an additional focus attempt
+                                if (isIOSChrome) {
+                                    setTimeout(focusTerminal, 800);
+                                }
                             }
-                        }
-                    }, 50);
-                    // Fallback timeout - don't wait forever
-                    setTimeout(function () {
-                        if (!terminalSizingComplete) {
-                            console.warn("Terminal sizing timeout - showing terminal anyway");
-                            clearInterval(waitForSizing);
-                            terminalSizingComplete = true;
-                            terminal.classList.add('loaded');
-                            setTimeout(focusTerminal, 300);
-                        }
-                    }, 3000);
+                        }, 50);
+
+                        // Fallback timeout - don't wait forever
+                        setTimeout(function () {
+                            if (!terminalSizingComplete && !animationComplete) {
+                                console.warn("Terminal sizing timeout - showing terminal anyway");
+                                clearInterval(waitForSizing);
+                                terminalSizingComplete = true;
+                                terminal.classList.add('loaded');
+                                terminal.classList.add('animation-complete'); // Add marker class
+                                animationComplete = true; // Set flag
+                                setTimeout(focusTerminal, 300);
+                            }
+                        }, 3000);
+                    }
                 }, 200);
             };
             terminal.onerror = function () {
