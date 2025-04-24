@@ -208,29 +208,37 @@ def create_app():
 
 def generate_requirements_txt(pyproject_path, temp_dir):
     try:
+        import re
+
         logger.info("Generating requirements.txt (excluding dev)")
         req_path = Path(temp_dir) / "requirements.txt"
 
-        # Read pyproject.toml as text
-        with open(pyproject_path) as f:
-            lines = f.readlines()
+        # Read pyproject.toml
+        with open(pyproject_path, "r") as f:
+            content = f.read()
 
-        # Find dependencies section and collect dependencies
+        # Find the main dependencies section
+        deps_section = re.search(
+            r"\[tool\.poetry\.dependencies\](.*?)(?=\[tool\.poetry|$)",
+            content,
+            re.DOTALL,
+        )
+
+        if not deps_section:
+            raise ValueError("No dependencies section found in pyproject.toml")
+
         deps = []
-        in_deps = False
-        for line in lines:
-            if "dependencies = [" in line:
-                in_deps = True
+        # Extract package names using regex, one per line
+        for line in deps_section.group(1).strip().split("\n"):
+            # Skip empty lines and the python requirement
+            if not line.strip() or line.strip().startswith("python"):
                 continue
-            elif in_deps and "]" in line:
-                break
-            elif in_deps and ("'" in line or '"' in line):
-                # Extract package name without version
-                dep = line.strip().strip("\",'")
-                if ">=" in dep:
-                    dep = dep.split(">=")[0].strip()
-                if dep:
-                    deps.append(dep)
+
+            # Extract package name (part before =, ^ or spaces)
+            match = re.match(r"([a-zA-Z0-9_-]+)\s*=", line.strip())
+            if match:
+                package = match.group(1).strip()
+                deps.append(package)
 
         if not deps:
             raise ValueError("No dependencies found in pyproject.toml")
@@ -242,7 +250,6 @@ def generate_requirements_txt(pyproject_path, temp_dir):
 
         logger.info(f"Requirements file at {req_path}")
         return req_path
-
     except Exception as e:
         logger.error(f"Failed to generate requirements: {e}")
         sys.exit(1)
