@@ -1,4 +1,4 @@
-# core/config.py
+# app_config.py
 
 """ Core configuration module for Terminaide.
 
@@ -251,7 +251,14 @@ def configure_app(app: FastAPI, config: TTYDConfig):
     static_dir = package_dir / "static"
     static_dir.mkdir(exist_ok=True)
 
-    app.mount(config.static_path, StaticFiles(directory=str(static_dir)), name="static")
+    terminaide_static_path = "/terminaide-static"        # one-place constant
+    app.mount(
+        terminaide_static_path,
+        StaticFiles(directory=str(static_dir)),
+        name="terminaide_static"                         # unique route-name
+    )
+
+    # config.static_path = terminaide_static_path
 
     templates, template_file = setup_templates(config)
     app.state.terminaide_templates = templates
