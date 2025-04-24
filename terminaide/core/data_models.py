@@ -111,10 +111,12 @@ class ScriptConfig(BaseModel):
         Ensure the preview image file exists if provided, trying:
         1. The path as provided (relative to CWD or absolute)
         2. The path relative to the main script being executed
+        3. Look in common static dirs relative to main script (static, assets, images)
+        4. Look relative to project root directories
         """
         if v is None:
             return None
-            
+                
         original_path = Path(v)
 
         # Strategy 1: Use the path as-is (absolute or relative to CWD)
@@ -129,6 +131,27 @@ class ScriptConfig(BaseModel):
             if image_relative_path.exists():
                 logger.debug(f"Found preview image at {image_relative_path} (relative to main script)")
                 return image_relative_path.absolute()
+                
+            # Strategy 3: Try common static directories relative to the main script
+            for common_dir in ["static", "assets", "images", "img"]:
+                common_path = main_script_dir / common_dir / original_path.name
+                if common_path.exists():
+                    logger.debug(f"Found preview image at {common_path} (in common directory)")
+                    return common_path.absolute()
+            
+            # Strategy 4: Try going up directories to find project root with static dirs
+            current_dir = main_script_dir
+            for _ in range(3):  # Limit depth to prevent excessive searching
+                parent_dir = current_dir.parent
+                if parent_dir == current_dir:  # Reached filesystem root
+                    break
+                    
+                current_dir = parent_dir
+                for common_dir in ["static", "assets", "images", "img"]:
+                    common_path = current_dir / common_dir / original_path.name
+                    if common_path.exists():
+                        logger.debug(f"Found preview image at {common_path} (in project structure)")
+                        return common_path.absolute()
         except Exception as e:
             logger.debug(f"Error resolving preview image path relative to main script: {e}")
         

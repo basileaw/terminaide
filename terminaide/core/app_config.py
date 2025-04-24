@@ -185,12 +185,11 @@ def configure_routes(
         preview_image = "preview.png"  # Default fallback
         
         # Try script config preview first
-        if script_config.preview_image:
+        if script_config.preview_image and script_config.preview_image.exists():
             logger.debug(f"Using script config preview image: {script_config.preview_image}")
-            if script_config.preview_image.exists():
-                preview_image = copy_preview_image_to_static(script_config.preview_image)
-            else:
-                logger.warning(f"Script preview image doesn't exist: {script_config.preview_image}")
+            preview_image = copy_preview_image_to_static(script_config.preview_image)
+        elif script_config.preview_image:
+            logger.warning(f"Script preview image doesn't exist: {script_config.preview_image}")
         
         # If no script preview or it failed, try global config
         elif config.preview_image:
