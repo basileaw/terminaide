@@ -204,7 +204,7 @@
                     `;
                     doc.head.appendChild(baseStyle);
 
-                    // Chrome on iOS specific fixes
+                    // Chrome on iOS specific fixes - UPDATED FOR TEXT CLIPPING
                     if (isIOSChrome) {
                         console.log("Applying Chrome iOS specific fixes");
                         const chromeFixStyle = doc.createElement('style');
@@ -250,11 +250,21 @@
                                 height: 100% !important;
                                 background-color: var(--background, #000) !important;
                                 color: var(--text-color, #fff) !important;
-                                font-family: 'SF Mono', 'Menlo', 'Courier New', monospace !important;
+                                font-family: monospace !important; /* Use generic monospace */
                                 font-size: 16px !important;
-                                line-height: 1.15 !important;
+                                line-height: 1.0 !important;
                                 overflow: hidden !important;
                                 -webkit-font-smoothing: antialiased !important;
+                            }
+                            
+                            /* NEW: Fix for row spacing */
+                            .xterm-rows > div {
+                                height: 1em !important;
+                                line-height: 1.0 !important;
+                                margin: 0 !important;
+                                padding: 0 !important;
+                                border: none !important;
+                                overflow: visible !important;
                             }
                             
                             /* Force hardware acceleration */
@@ -278,6 +288,41 @@
                                 z-index: -10 !important;
                             }
                             
+                            /* Critical fix for character width measurement - MOST IMPORTANT PART */
+                            .xterm-char-measure-element {
+                                font-family: monospace !important;
+                                font-size: 16px !important;
+                                font-weight: normal !important;
+                                font-style: normal !important;
+                                font-variant: normal !important;
+                                font-feature-settings: normal !important;
+                                line-height: normal !important;
+                                letter-spacing: 0 !important; /* UPDATED: Standardized letter spacing */
+                                text-transform: none !important;
+                                text-decoration: none !important;
+                                text-indent: 0 !important;
+                                text-align: left !important;
+                                text-rendering: auto !important;
+                                width: auto !important;
+                                word-spacing: normal !important;
+                                white-space: pre !important;
+                                display: inline !important;
+                                visibility: hidden !important;
+                                position: absolute !important;
+                                left: -1000px !important;
+                            }
+                            
+                            /* Fixed spacing for each character - NEW COLUMN CALCULATION FIX */
+                            .xterm-rows span {
+                                display: inline-block !important;
+                                transform-origin: center !important;
+                                min-width: 0.56em !important; /* UPDATED: Adjusted for proper width calculation */
+                                padding: 0 !important;
+                                margin: 0 !important;
+                                box-sizing: border-box !important;
+                                vertical-align: top !important; /* NEW: Align at top to prevent vertical spacing */
+                            }
+                            
                             /* Prevent animations that might cause issues */
                             .terminal *, .xterm * {
                                 transition: none !important;
@@ -285,6 +330,108 @@
                             }
                         `;
                         doc.head.appendChild(chromeFixStyle);
+
+                        // Add a second style element specifically for spacing fixes - UPDATED FOR COLUMN WIDTH
+                        const spacingFixStyle = doc.createElement('style');
+                        spacingFixStyle.id = 'ios-chrome-spacing-fix';
+                        spacingFixStyle.textContent = `
+                            /* iOS Chrome Spacing Fix - applied separately for priority */
+                            @supports (-webkit-touch-callout: none) {
+                                /* iOS-only CSS */
+                                .xterm-char-measure-element,
+                                .xterm-rows span {
+                                    font-family: monospace !important;
+                                    letter-spacing: 0 !important; /* UPDATED: Standardized letter spacing */
+                                    word-spacing: 0 !important;
+                                }
+                            }
+                        `;
+                        doc.head.appendChild(spacingFixStyle);
+
+                        // NEW: iOS Chrome Typography Fix - UPDATED
+                        console.log("Applying iOS Chrome typography fixes");
+                        const typographyFixStyle = doc.createElement('style');
+                        typographyFixStyle.id = 'ios-chrome-typography-fix';
+                        typographyFixStyle.textContent = `
+                            /* iOS Chrome Terminal Typography Fix */
+                            .xterm-rows span, 
+                            .xterm-text-layer span,
+                            .xterm-char-measure-element {
+                                font-family: 'Menlo', 'Courier New', monospace !important;
+                                font-size: 14px !important; /* Smaller font to match Safari/Firefox */
+                                line-height: 1.0 !important; /* Reduced line height for less vertical spacing */
+                                letter-spacing: 0 !important; /* Standardized letter spacing */
+                                font-feature-settings: "tnum" !important;
+                                font-variant-numeric: tabular-nums !important;
+                                -webkit-font-smoothing: antialiased !important;
+                            }
+                            
+                            /* NEW: Additional row-level fixes for spacing */
+                            .xterm-rows > div {
+                                height: 14px !important; /* Match exact font size */
+                                padding: 0 !important;
+                                margin: 0 !important;
+                                overflow: visible !important;
+                                font-size: 0 !important; /* Fix for space between inline-block elements */
+                            }
+                            
+                            /* Fix for character measurement which affects spacing */
+                            .xterm-char-measure-element {
+                                visibility: hidden !important;
+                                position: absolute !important;
+                                top: 0 !important;
+                                left: -9999em !important;
+                                line-height: normal !important;
+                                font-weight: normal !important;
+                            }
+                        `;
+                        doc.head.appendChild(typographyFixStyle);
+
+                        // NEW: Add specific column calculation fix for iOS Chrome
+                        const columnFixStyle = doc.createElement('style');
+                        columnFixStyle.id = 'ios-chrome-column-fix';
+                        columnFixStyle.textContent = `
+                            /* iOS Chrome Column Calculation Fix */
+                            .xterm-viewport {
+                                overflow-x: hidden !important;
+                                overflow-y: auto !important;
+                                width: 100% !important;
+                            }
+                            
+                            /* Force precise character measurement */
+                            .xterm-screen {
+                                width: 100% !important;
+                                max-width: 100% !important;
+                            }
+                            
+                            /* NEW: Fix line spacing */
+                            .xterm-rows {
+                                line-height: 1.0 !important;
+                                letter-spacing: 0 !important;
+                            }
+                            
+                            /* NEW: Address specific row spacing issues */
+                            .xterm-rows > div {
+                                display: block !important;
+                                height: 14px !important;
+                                min-height: 0 !important;
+                                max-height: 14px !important;
+                                line-height: 1.0 !important;
+                                padding-top: 0 !important;
+                                padding-bottom: 0 !important;
+                                margin-top: 0 !important;
+                                margin-bottom: 0 !important;
+                                border-spacing: 0 !important;
+                                font-size: 0 !important; /* Fix for whitespace in inline blocks */
+                            }
+                            
+                            .xterm-rows > div > span {
+                                font-size: 14px !important;
+                                line-height: 1.0 !important;
+                                vertical-align: top !important;
+                            }
+                        `;
+                        doc.head.appendChild(columnFixStyle);
                     }
 
                     // Add viewport meta tag to iframe if missing
@@ -614,10 +761,28 @@
                                         // Try to set font size, multiple approaches
                                         if (typeof window.term.setOption === 'function') {
                                             window.term.setOption('fontSize', DESKTOP_FONT_SIZE);
+                                            
+                                            // NEW: Set additional options for iOS Chrome
+                                            if (isIOSChrome) {
+                                                window.term.setOption('fontFamily', "'Menlo', 'Courier New', monospace");
+                                                window.term.setOption('lineHeight', 1.0); // UPDATED: Reduced line height
+                                                window.term.setOption('letterSpacing', 0);
+                                                window.term.setOption('fontSize', 14); // Smaller font size to match Safari/Firefox
+                                            }
+                                            
                                             console.log("Set terminal font size via term.setOption");
                                         } 
                                         else if (window.term.options && typeof window.term.options === 'object') {
                                             window.term.options.fontSize = DESKTOP_FONT_SIZE;
+                                            
+                                            // NEW: Set additional options for iOS Chrome
+                                            if (isIOSChrome) {
+                                                window.term.options.fontFamily = "'Menlo', 'Courier New', monospace";
+                                                window.term.options.lineHeight = 1.0; // UPDATED: Reduced line height
+                                                window.term.options.letterSpacing = 0;
+                                                window.term.options.fontSize = 14; // Smaller font size to match Safari/Firefox
+                                            }
+                                            
                                             console.log("Set terminal font size via term.options");
                                         }
                                         
@@ -681,6 +846,37 @@
                             
                             // Chrome iOS needs additional help
                             if (isIOSChrome) {
+                                // NEW: Fix column calculation in Chrome iOS - This is the key change
+                                window.__fixChromeTerminalColumns = function() {
+                                    if (!window.term || !window.term._core) return;
+                                    
+                                    try {
+                                        // Calculate a slightly reduced column count to prevent text overflow
+                                        const originalCalcCols = window.term._core._renderService.dimensions.actualCellWidth;
+                                        
+                                        // Apply a manual adjustment to prevent clipping
+                                        const containerWidth = window.term._core.viewport.element.clientWidth;
+                                        const adjustedCellWidth = originalCalcCols * 1.08; // Add 8% width to each cell
+                                        const adjustedColumns = Math.floor(containerWidth / adjustedCellWidth);
+                                        
+                                        console.log("iOS Chrome column adjustment:", {
+                                            originalCalcCols: originalCalcCols,
+                                            containerWidth: containerWidth,
+                                            adjustedCellWidth: adjustedCellWidth,
+                                            currentColumns: window.term.cols,
+                                            adjustedColumns: adjustedColumns
+                                        });
+                                        
+                                        // Only apply if the adjustment is meaningful
+                                        if (adjustedColumns > 0 && adjustedColumns < window.term.cols) {
+                                            window.term.resize(adjustedColumns, window.term.rows);
+                                            console.log("Applied Chrome iOS column fix: " + adjustedColumns + " columns");
+                                        }
+                                    } catch (e) {
+                                        console.warn("Error fixing Chrome iOS columns:", e);
+                                    }
+                                };
+                                
                                 // Inject additional helper functions
                                 window.__fixChromeTerminal = function() {
                                     // Find all terminal elements
@@ -703,6 +899,9 @@
                                         });
                                         
                                         console.log("Applied Chrome iOS element fixes");
+                                        
+                                        // Fix column calculation after a short delay
+                                        setTimeout(window.__fixChromeTerminalColumns, 200);
                                     }
                                 };
                                 
@@ -710,6 +909,19 @@
                                 setTimeout(window.__fixChromeTerminal, 500);
                                 setTimeout(window.__fixChromeTerminal, 1000);
                                 setTimeout(window.__fixChromeTerminal, 2000);
+                                
+                                // Monitor for terminal resizing events in Chrome iOS
+                                const originalResizeMethod = window.resize;
+                                window.resize = function() {
+                                    const result = originalResizeMethod ? originalResizeMethod.apply(this, arguments) : null;
+                                    
+                                    // Apply column fix after resize
+                                    if (window.__fixChromeTerminalColumns) {
+                                        setTimeout(window.__fixChromeTerminalColumns, 200);
+                                    }
+                                    
+                                    return result;
+                                };
                             }
                             
                             // Start immediate detection
@@ -757,6 +969,11 @@
                                 // and we're not on mobile with keyboard visible
                                 if (window.term && (!isMobile || !isKeyboardVisible)) {
                                     setTimeout(adjustTerminalFontSize, 100);
+                                    
+                                    // NEW: Apply column fix after resize for Chrome iOS
+                                    if (isIOSChrome && window.__fixChromeTerminalColumns) {
+                                        setTimeout(window.__fixChromeTerminalColumns, 200);
+                                    }
                                 }
                                 
                                 // Chrome iOS special handling on resize
@@ -809,7 +1026,6 @@
                     return false;
                 }
             }
-
             // Store initial viewport dimensions
             originalViewportHeight = window.innerHeight;
             originalViewportWidth = window.innerWidth;
