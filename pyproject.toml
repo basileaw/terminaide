@@ -5,7 +5,7 @@ description = "Serve Python CLI applications in the browser using ttyd"
 authors = ["Alex Basile <basileaw@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/anotherbazeinthewall/terminaide"
+repository = "https://github.com/bazeindustries/terminaide"
 packages = [{ include = "terminaide" }]
 
 [tool.poetry.dependencies]
