@@ -210,22 +210,22 @@ serve_apps(
 
 ### Termin-Arcade Demo
 
-The `terminaide/` directory demonstrates these configurations with several ready-to-use demos:
+The `demo/` directory contains a client and server that demonstrate serveral ready-to-use configurations:
 
 ```bash
 make serve              # Default mode with instructions
 make serve function     # Function mode - demo of serve_function()
 make serve script       # Script mode - demo of serve_script()
 make serve apps         # Apps mode - HTML page at root with multiple terminals
-make serve container    # Run in Docker container
+make serve container    # Run in Docker container, requires Docker Desktop
 ```
 
 ### Pre-Requisites
 
-- Docker
 - Python 3.12+
 - Linux or macOS 
 - macOS users need Xcode Command Line Tools (`xcode-select --install`)
+
 
 ## Limitations
 
