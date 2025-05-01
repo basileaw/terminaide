@@ -21,7 +21,7 @@ endef
 
 # Run demo server
 serve:
-	$(call task,python terminarcade/server.py)
+	$(call task,python demo/server.py)
 
 # Release new version
 release:

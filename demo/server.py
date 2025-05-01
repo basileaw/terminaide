@@ -1,13 +1,13 @@
-# terminarcade/server.py
+# demo/server.py
 
 """
 Test server for terminaide that demonstrates all three API tiers.
 Usage:
-python terminarcade/server.py                     # Default mode - shows getting started interface
-python terminarcade/server.py --function          # Function mode - demo of serve_function() with Asteroids
-python terminarcade/server.py --script            # Script mode - demo of serve_script()
-python terminarcade/server.py --apps              # Apps mode - HTML page at root, terminal games at routes
-python terminarcade/server.py --container         # Run the apps mode in a Docker container
+python demo/server.py                     # Default mode - shows getting started interface
+python demo/server.py --function          # Function mode - demo of serve_function() with Asteroids
+python demo/server.py --script            # Script mode - demo of serve_script()
+python demo/server.py --apps              # Apps mode - HTML page at root, terminal games at routes
+python demo/server.py --container         # Run the apps mode in a Docker container
 """
 
 import os
@@ -22,11 +22,19 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 
+# Add project root to path to ensure imports work correctly
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from terminaide import logger
 from terminaide import serve_function, serve_script, serve_apps
 
 CURRENT_DIR = Path(__file__).parent
 CLIENT_SCRIPT = CURRENT_DIR / "client.py"
+# Convert project_root to a Path object for path operations
+project_root_path = Path(project_root)
+INSTRUCTIONS_PATH = project_root_path / "terminarcade" / "instructions.py"
 
 MODE_HELP = {
     "default": "Default (getting started interface)",
@@ -147,7 +155,7 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
             "description": description,
             "client_script": str(CLIENT_SCRIPT),
             "modes": MODE_HELP,
-            "usage": "python terminarcade/server.py [--default|--function|--script|--apps|--container]",
+            "usage": "python demo/server.py [--default|--function|--script|--apps|--container]",
             "notes": [
                 "serve_function: Simplest - just pass a function",
                 "serve_script: Simple - pass a script file",
@@ -210,7 +218,7 @@ def generate_requirements_txt(pyproject_path, temp_dir):
     try:
         import re
 
-        logger.info("Generating requirements.txt (excluding dev)")
+        logger.info("Generating requirements.txt (excluding demo)")
         req_path = Path(temp_dir) / "requirements.txt"
 
         # Read pyproject.toml
@@ -278,8 +286,8 @@ def build_and_run_container(port=8000):
         image_name = project_root.name.lower()
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            # Update directory list - no more separate demo directory
-            for directory in ["terminaide", "terminarcade"]:
+            # Update directory list - now includes demo directory
+            for directory in ["terminaide", "terminarcade", "demo"]:
                 src_dir = project_root / directory
                 dst_dir = temp_path / directory
                 if src_dir.exists():
@@ -292,7 +300,9 @@ def build_and_run_container(port=8000):
                         ),
                     )
                     # Alternatively, create an empty bin directory if it was excluded
-                    (dst_dir / "bin").mkdir(exist_ok=True)
+                    if directory == "terminaide":
+                        (dst_dir / "core" / "bin").mkdir(exist_ok=True)
+
             generate_requirements_txt(project_root / "pyproject.toml", temp_path)
             dockerfile_content = """
 FROM python:3.12-slim
@@ -301,10 +311,11 @@ ENV PYTHONPATH=/app
 WORKDIR /app
 COPY terminaide/ ./terminaide/
 COPY terminarcade/ ./terminarcade/
+COPY demo/ ./demo/
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 8000
-CMD ["python", "terminarcade/server.py", "apps"]
+CMD ["python", "demo/server.py", "apps"]
 """
             dockerfile_path = temp_path / "Dockerfile"
             with open(dockerfile_path, "w") as f:
@@ -396,9 +407,8 @@ def main():
 
     # DEFAULT MODE
     if mode == "default":
-        instructions_path = CURRENT_DIR / "instructions.py"
         serve_script(
-            instructions_path,
+            INSTRUCTIONS_PATH,
             port=port,
             title="Instructions",
             debug=True,
@@ -433,12 +443,12 @@ def main():
         logger.info(f"Visit http://localhost:{port} for the main interface")
         logger.info(f"Visit http://localhost:{port}/info for details")
         uvicorn.run(
-            "terminarcade.server:create_app",
+            "demo.server:create_app",
             factory=True,
             host="0.0.0.0",
             port=port,
             reload=True,
-            reload_dirs=[str(CURRENT_DIR.parent)],
+            reload_dirs=[str(project_root)],
         )
 
 
