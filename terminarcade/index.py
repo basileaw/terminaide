@@ -223,7 +223,7 @@ def run_game(game_name):
     # Force reload the appropriate module
     if game_name == "snake":
         # Force reload the module to get a fresh instance
-        snake_module = reload_module("terminaide.games.snake")
+        snake_module = reload_module("terminarcade.snake")
         # Reset module-level state
         snake_module.exit_requested = False
         snake_module.stdscr = None
@@ -233,14 +233,14 @@ def run_game(game_name):
         return result == "back_to_menu"
         
     elif game_name == "tetris":
-        tetris_module = reload_module("terminaide.games.tetris")
+        tetris_module = reload_module("terminarcade.tetris")
         tetris_module.exit_requested = False
         tetris_module.stdscr = None
         result = tetris_module.play_tetris(from_index=True)
         return result == "back_to_menu"
         
     elif game_name == "pong":
-        pong_module = reload_module("terminaide.games.pong")
+        pong_module = reload_module("terminarcade.pong")
         pong_module.exit_requested = False
         pong_module.stdscr = None
         result = pong_module.play_pong(from_index=True)

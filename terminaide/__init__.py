@@ -18,6 +18,7 @@ Supported Platforms:
 """
 
 import sys
+import os
 import logging
 from pathlib import Path
 from .termin_api import serve_function, serve_script, serve_apps
@@ -41,6 +42,14 @@ from .core.exceptions import (
     ScriptConfigurationError,
     DuplicateRouteError
 )
+
+# Add parent directory to path to make terminarcade importable
+parent_dir = os.path.dirname(os.path.dirname(__file__))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+# Import terminarcade as a sibling package
+import terminarcade
 
 # ANSI color codes similar to uvicorn's
 COLORS = {
@@ -82,6 +91,9 @@ __all__ = [
     "serve_function",
     "serve_script", 
     "serve_apps",
+    
+    # Add terminarcade to the exported names
+    "terminarcade",
     
     # Configuration objects
     "TTYDConfig",

@@ -1,30 +1,33 @@
 [tool.poetry]
-name = "terminaide"
-version = "0.3.8"
-description = "Serve Python CLI applications in the browser using ttyd"
 authors = ["Alex Basile <basileaw@gmail.com>"]
+description = "Serve Python CLI applications in the browser using ttyd"
 license = "MIT"
+name = "terminaide"
+packages = [
+  {include = "terminaide"},
+  {include = "terminarcade"},
+]
 readme = "README.md"
 repository = "https://github.com/bazeindustries/terminaide"
-packages = [{ include = "terminaide" }]
+version = "0.3.8"
 
 [tool.poetry.dependencies]
-python = ">=3.12"
-fastapi = ">=0.104.0"
-jinja2 = ">=3.1.2"
-websockets = ">=12.0"
-pydantic = ">=2.4.2"
-readchar = ">=4.2.1"
-uvicorn = ">=0.24.0"
-rich = ">=14.0.0"
-bs4 = ">=0.0.2"
+bs4 = "^0.0.2"
+fastapi = "^0.104.0"
+h11 = "^0.16.0"
 httpcore = "^1.0.9"
 httpx = "^0.28.1"
-h11 = "^0.16.0"
+jinja2 = "^3.1.2"
+pydantic = "^2.4.2"
+python = ">=3.12"
+readchar = "^4.2.1"
+rich = "^14.0.0"
+uvicorn = "^0.24.0"
+websockets = "^12.0"
 
-[tool.poetry.group.dev.dependencies]
-docker = ">=7.1.0"
+[tool.poetry.group.demo.dependencies]
+docker = "^7.1.0"
 
 [build-system]
-requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core"]
