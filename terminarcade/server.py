@@ -47,7 +47,7 @@ def create_custom_root_endpoint(app: FastAPI):
         <html>
         <head>
             <title>{title_mode} Mode</title>
-            <link rel="icon" type="image/x-icon" href="{request.url_for('static', path='favicon.ico')}">
+            <link rel="icon" type="image/x-icon" href="/terminaide-static/favicon.ico">
             <style>
                 body {{
                     font-family: 'Courier New', monospace;
@@ -158,7 +158,7 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
         <html>
         <head>
             <title>Terminaide Info</title>
-            <link rel="icon" type="image/x-icon" href="{request.url_for('static', path='favicon.ico')}">
+            <link rel="icon" type="image/x-icon" href="/terminaide-static/favicon.ico">
         </head>
         <body><pre>{json.dumps(info_dict, indent=2)}</pre></body>
         </html>"""
