@@ -1,4 +1,4 @@
-# terminaide/games/asteroids.py
+# asteroids.py
 
 import curses
 import math

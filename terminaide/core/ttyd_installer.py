@@ -1,4 +1,4 @@
-# terminaide/installer.py
+# ttyd_installer.py
 
 """
 TTYd binary and dependency installation.
@@ -11,13 +11,12 @@ For Linux, it downloads pre-built binaries. For macOS, it compiles from source.
 """
 
 import os
-import sys
 import stat
 import logging
 import platform
 import subprocess
 from pathlib import Path
-from typing import Optional, Tuple, List, Dict
+from typing import Optional, Tuple, List
 import urllib.request
 
 logger = logging.getLogger("terminaide")

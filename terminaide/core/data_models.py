@@ -1,22 +1,22 @@
-# terminaide/core/settings.py
+# settings.py
 
-""" Defines Pydantic-based settings for terminaide, including path handling for root/non-root mounting and multiple script routing. """
+"""Defines Pydantic-based settings for terminaide, including path handling for root/non-root mounting and multiple script routing."""
 
 import os
 import sys
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, Union, List, Callable
-from pydantic import (
-    BaseModel, Field, field_validator, model_validator
-)
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .exceptions import ConfigurationError
 
 logger = logging.getLogger("terminaide")
 
+
 class TTYDOptions(BaseModel):
     """TTYd-specific options like auth, interface, and client capacity."""
+
     writable: bool = True
     port: int = Field(default=7681, gt=1024, lt=65535)
     interface: str = "0.0.0.0"  # Changed from "127.0.0.1" to bind to all interfaces
@@ -27,8 +27,8 @@ class TTYDOptions(BaseModel):
     password: Optional[str] = None
     force_https: bool = False
 
-    @model_validator(mode='after')
-    def validate_credentials(self) -> 'TTYDOptions':
+    @model_validator(mode="after")
+    def validate_credentials(self) -> "TTYDOptions":
         """Require username/password if credentials are enabled."""
         if self.credential_required and not (self.username and self.password):
             raise ConfigurationError(
@@ -36,8 +36,10 @@ class TTYDOptions(BaseModel):
             )
         return self
 
+
 class ThemeConfig(BaseModel):
     """Defines basic color and font options for the terminal."""
+
     background: str = "black"
     foreground: str = "white"
     cursor: str = "white"
@@ -46,8 +48,10 @@ class ThemeConfig(BaseModel):
     font_family: Optional[str] = None
     font_size: Optional[int] = Field(default=None, gt=0)
 
+
 class ScriptConfig(BaseModel):
-    """ Configuration for a single terminal route, including the script path, port assignment, and optional custom title. """
+    """Configuration for a single terminal route, including the script path, port assignment, and optional custom title."""
+
     route_path: str
     client_script: Optional[Path] = None
     args: List[str] = Field(default_factory=list)
@@ -57,19 +61,19 @@ class ScriptConfig(BaseModel):
     function_object: Optional[Callable] = None
     _function_wrapper_path: Optional[Path] = None
 
-    @field_validator('client_script')
+    @field_validator("client_script")
     @classmethod
     def validate_script_path(cls, v: Optional[Union[str, Path]]) -> Optional[Path]:
         """
         Ensure the script file exists, trying:
         1. The path as provided (relative to CWD or absolute)
         2. The path relative to the main script being executed
-        
+
         Returns None if no script path is provided (function-based route).
         """
         if v is None:
             return None
-            
+
         original_path = Path(v)
 
         # Strategy 1: Use the path as-is (absolute or relative to CWD)
@@ -82,31 +86,35 @@ class ScriptConfig(BaseModel):
             main_script_dir = main_script.parent
             script_relative_path = main_script_dir / original_path
             if script_relative_path.exists():
-                logger.debug(f"Found script at {script_relative_path} (relative to main script)")
+                logger.debug(
+                    f"Found script at {script_relative_path} (relative to main script)"
+                )
                 return script_relative_path.absolute()
         except Exception as e:
             logger.debug(f"Error resolving path relative to main script: {e}")
-        
+
         # If we got here, the path doesn't exist
         error_msg = f"Script file does not exist: {v}\n"
-        
+
         # Add context about where we looked
         cwd_path = Path.cwd() / v
         error_msg += f"Current working directory: {os.getcwd()}\n"
         error_msg += f"Tried:\n"
         error_msg += f"  - As provided: {v}\n"
         error_msg += f"  - Relative to CWD: {cwd_path}\n"
-        
+
         # Add info about script-relative path if available
         if sys.argv and len(sys.argv) > 0:
             script_path = Path(sys.argv[0]).absolute().parent / v
             error_msg += f"  - Relative to main script: {script_path}\n"
-        
+
         raise ConfigurationError(error_msg)
 
-    @field_validator('preview_image')
+    @field_validator("preview_image")
     @classmethod
-    def validate_preview_image_path(cls, v: Optional[Union[str, Path]]) -> Optional[Path]:
+    def validate_preview_image_path(
+        cls, v: Optional[Union[str, Path]]
+    ) -> Optional[Path]:
         """
         Ensure the preview image file exists if provided, trying:
         1. The path as provided (relative to CWD or absolute)
@@ -116,7 +124,7 @@ class ScriptConfig(BaseModel):
         """
         if v is None:
             return None
-                
+
         original_path = Path(v)
 
         # Strategy 1: Use the path as-is (absolute or relative to CWD)
@@ -129,71 +137,81 @@ class ScriptConfig(BaseModel):
             main_script_dir = main_script.parent
             image_relative_path = main_script_dir / original_path
             if image_relative_path.exists():
-                logger.debug(f"Found preview image at {image_relative_path} (relative to main script)")
+                logger.debug(
+                    f"Found preview image at {image_relative_path} (relative to main script)"
+                )
                 return image_relative_path.absolute()
-                
+
             # Strategy 3: Try common static directories relative to the main script
             for common_dir in ["static", "assets", "images", "img"]:
                 common_path = main_script_dir / common_dir / original_path.name
                 if common_path.exists():
-                    logger.debug(f"Found preview image at {common_path} (in common directory)")
+                    logger.debug(
+                        f"Found preview image at {common_path} (in common directory)"
+                    )
                     return common_path.absolute()
-            
+
             # Strategy 4: Try going up directories to find project root with static dirs
             current_dir = main_script_dir
             for _ in range(3):  # Limit depth to prevent excessive searching
                 parent_dir = current_dir.parent
                 if parent_dir == current_dir:  # Reached filesystem root
                     break
-                    
+
                 current_dir = parent_dir
                 for common_dir in ["static", "assets", "images", "img"]:
                     common_path = current_dir / common_dir / original_path.name
                     if common_path.exists():
-                        logger.debug(f"Found preview image at {common_path} (in project structure)")
+                        logger.debug(
+                            f"Found preview image at {common_path} (in project structure)"
+                        )
                         return common_path.absolute()
         except Exception as e:
-            logger.debug(f"Error resolving preview image path relative to main script: {e}")
-        
+            logger.debug(
+                f"Error resolving preview image path relative to main script: {e}"
+            )
+
         # If we got here, log a warning but don't fail - we'll fall back to the default
-        logger.warning(f"Preview image does not exist: {v}. Will use default preview image.")
+        logger.warning(
+            f"Preview image does not exist: {v}. Will use default preview image."
+        )
         return None
 
-    @field_validator('route_path')
+    @field_validator("route_path")
     @classmethod
     def validate_route_path(cls, v: str) -> str:
         """Normalize route path to start with '/' and remove trailing '/'."""
-        if not v.startswith('/'):
+        if not v.startswith("/"):
             v = f"/{v}"
-        if v != "/" and v.endswith('/'):
-            v = v.rstrip('/')
+        if v != "/" and v.endswith("/"):
+            v = v.rstrip("/")
         return v
 
-    @field_validator('args')
+    @field_validator("args")
     @classmethod
     def validate_args(cls, v: List[str]) -> List[str]:
         """Convert all args to strings."""
         return [str(arg) for arg in v]
-        
-    @model_validator(mode='after')
-    def validate_script_or_function(self) -> 'ScriptConfig':
+
+    @model_validator(mode="after")
+    def validate_script_or_function(self) -> "ScriptConfig":
         """Ensure either client_script or function_object is provided."""
         if self.client_script is None and self.function_object is None:
             raise ConfigurationError(
-                "Either client_script or function_object must be provided for route " + 
-                f"'{self.route_path}'"
+                "Either client_script or function_object must be provided for route "
+                + f"'{self.route_path}'"
             )
         return self
-        
+
     @property
     def is_function_based(self) -> bool:
         """Returns True if this route uses a function instead of a script."""
         return self.function_object is not None
-        
+
     def set_function_wrapper_path(self, path: Path) -> None:
         """Set the path to the generated wrapper script for a function."""
         self._function_wrapper_path = path
-        
+
     @property
     def effective_script_path(self) -> Path:
         """Returns the script path to use (either direct script or generated function wrapper)."""
@@ -201,8 +219,10 @@ class ScriptConfig(BaseModel):
             return self._function_wrapper_path
         return self.client_script
 
+
 class TTYDConfig(BaseModel):
-    """ Main configuraion for terminaide, handling root vs. non-root mounting, multiple scripts, and other settings like theme and debug mode. """
+    """Main configuraion for terminaide, handling root vs. non-root mounting, multiple scripts, and other settings like theme and debug mode."""
+
     client_script: Optional[Path] = None
     mount_path: str = "/"
     port: int = Field(default=7681, gt=1024, lt=65535)
@@ -216,7 +236,7 @@ class TTYDConfig(BaseModel):
     _mode: str = "script"  # Default mode: "function", "script", or "apps"
     forward_env: Union[bool, List[str], Dict[str, Optional[str]]] = True
 
-    @field_validator('client_script', 'template_override')
+    @field_validator("client_script", "template_override")
     @classmethod
     def validate_paths(cls, v: Optional[Union[str, Path]]) -> Optional[Path]:
         """Ensure given path exists, if provided."""
@@ -226,8 +246,8 @@ class TTYDConfig(BaseModel):
         if not path.exists():
             raise ConfigurationError(f"Path does not exist: {path}")
         return path.absolute()
-        
-    @field_validator('preview_image')
+
+    @field_validator("preview_image")
     @classmethod
     def validate_preview_image(cls, v: Optional[Union[str, Path]]) -> Optional[Path]:
         """Ensure preview image exists, if provided."""
@@ -235,43 +255,45 @@ class TTYDConfig(BaseModel):
             return None
         path = Path(v)
         if not path.exists():
-            logger.warning(f"Preview image path does not exist: {path}. Will use default preview image.")
+            logger.warning(
+                f"Preview image path does not exist: {path}. Will use default preview image."
+            )
             return None
         return path.absolute()
 
-    @field_validator('mount_path')
+    @field_validator("mount_path")
     @classmethod
     def validate_mount_path(cls, v: str) -> str:
         """Normalize and disallow '/terminal' as a mount path."""
         if v in ("", "/"):
             return "/"
-        if not v.startswith('/'):
+        if not v.startswith("/"):
             v = f"/{v}"
-        v = v.rstrip('/')
+        v = v.rstrip("/")
         if v == "/terminal":
             raise ConfigurationError(
                 '"/terminal" is reserved. Please use another mount path.'
             )
         return v
 
-    @model_validator(mode='after')
-    def validate_script_configs(self) -> 'TTYDConfig':
+    @model_validator(mode="after")
+    def validate_script_configs(self) -> "TTYDConfig":
         """Check for unique route paths and handle a default script if no scripts given."""
         seen_routes = set()
         for config in self.script_configs:
             if config.route_path in seen_routes:
                 raise ConfigurationError(f"Duplicate route path: {config.route_path}")
             seen_routes.add(config.route_path)
-            
+
         # Add a default script config if needed
         if not self.script_configs and self.client_script:
             self.script_configs.append(
                 ScriptConfig(
-                    route_path="/", 
+                    route_path="/",
                     client_script=self.client_script,
-                    port=self.port, 
+                    port=self.port,
                     title=self.title,
-                    preview_image=self.preview_image
+                    preview_image=self.preview_image,
                 )
             )
         return self
@@ -285,14 +307,14 @@ class TTYDConfig(BaseModel):
     def is_multi_script(self) -> bool:
         """True if multiple scripts are configured."""
         return len(self.script_configs) > 1
-        
+
     @property
     def terminal_path(self) -> str:
         """Return the terminal's path, accounting for root or non-root mounting."""
         if self.is_root_mounted:
             return "/terminal"
         return f"{self.mount_path}/terminal"
-        
+
     @property
     def static_path(self) -> str:
         """Return the path for static files."""
@@ -308,14 +330,17 @@ class TTYDConfig(BaseModel):
         if len(self.script_configs) == 1:
             return self.script_configs[0]
         sorted_configs = sorted(
-            self.script_configs,
-            key=lambda c: len(c.route_path),
-            reverse=True
+            self.script_configs, key=lambda c: len(c.route_path), reverse=True
         )
         for config in sorted_configs:
-            if (config.route_path == "/" and (path == "/" or path.startswith("/terminal"))) \
-               or path.startswith(config.route_path) \
-               or path.startswith(f"{config.route_path}/terminal"):
+            if (
+                (
+                    config.route_path == "/"
+                    and (path == "/" or path.startswith("/terminal"))
+                )
+                or path.startswith(config.route_path)
+                or path.startswith(f"{config.route_path}/terminal")
+            ):
                 return config
         return self.script_configs[0] if self.script_configs else None
 
@@ -329,15 +354,19 @@ class TTYDConfig(BaseModel):
         """Return structured data about the config for health checks."""
         script_info = []
         for config in self.script_configs:
-            script_info.append({
-                "route_path": config.route_path,
-                "script": str(config.effective_script_path),
-                "is_function": config.is_function_based,
-                "args": config.args,
-                "port": config.port,
-                "title": config.title or self.title,
-                "preview_image": str(config.preview_image) if config.preview_image else None
-            })
+            script_info.append(
+                {
+                    "route_path": config.route_path,
+                    "script": str(config.effective_script_path),
+                    "is_function": config.is_function_based,
+                    "args": config.args,
+                    "port": config.port,
+                    "title": config.title or self.title,
+                    "preview_image": (
+                        str(config.preview_image) if config.preview_image else None
+                    ),
+                }
+            )
         return {
             "mount_path": self.mount_path,
             "terminal_path": self.terminal_path,
@@ -350,15 +379,16 @@ class TTYDConfig(BaseModel):
             "max_clients": self.ttyd_options.max_clients,
             "auth_required": self.ttyd_options.credential_required,
             "preview_image": str(self.preview_image) if self.preview_image else None,
-            "script_configs": script_info
+            "script_configs": script_info,
         }
 
+
 def create_script_configs(
-    terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any], Callable]]
+    terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any], Callable]],
 ) -> List[ScriptConfig]:
     """
     Convert the terminal_routes dictionary into a list of ScriptConfig objects.
-    
+
     Now supports:
     - Script paths (str/Path)
     - Functions (Callable)
@@ -372,48 +402,50 @@ def create_script_configs(
         if callable(route_spec):
             func = route_spec
             func_name = getattr(func, "__name__", "function")
-            
+
             script_configs.append(
                 ScriptConfig(
                     route_path=route_path,
                     function_object=func,
                     client_script=None,
                     args=[],
-                    title=f"{func_name}()"
+                    title=f"{func_name}()",
                 )
             )
             continue
-            
+
         # Handle dictionary configuration that might contain a function
         if isinstance(route_spec, dict) and "function" in route_spec:
             func = route_spec["function"]
             if not callable(func):
-                raise ConfigurationError(f"'function' value for route {route_path} is not callable")
-                
+                raise ConfigurationError(
+                    f"'function' value for route {route_path} is not callable"
+                )
+
             func_name = getattr(func, "__name__", "function")
-            
+
             cfg_data = {
                 "route_path": route_path,
                 "function_object": func,
                 "client_script": None,
-                "args": []
+                "args": [],
             }
-            
+
             # Use provided title or auto-generate
             if "title" in route_spec:
                 cfg_data["title"] = route_spec["title"]
             else:
                 cfg_data["title"] = f"{func_name}()"
-                
+
             if "port" in route_spec:
                 cfg_data["port"] = route_spec["port"]
-                
+
             if "preview_image" in route_spec:
                 cfg_data["preview_image"] = route_spec["preview_image"]
-                
+
             script_configs.append(ScriptConfig(**cfg_data))
             continue
-        
+
         # Handle script path in dictionary
         if isinstance(route_spec, dict) and "client_script" in route_spec:
             script_value = route_spec["client_script"]
@@ -423,16 +455,16 @@ def create_script_configs(
             else:
                 script_path = script_value
                 args = []
-            
+
             if "args" in route_spec:
                 args = route_spec["args"]
-            
+
             cfg_data = {
                 "route_path": route_path,
                 "client_script": script_path,
-                "args": args
+                "args": args,
             }
-            
+
             # Use provided title or auto-generate if not present
             if "title" in route_spec:
                 cfg_data["title"] = route_spec["title"]
@@ -440,47 +472,47 @@ def create_script_configs(
                 # Auto-generate title based on script name
                 script_name = Path(script_path).name
                 cfg_data["title"] = f"{script_name}"
-            
+
             if "port" in route_spec:
                 cfg_data["port"] = route_spec["port"]
-                
+
             # Handle preview_image if provided in the script_spec
             if "preview_image" in route_spec:
                 cfg_data["preview_image"] = route_spec["preview_image"]
-            
+
             script_configs.append(ScriptConfig(**cfg_data))
             continue
-        
+
         # Handle script path with args as list
         if isinstance(route_spec, list) and len(route_spec) > 0:
             script_path = route_spec[0]
             args = route_spec[1:]
-            
+
             # Auto-generate title based on script name
             script_name = Path(script_path).name
-            
+
             script_configs.append(
                 ScriptConfig(
                     route_path=route_path,
                     client_script=script_path,
                     args=args,
-                    title=f"{script_name}"
+                    title=f"{script_name}",
                 )
             )
             continue
-        
+
         # Handle simple script path (str/Path)
         script_path = route_spec
-        
+
         # Auto-generate title based on script name
         script_name = Path(script_path).name
-        
+
         script_configs.append(
             ScriptConfig(
                 route_path=route_path,
                 client_script=script_path,
                 args=[],
-                title=f"{script_name}"
+                title=f"{script_name}",
             )
         )
 

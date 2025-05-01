@@ -1,6 +1,6 @@
-# terminaide/core/proxy.py
+# proxy.py
 
-""" Manages HTTP and WebSocket proxying for ttyd processes, including path rewriting and multiple-route support. """
+"""Manages HTTP and WebSocket proxying for ttyd processes, including path rewriting and multiple-route support."""
 
 import json
 import logging
@@ -19,8 +19,9 @@ from .data_models import TTYDConfig, ScriptConfig
 
 logger = logging.getLogger("terminaide")
 
+
 class ProxyManager:
-    """ Handles HTTP and WebSocket traffic to ttyd, including path prefix adjustments and multi-route configurations. """
+    """Handles HTTP and WebSocket traffic to ttyd, including path prefix adjustments and multi-route configurations."""
 
     def __init__(self, config: TTYDConfig):
         """
@@ -30,8 +31,8 @@ class ProxyManager:
         self._client: Optional[httpx.AsyncClient] = None
         self.targets: Dict[str, Dict[str, str]] = {}
         self._initialize_targets()
-        
-        entry_mode = getattr(self.config, '_mode', 'script')
+
+        entry_mode = getattr(self.config, "_mode", "script")
         logger.info(
             f"Proxy ready for {len(self.targets)} routes "
             f"({entry_mode} API, {'apps-server' if self.config.is_multi_script else 'solo-server'} mode)"
@@ -40,7 +41,7 @@ class ProxyManager:
     def _get_request_protocol(self, request: Optional[Request] = None) -> str:
         """
         Get the protocol (http/https) for the current request.
-        
+
         This looks at the request.url.scheme, which will be correctly set to 'https'
         by the ProxyHeaderMiddleware if the request came via HTTPS.
         """
@@ -65,10 +66,7 @@ class ProxyManager:
                 logger.error(f"No port assigned to route {route_path}")
                 continue
             host = f"{self.config.ttyd_options.interface}:{port}"
-            self.targets[route_path] = {
-                "host": host,
-                "port": port
-            }
+            self.targets[route_path] = {"host": host, "port": port}
             logger.info(
                 f"Route '{route_path}' => {host} "
                 f"(terminal path: {self.config.get_terminal_path_for_route(route_path)})"
@@ -79,8 +77,7 @@ class ProxyManager:
         """Create and return a reusable AsyncClient."""
         if self._client is None:
             self._client = httpx.AsyncClient(
-                timeout=httpx.Timeout(30.0),
-                follow_redirects=True
+                timeout=httpx.Timeout(30.0), follow_redirects=True
             )
         return self._client
 
@@ -90,7 +87,9 @@ class ProxyManager:
             await self._client.aclose()
             self._client = None
 
-    def _get_target_info(self, request_path: str) -> Tuple[ScriptConfig, Dict[str, str]]:
+    def _get_target_info(
+        self, request_path: str
+    ) -> Tuple[ScriptConfig, Dict[str, str]]:
         """
         Retrieve the script config and target info for a given request path.
         """
@@ -129,17 +128,19 @@ class ProxyManager:
     async def _handle_sourcemap(self, path: str) -> Response:
         """Return a minimal sourcemap response."""
         return Response(
-            content=json.dumps({
-                "version": 3,
-                "file": path.split('/')[-1].replace('.map', ''),
-                "sourceRoot": "",
-                "sources": ["source.js"],
-                "sourcesContent": ["// Source code unavailable"],
-                "names": [],
-                "mappings": ";;;;;;;"
-            }),
-            media_type='application/json',
-            headers={'Access-Control-Allow-Origin': '*'}
+            content=json.dumps(
+                {
+                    "version": 3,
+                    "file": path.split("/")[-1].replace(".map", ""),
+                    "sourceRoot": "",
+                    "sources": ["source.js"],
+                    "sourcesContent": ["// Source code unavailable"],
+                    "names": [],
+                    "mappings": ";;;;;;;",
+                }
+            ),
+            media_type="application/json",
+            headers={"Access-Control-Allow-Origin": "*"},
         )
 
     async def proxy_http(self, request: Request) -> Response:
@@ -147,9 +148,9 @@ class ProxyManager:
         Forward HTTP requests to the correct ttyd, adjusting paths and headers as needed.
         """
         path = request.url.path
-        if path.endswith('.map'):
+        if path.endswith(".map"):
             return await self._handle_sourcemap(path)
-        
+
         try:
             script_config, target_info = self._get_target_info(path)
             target_path = self._strip_path_prefix(path, script_config)
@@ -159,27 +160,25 @@ class ProxyManager:
             # Always use http for internal proxying to ttyd
             host = target_info["host"]
             target_url = f"http://{host}"
-            
+
             response = await self.http_client.request(
                 method=request.method,
                 url=urljoin(target_url, target_path),
                 headers=headers,
-                content=await request.body()
+                content=await request.body(),
             )
             # Filter certain response headers
             filtered_headers = {
-                k: v for k, v in response.headers.items()
-                if k.lower() not in {
-                    'content-encoding',
-                    'content-length',
-                    'transfer-encoding'
-                }
+                k: v
+                for k, v in response.headers.items()
+                if k.lower()
+                not in {"content-encoding", "content-length", "transfer-encoding"}
             }
             return StreamingResponse(
                 response.aiter_bytes(),
                 status_code=response.status_code,
                 headers=filtered_headers,
-                media_type=response.headers.get('content-type')
+                media_type=response.headers.get("content-type"),
             )
         except RouteNotFoundError as e:
             logger.error(f"Route not found: {e}")
@@ -188,7 +187,9 @@ class ProxyManager:
             logger.error(f"HTTP proxy error: {e}")
             raise ProxyError(f"Failed to proxy request: {e}")
 
-    async def proxy_websocket(self, websocket: WebSocket, route_path: Optional[str] = None) -> None:
+    async def proxy_websocket(
+        self, websocket: WebSocket, route_path: Optional[str] = None
+    ) -> None:
         """
         Forward WebSocket connections to ttyd, including bidirectional data flow.
         """
@@ -207,18 +208,17 @@ class ProxyManager:
             # Always use ws:// for internal connections to ttyd
             host = target_info["host"]
             ws_url = f"ws://{host}/ws"
-            
-            await websocket.accept(subprotocol='tty')
+
+            await websocket.accept(subprotocol="tty")
             logger.info(f"Connecting WebSocket to {ws_url} for route {route_path}")
 
             async with websockets.connect(
-                ws_url,
-                subprotocols=['tty'],
-                ping_interval=None,
-                close_timeout=5
+                ws_url, subprotocols=["tty"], ping_interval=None, close_timeout=5
             ) as target_ws:
 
-                async def forward(source: Any, dest: Any, is_client: bool = True) -> None:
+                async def forward(
+                    source: Any, dest: Any, is_client: bool = True
+                ) -> None:
                     """Bidirectional WebSocket data forwarding."""
                     try:
                         while True:
@@ -233,19 +233,25 @@ class ProxyManager:
                                     else:
                                         await dest.send_text(data)
                             except websockets.exceptions.ConnectionClosed:
-                                logger.info(f"{'Client' if is_client else 'Target'} connection closed for {route_path}")
+                                logger.info(
+                                    f"{'Client' if is_client else 'Target'} connection closed for {route_path}"
+                                )
                                 break
                             except Exception as e:
                                 if not isinstance(e, asyncio.CancelledError):
-                                    logger.error(f"WebSocket error for {route_path}: {e}")
+                                    logger.error(
+                                        f"WebSocket error for {route_path}: {e}"
+                                    )
                                 break
                     except asyncio.CancelledError:
-                        logger.info(f"{'Client' if is_client else 'Target'} forwarding cancelled for {route_path}")
+                        logger.info(
+                            f"{'Client' if is_client else 'Target'} forwarding cancelled for {route_path}"
+                        )
                         raise
 
                 tasks = [
                     asyncio.create_task(forward(websocket, target_ws)),
-                    asyncio.create_task(forward(target_ws, websocket, False))
+                    asyncio.create_task(forward(target_ws, websocket, False)),
                 ]
                 try:
                     await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
@@ -280,21 +286,25 @@ class ProxyManager:
             route_path = script_config.route_path
             target_info = self.targets.get(route_path, {})
             host = target_info.get("host", "")
-            
-            routes_info.append({
-                "route_path": route_path,
-                "script": str(script_config.client_script),
-                "terminal_path": self.config.get_terminal_path_for_route(route_path),
-                "port": target_info.get("port"),
-                "title": script_config.title or self.config.title
-            })
-        
-        entry_mode = getattr(self.config, '_mode', 'script')
-        
+
+            routes_info.append(
+                {
+                    "route_path": route_path,
+                    "script": str(script_config.client_script),
+                    "terminal_path": self.config.get_terminal_path_for_route(
+                        route_path
+                    ),
+                    "port": target_info.get("port"),
+                    "title": script_config.title or self.config.title,
+                }
+            )
+
+        entry_mode = getattr(self.config, "_mode", "script")
+
         return {
             "routes": routes_info,
             "mount_path": self.config.mount_path,
             "is_root_mounted": self.config.is_root_mounted,
             "is_multi_script": self.config.is_multi_script,
-            "entry_mode": entry_mode  # Add entry mode to routes info
+            "entry_mode": entry_mode,  # Add entry mode to routes info
         }

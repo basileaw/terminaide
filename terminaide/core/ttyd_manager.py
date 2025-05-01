@@ -1,6 +1,6 @@
-# core/manager.py
+# ttyd_manager.py
 
-""" Manages TTYd processes for single (solo-server) or multi-terminal (apps-server) setups, ensuring their lifecycle, cleanup, and health monitoring. """
+"""Manages TTYd processes for single (solo-server) or multi-terminal (apps-server) setups, ensuring their lifecycle, cleanup, and health monitoring."""
 
 import os
 import sys
@@ -21,13 +21,14 @@ from .data_models import TTYDConfig, ScriptConfig
 
 logger = logging.getLogger("terminaide")
 
+
 class TTYDManager:
-    """ Manages the lifecycle of ttyd processes, including startup, shutdown, health checks, resource cleanup, and port allocation. Supports single (solo-server) or multi-terminal (apps-server) configurations. """
+    """Manages the lifecycle of ttyd processes, including startup, shutdown, health checks, resource cleanup, and port allocation. Supports single (solo-server) or multi-terminal (apps-server) configurations."""
 
     def __init__(self, config: TTYDConfig, force_reinstall_ttyd: bool = None):
         """
         Initialize TTYDManager with the given TTYDConfig.
-        
+
         Args:
             config: The TTYDConfig object
             force_reinstall_ttyd: If True, force reinstall ttyd even if it exists
@@ -35,11 +36,11 @@ class TTYDManager:
         self.config = config
         self._ttyd_path: Optional[Path] = None
         self._setup_ttyd(force_reinstall_ttyd)
-        
+
         # Track processes by route
         self.processes: Dict[str, subprocess.Popen] = {}
         self.start_times: Dict[str, datetime] = {}
-        
+
         # Base port handling
         self._base_port = config.port
         self._allocate_ports()
@@ -47,7 +48,7 @@ class TTYDManager:
     def _setup_ttyd(self, force_reinstall: bool = None) -> None:
         """
         Set up and verify the ttyd binary.
-        
+
         Args:
             force_reinstall: If True, force reinstall ttyd even if it exists
         """
@@ -62,20 +63,19 @@ class TTYDManager:
         """
         Allocate and validate ports for each script configuration.
         """
-        configs_to_assign = [
-            c for c in self.config.script_configs if c.port is None
-        ]
+        configs_to_assign = [c for c in self.config.script_configs if c.port is None]
         assigned_ports = {
             c.port for c in self.config.script_configs if c.port is not None
         }
         next_port = self._base_port
-        
+
         # Track newly assigned ports
         new_assignments = []
-        
+
         for cfg in configs_to_assign:
-            while (next_port in assigned_ports
-                   or self._is_port_in_use("127.0.0.1", next_port)):
+            while next_port in assigned_ports or self._is_port_in_use(
+                "127.0.0.1", next_port
+            ):
                 next_port += 1
                 if next_port > 65000:
                     raise PortAllocationError("Port range exhausted")
@@ -86,7 +86,9 @@ class TTYDManager:
 
         # Log all port assignments in a single message
         if new_assignments:
-            assignments_str = ", ".join([f"{route}:{port}" for route, port in new_assignments])
+            assignments_str = ", ".join(
+                [f"{route}:{port}" for route, port in new_assignments]
+            )
             logger.debug(f"Port assignments: {assignments_str}")
 
     def _build_command(self, script_config: ScriptConfig) -> List[str]:
@@ -95,61 +97,78 @@ class TTYDManager:
         """
         if not self._ttyd_path:
             raise TTYDStartupError("ttyd binary path not set")
-            
+
         cmd = [str(self._ttyd_path)]
-        cmd.extend(['-p', str(script_config.port)])
-        cmd.extend(['-i', self.config.ttyd_options.interface])
-        
+        cmd.extend(["-p", str(script_config.port)])
+        cmd.extend(["-i", self.config.ttyd_options.interface])
+
         if not self.config.ttyd_options.check_origin:
-            cmd.append('--no-check-origin')
-        
+            cmd.append("--no-check-origin")
+
         if self.config.ttyd_options.credential_required:
-            if not (self.config.ttyd_options.username and self.config.ttyd_options.password):
+            if not (
+                self.config.ttyd_options.username and self.config.ttyd_options.password
+            ):
                 raise TTYDStartupError("Credentials required but not provided")
-            cmd.extend([
-                '-c',
-                f"{self.config.ttyd_options.username}:{self.config.ttyd_options.password}"
-            ])
-        
+            cmd.extend(
+                [
+                    "-c",
+                    f"{self.config.ttyd_options.username}:{self.config.ttyd_options.password}",
+                ]
+            )
+
         if self.config.debug:
-            cmd.extend(['-d', '3'])
+            cmd.extend(["-d", "3"])
 
         theme_json = self.config.theme.model_dump_json()
-        cmd.extend(['-t', f'theme={theme_json}'])
-        
-        cmd.extend(['-t', 'cursorInactiveStyle=none'])
+        cmd.extend(["-t", f"theme={theme_json}"])
+
+        cmd.extend(["-t", "cursorInactiveStyle=none"])
         # cmd.extend(['-t', 'cursorWidth=0'])
-        cmd.extend(['-t', 'cursorBlink=True'])
+        cmd.extend(["-t", "cursorBlink=True"])
 
         if self.config.ttyd_options.writable:
-            cmd.append('--writable')
+            cmd.append("--writable")
         else:
-            cmd.append('-R')
-        
+            cmd.append("-R")
+
         # Use effective_script_path to get the actual script to run (direct script or function wrapper)
         script_path = script_config.effective_script_path
         if script_path is None:
-            raise TTYDStartupError(f"Script path not set for route {script_config.route_path}")
-            
+            raise TTYDStartupError(
+                f"Script path not set for route {script_config.route_path}"
+            )
+
         # Find the cursor_manager.py path
         cursor_manager_path = Path(__file__).parent / "cursor_manager.py"
-        
+
         # Check if cursor management is enabled via environment variable
-        cursor_mgmt_enabled = os.environ.get("TERMINAIDE_CURSOR_MGMT", "1").lower() in ("1", "true", "yes", "enabled")
-        
+        cursor_mgmt_enabled = os.environ.get("TERMINAIDE_CURSOR_MGMT", "1").lower() in (
+            "1",
+            "true",
+            "yes",
+            "enabled",
+        )
+
         # Use cursor manager if it exists and is enabled
         if cursor_mgmt_enabled and cursor_manager_path.exists():
-            target_desc = f"function wrapper script" if script_config.is_function_based else "script"
+            target_desc = (
+                f"function wrapper script"
+                if script_config.is_function_based
+                else "script"
+            )
             logger.debug(f"Using cursor manager for {target_desc}: {script_path}")
             python_cmd = [sys.executable, str(cursor_manager_path), str(script_path)]
         else:
             if cursor_mgmt_enabled and not cursor_manager_path.exists():
-                logger.warning(f"Cursor manager not found at {cursor_manager_path}, using direct execution")
+                logger.warning(
+                    f"Cursor manager not found at {cursor_manager_path}, using direct execution"
+                )
             python_cmd = [sys.executable, str(script_path)]
-            
+
         if script_config.args:
             python_cmd.extend(script_config.args)
-            
+
         cmd.extend(python_cmd)
         return cmd
 
@@ -171,9 +190,7 @@ class TTYDManager:
         try:
             if system in ["linux", "darwin"]:
                 result = subprocess.run(
-                    f"lsof -t -i tcp:{port}".split(),
-                    capture_output=True,
-                    text=True
+                    f"lsof -t -i tcp:{port}".split(), capture_output=True, text=True
                 )
                 pids = result.stdout.strip().split()
                 for pid in pids:
@@ -191,27 +208,33 @@ class TTYDManager:
         """
         if not self.config.script_configs:
             raise TTYDStartupError("No script configurations found")
-            
+
         script_count = len(self.config.script_configs)
-        mode_type = 'apps-server' if self.config.is_multi_script else 'solo-server'
-        entry_mode = getattr(self.config, '_mode', 'script')
-        
+        mode_type = "apps-server" if self.config.is_multi_script else "solo-server"
+        entry_mode = getattr(self.config, "_mode", "script")
+
         # Count function-based routes
-        function_count = sum(1 for cfg in self.config.script_configs if cfg.is_function_based)
+        function_count = sum(
+            1 for cfg in self.config.script_configs if cfg.is_function_based
+        )
         script_count_str = f"{script_count} ttyd processes"
         if function_count > 0:
             script_count_str += f" ({function_count} function-based, {script_count - function_count} script-based)"
-            
-        logger.info(f"Starting {script_count_str} ({mode_type} mode via {entry_mode} API)")
-        
+
+        logger.info(
+            f"Starting {script_count_str} ({mode_type} mode via {entry_mode} API)"
+        )
+
         success_count = 0
         for script_config in self.config.script_configs:
             try:
                 self.start_process(script_config)
                 success_count += 1
             except Exception as e:
-                logger.error(f"Failed to start process for {script_config.route_path}: {e}")
-        
+                logger.error(
+                    f"Failed to start process for {script_config.route_path}: {e}"
+                )
+
         logger.info(f"Started {success_count}/{script_count} processes successfully")
 
     def start_process(self, script_config: ScriptConfig) -> None:
@@ -224,7 +247,7 @@ class TTYDManager:
 
         host = self.config.ttyd_options.interface
         port = script_config.port
-        
+
         if self._is_port_in_use(host, port):
             self._kill_process_on_port(host, port)
             time.sleep(1.0)
@@ -234,7 +257,7 @@ class TTYDManager:
                 )
 
         cmd = self._build_command(script_config)
-        
+
         # Log detailed command at debug level only
         logger.debug(f"Process command for {route_path}: {' '.join(cmd)}")
 
@@ -243,7 +266,7 @@ class TTYDManager:
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                start_new_session=True
+                start_new_session=True,
             )
             self.processes[route_path] = process
             self.start_times[route_path] = datetime.now()
@@ -254,22 +277,32 @@ class TTYDManager:
 
             for _ in range(checks):
                 if process.poll() is not None:
-                    stderr = process.stderr.read().decode('utf-8')
-                    logger.error(f"ttyd failed to start for route {route_path}: {stderr}")
+                    stderr = process.stderr.read().decode("utf-8")
+                    logger.error(
+                        f"ttyd failed to start for route {route_path}: {stderr}"
+                    )
                     self.processes.pop(route_path, None)
                     self.start_times.pop(route_path, None)
                     raise TTYDStartupError(stderr=stderr)
-                    
+
                 if self.is_process_running(route_path):
                     # Add info about function vs script based
-                    route_type = "function-based" if script_config.is_function_based else "script-based"
+                    route_type = (
+                        "function-based"
+                        if script_config.is_function_based
+                        else "script-based"
+                    )
                     # Single consolidated log message after successful start
-                    logger.info(f"Started ttyd ({route_type}): {route_path} (port:{port}, pid:{process.pid})")
+                    logger.info(
+                        f"Started ttyd ({route_type}): {route_path} (port:{port}, pid:{process.pid})"
+                    )
                     return
-                    
+
                 time.sleep(check_interval)
-                
-            logger.error(f"ttyd for route {route_path} did not start within the timeout")
+
+            logger.error(
+                f"ttyd for route {route_path} did not start within the timeout"
+            )
             self.processes.pop(route_path, None)
             self.start_times.pop(route_path, None)
             raise TTYDStartupError(f"Timeout starting ttyd for route {route_path}")
@@ -286,18 +319,18 @@ class TTYDManager:
         if process_count == 0:
             logger.debug("No ttyd processes to stop")
             return
-            
+
         logger.info(f"Stopping {process_count} ttyd processes")
-        
+
         for route_path in list(self.processes.keys()):
             self.stop_process(route_path, log_individual=False)
-            
+
         logger.info("All ttyd processes stopped")
 
     def stop_process(self, route_path: str, log_individual: bool = True) -> None:
         """
         Stop a single ttyd process for the given route.
-        
+
         Args:
             route_path: The route path of the process to stop
             log_individual: Whether to log individual process stop (False when called from stop())
@@ -305,12 +338,12 @@ class TTYDManager:
         process = self.processes.get(route_path)
         if not process:
             return
-            
+
         if log_individual:
             logger.info(f"Stopping ttyd for route {route_path}")
-            
+
         try:
-            if os.name == 'nt':
+            if os.name == "nt":
                 process.terminate()
             else:
                 try:
@@ -322,7 +355,7 @@ class TTYDManager:
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                if os.name == 'nt':
+                if os.name == "nt":
                     process.kill()
                 else:
                     try:
@@ -336,10 +369,10 @@ class TTYDManager:
                     pass
         except Exception as e:
             logger.warning(f"Error cleaning up process for route {route_path}: {e}")
-        
+
         self.processes.pop(route_path, None)
         self.start_times.pop(route_path, None)
-        
+
         if log_individual:
             logger.info(f"Stopped ttyd for route {route_path}")
 
@@ -366,31 +399,39 @@ class TTYDManager:
         for cfg in self.config.script_configs:
             route_path = cfg.route_path
             running = self.is_process_running(route_path)
-            
+
             # Add info about whether this is a function-based route
-            processes_health.append({
-                "route_path": route_path,
-                "script": str(cfg.effective_script_path),
-                "status": "running" if running else "stopped",
-                "uptime": self.get_process_uptime(route_path),
-                "port": cfg.port,
-                "pid": self.processes.get(route_path).pid if running else None,
-                "title": cfg.title or self.config.title,
-                "is_function_based": cfg.is_function_based
-            })
-            
+            processes_health.append(
+                {
+                    "route_path": route_path,
+                    "script": str(cfg.effective_script_path),
+                    "status": "running" if running else "stopped",
+                    "uptime": self.get_process_uptime(route_path),
+                    "port": cfg.port,
+                    "pid": self.processes.get(route_path).pid if running else None,
+                    "title": cfg.title or self.config.title,
+                    "is_function_based": cfg.is_function_based,
+                }
+            )
+
         # Log a compact summary of process health with function info
         running_count = sum(1 for p in processes_health if p["status"] == "running")
-        function_count = sum(1 for p in processes_health if p.get("is_function_based", False))
-        
+        function_count = sum(
+            1 for p in processes_health if p.get("is_function_based", False)
+        )
+
         if function_count > 0:
-            logger.debug(f"Health check: {running_count}/{len(processes_health)} processes running "
-                         f"({function_count} function-based, {len(processes_health) - function_count} script-based)")
+            logger.debug(
+                f"Health check: {running_count}/{len(processes_health)} processes running "
+                f"({function_count} function-based, {len(processes_health) - function_count} script-based)"
+            )
         else:
-            logger.debug(f"Health check: {running_count}/{len(processes_health)} processes running")
-        
-        entry_mode = getattr(self.config, '_mode', 'script')
-        
+            logger.debug(
+                f"Health check: {running_count}/{len(processes_health)} processes running"
+            )
+
+        entry_mode = getattr(self.config, "_mode", "script")
+
         return {
             "processes": processes_health,
             "ttyd_path": str(self._ttyd_path) if self._ttyd_path else None,
@@ -400,7 +441,7 @@ class TTYDManager:
             "script_count": len(processes_health) - function_count,
             "mounting": "root" if self.config.is_root_mounted else "non-root",
             "entry_mode": entry_mode,  # Add entry mode to health check
-            **self.config.get_health_check_info()
+            **self.config.get_health_check_info(),
         }
 
     def restart_process(self, route_path: str) -> None:
@@ -414,8 +455,10 @@ class TTYDManager:
                 script_config = cfg
                 break
         if not script_config:
-            raise TTYDStartupError(f"No script configuration found for route {route_path}")
-        
+            raise TTYDStartupError(
+                f"No script configuration found for route {route_path}"
+            )
+
         self.stop_process(route_path)
         self.start_process(script_config)
 

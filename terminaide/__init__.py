@@ -1,4 +1,4 @@
-# terminaide/__init__.py
+# __init__.py
 
 """
 terminaide: Serve Python CLI applications in the browser using ttyd.
@@ -40,7 +40,7 @@ from .core.exceptions import (
     RouteNotFoundError,
     PortAllocationError,
     ScriptConfigurationError,
-    DuplicateRouteError
+    DuplicateRouteError,
 )
 
 # Add parent directory to path to make terminarcade importable
@@ -53,27 +53,31 @@ import terminarcade
 
 # ANSI color codes similar to uvicorn's
 COLORS = {
-    'DEBUG': '\033[36m',     # Cyan
-    'INFO': '\033[32m',      # Green
-    'WARNING': '\033[33m',   # Yellow
-    'ERROR': '\033[31m',     # Red
-    'CRITICAL': '\033[41m',  # Red background
-    'RESET': '\033[0m'       # Reset colors
+    "DEBUG": "\033[36m",  # Cyan
+    "INFO": "\033[32m",  # Green
+    "WARNING": "\033[33m",  # Yellow
+    "ERROR": "\033[31m",  # Red
+    "CRITICAL": "\033[41m",  # Red background
+    "RESET": "\033[0m",  # Reset colors
 }
+
 
 class ColorAlignedFormatter(logging.Formatter):
     def format(self, record):
         levelname = record.levelname
         # Ensure the level name + padding + colon takes exactly 10 characters
         padding_length = max(1, 9 - len(levelname))
-        padding = ' ' * padding_length
-        
+        padding = " " * padding_length
+
         # Add colors if the system supports it
         if sys.stdout.isatty():  # Only apply colors if running in a terminal
-            colored_levelname = f"{COLORS.get(levelname, '')}{levelname}{COLORS['RESET']}"
+            colored_levelname = (
+                f"{COLORS.get(levelname, '')}{levelname}{COLORS['RESET']}"
+            )
             return f"{colored_levelname}:{padding}{record.getMessage()}"
         else:
             return f"{levelname}:{padding}{record.getMessage()}"
+
 
 # Configure package-level logging
 logger = logging.getLogger("terminaide")
@@ -89,22 +93,18 @@ bin_dir.mkdir(exist_ok=True)
 __all__ = [
     # New API
     "serve_function",
-    "serve_script", 
+    "serve_script",
     "serve_apps",
-    
     # Add terminarcade to the exported names
     "terminarcade",
-    
     # Configuration objects
     "TTYDConfig",
     "ScriptConfig",
     "ThemeConfig",
     "TTYDOptions",
-
     # Binary management
     "setup_ttyd",
     "get_platform_info",
-
     # Exceptions
     "terminaideError",
     "BinaryError",
@@ -121,5 +121,5 @@ __all__ = [
     "RouteNotFoundError",
     "PortAllocationError",
     "ScriptConfigurationError",
-    "DuplicateRouteError"
+    "DuplicateRouteError",
 ]

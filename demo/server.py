@@ -1,4 +1,4 @@
-# demo/server.py
+# server.py
 
 """
 Test server for terminaide that demonstrates all three API tiers.

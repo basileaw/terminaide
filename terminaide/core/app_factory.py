@@ -1,4 +1,4 @@
-# terminaide/core/app_factory.py
+# app_factory.py
 
 """
 Factory functions and app builders for Terminaide serving modes.
