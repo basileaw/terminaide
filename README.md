@@ -34,11 +34,11 @@ This approach ensures a consistent experience across environments and simplifies
 
 Terminaide offers two primary approaches: Single Terminal mode for quickly serving individual functions or scripts, and Multi Terminal mode for integrating multiple terminals into a FastAPI application. Start with Single mode for simplicity, then graduate to Multi mode when you need more flexibility.
 
-### Solo Server 
+### Solo Mode 
 
 The Solo Server provides the fastest way to web-enable a Python function or script. It creates a standalone web server with a single terminal and handles all the configuration details for you. Choose between Function mode or Script mode based on your use case.
 
-#### Script Mode
+#### Script Server
 
 The absolute simplest way to use Terminaide is to serve an existing Python script that you don't want to modify:
 
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     serve_script("my_script.py")
 ```
 
-#### Function Mode
+#### Function Server
 
 However if you have even a **little** flexibility, you can serve a Python function directly from a single entry point. Just pass any Python function to `serve_function()` and it's instantly web-accessible: 
 
