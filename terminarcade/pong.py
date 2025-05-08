@@ -100,9 +100,9 @@ def run_game(stdscr, my, mx, ph, pw, ls, rs, high, from_index=False):
     """
     global exit_requested, back_to_menu
 
-    speed = 80
-    inc = 5
-    min_spd = 40
+    speed = 40  # Even lower value = even faster refresh rate
+    inc = 10  # Larger increment = faster speed increases
+    min_spd = 15  # Lower minimum speed = faster maximum speed
     win = curses.newwin(ph + 2, pw + 2, 0, 0)
     win.keypad(True)
     win.timeout(speed)
@@ -120,6 +120,9 @@ def run_game(stdscr, my, mx, ph, pw, ls, rs, high, from_index=False):
     bdx = random.choice([-1, 1])  # Ball x direction
 
     winner = None
+
+    # AI difficulty: 1 = easy, 2 = medium, 3 = hard
+    ai_difficulty = 2
 
     draw_screen(stdscr, win, lpy, rpy, lpx, rpx, pad_h, by, bx, ls, rs, high, mx)
 
@@ -141,31 +144,51 @@ def run_game(stdscr, my, mx, ph, pw, ls, rs, high, from_index=False):
             exit_requested = True
             return ls, rs, winner
 
-        # Handle paddle movement
+        # Handle paddle movement (much faster by moving 4 units)
         if key in [curses.KEY_UP, ord("w"), ord("W")] and lpy > 0:
-            lpy -= 1
+            lpy -= 4
+            # Ensure we don't go out of bounds
+            if lpy < 0:
+                lpy = 0
         elif key in [curses.KEY_DOWN, ord("s"), ord("S")] and lpy + pad_h < ph:
-            lpy += 1
+            lpy += 4
+            # Ensure we don't go out of bounds
+            if lpy + pad_h > ph:
+                lpy = ph - pad_h
 
-        # Simple AI for right paddle or second player controls
-        if key == ord("1"):
+        # AI for right paddle (now runs on every frame)
+        # Calculate ideal position for right paddle based on ball position
+        ideal = by - pad_h // 2
+
+        # Only move every few frames based on difficulty (makes AI beatable)
+        if random.randint(1, 5) <= ai_difficulty:
+            # Add some predictive movement when ball is moving toward the paddle
             if bdx > 0:
-                ideal = by - pad_h // 2
+                # Move toward ideal position (much faster movement - 4 units)
                 if rpy < ideal and rpy + pad_h < ph:
-                    rpy += 1
+                    rpy += 4
+                    # Prevent going out of bounds
+                    if rpy + pad_h > ph:
+                        rpy = ph - pad_h
                 elif rpy > ideal and rpy > 0:
-                    rpy -= 1
-        else:
-            if key in [ord("i"), ord("I")] and rpy > 0:
-                rpy -= 1
-            elif key in [ord("k"), ord("K")] and rpy + pad_h < ph:
-                rpy += 1
+                    rpy -= 4
+                    # Prevent going out of bounds
+                    if rpy < 0:
+                        rpy = 0
+            else:
+                # When ball moving away, move toward center more slowly (for easier difficulty)
+                center = ph // 2 - pad_h // 2
+                if rpy < center and random.randint(0, 2) == 0 and rpy + pad_h < ph:
+                    rpy += 2
+                elif rpy > center and random.randint(0, 2) == 0 and rpy > 0:
+                    rpy -= 2
 
-        # Update ball position
-        by += bdy
-        bx += bdx
+        # Update ball position with increased speed
+        by += bdy * 2  # Multiply by 2 for faster vertical movement
+        bx += bdx * 2  # Multiply by 2 for faster horizontal movement
 
         # Ball collision with top/bottom walls
+        # Adjusted to handle faster ball speed
         if by <= 0:
             by = 1
             bdy = abs(bdy)
