@@ -79,6 +79,7 @@ def _index_menu_loop(stdscr_param):
     curses.init_pair(4, curses.COLOR_BLACK, curses.COLOR_CYAN)
     curses.init_pair(5, curses.COLOR_BLACK, curses.COLOR_WHITE)
     curses.init_pair(6, curses.COLOR_GREEN, -1)
+    curses.init_pair(7, curses.COLOR_BLUE, -1)  # For the GitHub URL
 
     curses.curs_set(0)  # Hide cursor
 
@@ -134,34 +135,59 @@ def _index_menu_loop(stdscr_param):
                 curses.color_pair(1) | curses.A_BOLD,
             )
 
-    # Draw instructions
+    # Calculate starting Y position after the title
     sy = 2 + len(title_to_use)
-    instr = "Use ↑/↓ to navigate, Enter to select, Q to quit"
-    safe_addstr(stdscr, sy + 2, (mx - len(instr)) // 2, instr, curses.color_pair(2))
+
+    # Draw instructions
+    instr = "Use ←/→ to navigate, Enter to select, Q to quit"
+    safe_addstr(stdscr, sy + 1, (mx - len(instr)) // 2, instr, curses.color_pair(2))
 
     # Add backspace/delete instruction
     back_instr = "Press Backspace or Delete in games to return to this menu"
     safe_addstr(
         stdscr,
-        sy + 3,
+        sy + 2,
         (mx - len(back_instr)) // 2,
         back_instr,
         curses.color_pair(6) | curses.A_BOLD,
     )
 
-    # Calculate menu layout
-    mol = max(len(o) for o in options)
-    oy = sy + 5
+    # Calculate menu layout for horizontal buttons
+    # We'll compute the total width needed for all buttons with padding between them
+    button_padding = 4  # Spaces between buttons
+    button_width = max(len(o) for o in options) + 6  # +6 for padding inside each button
+    total_buttons_width = (button_width * len(options)) + (
+        button_padding * (len(options) - 1)
+    )
 
-    # Initial draw of menu options
-    for i, o in enumerate(options):
+    # Center the row of buttons
+    start_x = (mx - total_buttons_width) // 2
+    menu_y = sy + 4  # The y position for the row of buttons
+
+    # Initial draw of menu options horizontally
+    for i, option in enumerate(options):
+        button_x = start_x + (i * (button_width + button_padding))
         st = curses.color_pair(5) if i == current_option else curses.color_pair(4)
-        pad = " " * 3
-        sp = mol - len(o)
-        ls = sp // 2
-        rs = sp - ls
-        bt = f"{pad}{' ' * ls}{o}{' ' * rs}{pad}"
-        safe_addstr(stdscr, oy + i * 2, (mx - len(bt)) // 2, bt, st | curses.A_BOLD)
+
+        # Center the text within the button
+        text_padding = (button_width - len(option)) // 2
+        button_text = (
+            " " * text_padding
+            + option
+            + " " * (button_width - len(option) - text_padding)
+        )
+
+        safe_addstr(stdscr, menu_y, button_x, button_text, st | curses.A_BOLD)
+
+    # Add GitHub URL below the buttons
+    github_url = "https://github.com/bazeindustries/terminaide"
+    safe_addstr(
+        stdscr,
+        menu_y + 2,  # 2 lines below the buttons
+        (mx - len(github_url)) // 2,
+        github_url,
+        curses.color_pair(7) | curses.A_BOLD,
+    )
 
     # Main menu loop
     while True:
@@ -171,20 +197,30 @@ def _index_menu_loop(stdscr_param):
         # Update menu selection if changed
         if current_option != previous_option:
             # Redraw previous selection (unselected)
+            prev_button_x = start_x + (
+                previous_option * (button_width + button_padding)
+            )
             st = curses.color_pair(4) | curses.A_BOLD
-            sp = mol - len(options[previous_option])
-            ls = sp // 2
-            rs = sp - ls
-            pbt = f"{' ' * 3}{' ' * ls}{options[previous_option]}{' ' * rs}{' ' * 3}"
-            safe_addstr(stdscr, oy + previous_option * 2, (mx - len(pbt)) // 2, pbt, st)
+            prev_option = options[previous_option]
+            text_padding = (button_width - len(prev_option)) // 2
+            button_text = (
+                " " * text_padding
+                + prev_option
+                + " " * (button_width - len(prev_option) - text_padding)
+            )
+            safe_addstr(stdscr, menu_y, prev_button_x, button_text, st)
 
             # Redraw current selection (selected)
+            curr_button_x = start_x + (current_option * (button_width + button_padding))
             st = curses.color_pair(5) | curses.A_BOLD
-            sp = mol - len(options[current_option])
-            ls = sp // 2
-            rs = sp - ls
-            nbt = f"{' ' * 3}{' ' * ls}{options[current_option]}{' ' * rs}{' ' * 3}"
-            safe_addstr(stdscr, oy + current_option * 2, (mx - len(nbt)) // 2, nbt, st)
+            curr_option = options[current_option]
+            text_padding = (button_width - len(curr_option)) // 2
+            button_text = (
+                " " * text_padding
+                + curr_option
+                + " " * (button_width - len(curr_option) - text_padding)
+            )
+            safe_addstr(stdscr, menu_y, curr_button_x, button_text, st)
 
             previous_option = current_option
 
@@ -196,9 +232,12 @@ def _index_menu_loop(stdscr_param):
 
             if k in [ord("q"), ord("Q"), 27]:  # q, Q, or ESC
                 break
-            elif k == curses.KEY_UP and current_option > 0:
+            elif k in [curses.KEY_LEFT, ord("a"), ord("A")] and current_option > 0:
                 current_option -= 1
-            elif k == curses.KEY_DOWN and current_option < len(options) - 1:
+            elif (
+                k in [curses.KEY_RIGHT, ord("d"), ord("D")]
+                and current_option < len(options) - 1
+            ):
                 current_option += 1
             elif k in [curses.KEY_ENTER, ord("\n"), ord("\r")]:
                 if current_option == 0:
