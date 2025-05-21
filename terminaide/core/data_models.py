@@ -1,4 +1,4 @@
-# settings.py
+# data_models.py
 
 """Defines Pydantic-based settings for terminaide, including path handling for root/non-root mounting and multiple script routing."""
 
@@ -233,7 +233,7 @@ class TTYDConfig(BaseModel):
     debug: bool = False
     title: str = "Terminal"
     script_configs: List[ScriptConfig] = Field(default_factory=list)
-    _mode: str = "script"  # Default mode: "function", "script", or "apps"
+    _mode: str = "script"  # Default mode: "function", "script", "apps", or "meta"
     forward_env: Union[bool, List[str], Dict[str, Optional[str]]] = True
 
     @field_validator("client_script", "template_override")
@@ -291,6 +291,7 @@ class TTYDConfig(BaseModel):
                 ScriptConfig(
                     route_path="/",
                     client_script=self.client_script,
+                    args=[],
                     port=self.port,
                     title=self.title,
                     preview_image=self.preview_image,
@@ -307,6 +308,11 @@ class TTYDConfig(BaseModel):
     def is_multi_script(self) -> bool:
         """True if multiple scripts are configured."""
         return len(self.script_configs) > 1
+
+    @property
+    def is_meta_mode(self) -> bool:
+        """True if this is a meta-server configuration."""
+        return self._mode == "meta"
 
     @property
     def terminal_path(self) -> str:
@@ -367,6 +373,15 @@ class TTYDConfig(BaseModel):
                     ),
                 }
             )
+
+        # Include meta-server specific info if in meta mode
+        meta_info = {}
+        if self.is_meta_mode:
+            meta_info = {
+                "is_meta_server": True,
+                "app_dir": str(getattr(self, "_app_dir", "auto-detected")),
+            }
+
         return {
             "mount_path": self.mount_path,
             "terminal_path": self.terminal_path,
@@ -380,6 +395,7 @@ class TTYDConfig(BaseModel):
             "auth_required": self.ttyd_options.credential_required,
             "preview_image": str(self.preview_image) if self.preview_image else None,
             "script_configs": script_info,
+            **meta_info,  # Include meta-server info if applicable
         }
 
 

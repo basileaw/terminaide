@@ -4,7 +4,7 @@
 Factory functions and app builders for Terminaide serving modes.
 
 This module contains implementation classes that handle different serving modes
-(function, script, apps) and the factory functions used with Uvicorn's reload feature.
+(function, script, apps, meta) and the factory functions used with Uvicorn's reload feature.
 """
 
 import os
@@ -107,6 +107,113 @@ def generate_function_wrapper(func: Callable) -> Path:
         return script_path
 
 
+def generate_meta_server_wrapper(
+    func: Callable, app_dir: Optional[Path] = None
+) -> Path:
+    """
+    Generate an ephemeral script that runs a server function in the correct directory context.
+    This is used for the meta_serve() function to ensure the server runs with the correct
+    path resolution for client scripts and other relative imports.
+
+    Args:
+        func: The server function to wrap
+        app_dir: The application directory (if None, will try to detect from function source)
+
+    Returns:
+        Path to the generated wrapper script
+    """
+    func_name = func.__name__
+    module_name = getattr(func, "__module__", None)
+
+    temp_dir = Path(tempfile.gettempdir()) / "terminaide_ephemeral"
+    temp_dir.mkdir(exist_ok=True)
+    script_path = temp_dir / f"meta_server_{func_name}.py"
+
+    # Determine source directory if not provided
+    if app_dir is None:
+        try:
+            source_file = inspect.getsourcefile(func) or inspect.getfile(func)
+            if source_file:
+                app_dir = Path(os.path.dirname(os.path.abspath(source_file)))
+                logger.debug(f"Detected app_dir from function source: {app_dir}")
+        except Exception as e:
+            logger.warning(f"Could not determine app_dir from function: {e}")
+            app_dir = Path(os.getcwd())  # fallback to current dir if all else fails
+
+    # Handle if app_dir is provided as a string
+    if isinstance(app_dir, str):
+        app_dir = Path(app_dir)
+
+    # Generate the path injection code
+    bootstrap = (
+        "import sys, os\n"
+        "# Add original paths to ensure imports work correctly\n"
+        f'original_dir = r"{app_dir}"\n'
+        "if original_dir not in sys.path:\n"
+        "    sys.path.insert(0, original_dir)\n"
+        "# Also add current working directory\n"
+        "if os.getcwd() not in sys.path:\n"
+        "    sys.path.insert(0, os.getcwd())\n\n"
+    )
+
+    # Generate the directory context handling code
+    dir_context = (
+        "# Preserve directory context\n"
+        "import os\n"
+        "original_cwd = os.getcwd()\n"
+        f'target_dir = r"{app_dir}"\n'
+        "try:\n"
+        "    # Change to the target directory before executing\n"
+        "    os.chdir(target_dir)\n\n"
+    )
+
+    # If it's a normal module (not main or mp_main)
+    if module_name and module_name not in ("__main__", "__mp_main__"):
+        wrapper_code = (
+            f"# Meta-server wrapper for {func_name} from module {module_name}\n"
+            f"{bootstrap}"
+            f"{dir_context}"
+            f"    # Import and run the server function\n"
+            f"    from {module_name} import {func_name}\n"
+            f"    {func_name}()\n"
+            f"finally:\n"
+            f"    # Always restore the original directory\n"
+            f"    os.chdir(original_cwd)\n"
+        )
+        script_path.write_text(wrapper_code, encoding="utf-8")
+        return script_path
+
+    # Inline fallback (if __main__ or dynamically defined)
+    try:
+        source_code = inspect.getsource(func)
+        # We need to properly indent the function source code to fit into the try block
+        indented_source = "\n".join(f"    {line}" for line in source_code.splitlines())
+
+        wrapper_code = (
+            f"# Meta-server wrapper for {func_name} (from __main__ or dynamic)\n"
+            f"{bootstrap}"
+            f"{dir_context}"
+            f"    # Define the server function\n"
+            f"{indented_source}\n\n"
+            f"    # Run the server function\n"
+            f"    {func_name}()\n"
+            f"finally:\n"
+            f"    # Always restore the original directory\n"
+            f"    os.chdir(original_cwd)\n"
+        )
+        script_path.write_text(wrapper_code, encoding="utf-8")
+        return script_path
+    except Exception as e:
+        # Last resort: static error fallback
+        error_script = (
+            f'print("ERROR: cannot create meta-server wrapper for function {func_name}")\n'
+            f'print("Module: {module_name}")\n'
+            f'print("Error: {str(e)}")\n'
+        )
+        script_path.write_text(error_script, encoding="utf-8")
+        return script_path
+
+
 class ServeWithConfig:
     """Class responsible for handling the serving implementation for different modes."""
 
@@ -146,6 +253,7 @@ class ServeWithConfig:
                 "function": "dark_orange",
                 "script": "blue",
                 "apps": "magenta",
+                "meta": "bright_green",
             }
             color = mode_colors.get(mode, "yellow")
             mode_upper = mode.upper()
@@ -176,6 +284,8 @@ class ServeWithConfig:
             cls.serve_script(config)
         elif config._mode == "apps":
             cls.serve_apps(config)
+        elif config._mode == "meta":
+            cls.serve_meta(config)
         else:
             raise ValueError(f"Unknown serving mode: {config._mode}")
 
@@ -235,6 +345,49 @@ class ServeWithConfig:
             )
 
             cls.serve_script(script_config)
+
+    @classmethod
+    def serve_meta(cls, config) -> None:
+        """Implementation for serving a meta-server (a server that serves terminal instances)."""
+        func = config._target
+        app_dir = getattr(config, "_app_dir", None)
+
+        logger.info(f"Creating meta-server wrapper for function: {func.__name__}")
+
+        # Generate the meta-server wrapper script
+        ephemeral_path = generate_meta_server_wrapper(func, app_dir)
+
+        # Create a new config for the script serving
+        script_config = type(config)(
+            port=config.port,
+            title=config.title,
+            theme=config.theme,
+            debug=config.debug,
+            forward_env=config.forward_env,
+            ttyd_options=config.ttyd_options,
+            template_override=config.template_override,
+            trust_proxy_headers=config.trust_proxy_headers,
+            mount_path=config.mount_path,
+            ttyd_port=config.ttyd_port,
+        )
+
+        # Copy preview_image if available
+        if hasattr(config, "preview_image"):
+            script_config.preview_image = config.preview_image
+
+        # Set the target to the wrapper script
+        script_config._target = ephemeral_path
+        script_config._mode = "meta"  # Preserve the meta mode
+        script_config._original_function_name = func.__name__
+
+        logger.info("Meta-server wrapper script created at:")
+        logger.info(f"{ephemeral_path}")
+        logger.debug(
+            f"Using title: {script_config.title} for meta-server {func.__name__}"
+        )
+
+        # Leverage the existing script serving functionality
+        cls.serve_script(script_config)
 
     @classmethod
     def serve_script(cls, config) -> None:

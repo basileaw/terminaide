@@ -365,7 +365,8 @@ def get_ttyd_path(force_reinstall: bool = False) -> Optional[Path]:
             and binary_path.exists()
             and os.access(binary_path, os.X_OK)
         ):
-            logger.info(f"Using existing ttyd binary at {binary_path}")
+            logger.info("Using existing ttyd binary at:")
+            logger.info(f"{binary_path}")
             return binary_path
 
         # Compile from source for macOS

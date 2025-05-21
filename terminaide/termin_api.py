@@ -1,15 +1,18 @@
-# termin-api.py
+# termin_api.py
 
 """Main implementation for configuring and serving ttyd through FastAPI.
 
 This module provides the core functionality for setting up a ttyd-based terminal
-service within a FastAPI application, with three distinct API paths:
+service within a FastAPI application, with four distinct API paths:
 
 1. serve_function: simplest entry point - run a function in a terminal
-2. serve_script: simple path - run a Python script in a terminal  
+2. serve_script: simple path - run a Python script in a terminal
 3. serve_apps: advanced path - integrate multiple terminals into a FastAPI application
+4. meta_serve: advanced path - run a server that serves terminal instances in a browser terminal
 """
 
+import os
+import inspect
 import logging
 from pathlib import Path
 from fastapi import FastAPI
@@ -28,14 +31,14 @@ script_app_factory = AppFactory.script_app_factory
 # Public API
 ################################################################################
 
+
 def serve_function(
-    func: Callable,
-    config: Optional[TerminaideConfig] = None,
-    **kwargs) -> None:
+    func: Callable, config: Optional[TerminaideConfig] = None, **kwargs
+) -> None:
     """Serve a Python function in a browser terminal.
-    
+
     This function creates a web-accessible terminal that runs the provided Python function.
-    
+
     Args:
         func: The function to serve in the terminal
         config: Configuration options for the terminal
@@ -54,22 +57,21 @@ def serve_function(
     cfg = build_config(config, kwargs)
     cfg._target = func
     cfg._mode = "function"
-    
+
     # Auto-generate title if not specified
     if "title" not in kwargs and (config is None or config.title == "Terminal"):
         cfg.title = f"{func.__name__}()"
-    
+
     ServeWithConfig.serve(cfg)
 
 
 def serve_script(
-    script_path: Union[str, Path],
-    config: Optional[TerminaideConfig] = None,
-    **kwargs) -> None:
+    script_path: Union[str, Path], config: Optional[TerminaideConfig] = None, **kwargs
+) -> None:
     """Serve a Python script in a browser terminal.
-    
+
     This function creates a web-accessible terminal that runs the provided Python script.
-    
+
     Args:
         script_path: Path to the script file to serve
         config: Configuration options for the terminal
@@ -88,16 +90,16 @@ def serve_script(
     cfg = build_config(config, kwargs)
     cfg._target = Path(script_path)
     cfg._mode = "script"
-    
+
     # Auto-generate title if not specified
     if "title" not in kwargs and (config is None or config.title == "Terminal"):
         # Check if we're coming from serve_function with a default title
-        if hasattr(cfg, '_original_function_name'):
+        if hasattr(cfg, "_original_function_name"):
             cfg.title = f"{cfg._original_function_name}()"
         else:
             script_name = Path(script_path).name
             cfg.title = f"{script_name}"
-    
+
     ServeWithConfig.serve(cfg)
 
 
@@ -105,12 +107,13 @@ def serve_apps(
     app: FastAPI,
     terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any], Callable]],
     config: Optional[TerminaideConfig] = None,
-    **kwargs) -> None:
+    **kwargs,
+) -> None:
     """Integrate multiple terminals into a FastAPI application.
-    
+
     This function configures a FastAPI application to serve multiple terminal instances
     at different routes.
-    
+
     Args:
         app: FastAPI application to extend
         terminal_routes: Dictionary mapping paths to scripts or functions. Each value can be:
@@ -135,23 +138,23 @@ def serve_apps(
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
             - preview_image: Default preview image for social media sharing (default: None)
                             Can also be specified per route in terminal_routes config.
-                            
+
     Examples:
         ```python
         from fastapi import FastAPI
         from terminaide import serve_apps
-        
+
         app = FastAPI()
-        
+
         @app.get("/")
         async def root():
             return {"message": "Welcome to my terminal app"}
-        
+
         # Define a function to serve in a terminal
         def hello():
             name = input("What's your name? ")
             print(f"Hello, {name}!")
-        
+
         # Configure terminals with both scripts and functions
         serve_apps(
             app,
@@ -168,12 +171,88 @@ def serve_apps(
         ```
     """
     if not terminal_routes:
-        logger.warning("No terminal routes provided to serve_apps(). No terminals will be served.")
+        logger.warning(
+            "No terminal routes provided to serve_apps(). No terminals will be served."
+        )
         return
-        
+
     cfg = build_config(config, kwargs)
     cfg._target = terminal_routes
     cfg._app = app
     cfg._mode = "apps"
-    
+
+    ServeWithConfig.serve(cfg)
+
+
+def meta_serve(
+    func: Callable, app_dir: Optional[Union[str, Path]] = None, **kwargs
+) -> None:
+    """Serve a meta-server (a server that serves terminal instances) in a browser terminal,
+    preserving correct directory context for script resolution.
+
+    This function creates a web-accessible terminal that runs a server function which itself
+    serves terminal instances. This enables a "meta-server" where both the server process
+    and the terminals it manages are accessible via web browsers.
+
+    Args:
+        func: The function that starts your server (typically a function using serve_apps)
+        app_dir: The directory containing your application (defaults to the directory
+                 of the file where the function is defined)
+        **kwargs: Additional configuration overrides:
+            - port: Web server port (default: 8000)
+            - title: Terminal window title (default: "{func_name} Server")
+            - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
+            - debug: Enable debug mode (default: True)
+            - reload: Enable auto-reload on code changes (default: False)
+            - forward_env: Control environment variable forwarding (default: True)
+            - ttyd_options: Options for the ttyd process
+            - template_override: Custom HTML template path
+            - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
+            - preview_image: Custom preview image for social media sharing (default: None)
+
+    Examples:
+        ```python
+        from fastapi import FastAPI
+        from terminaide import serve_apps, meta_serve
+
+        # Define a server function that uses serve_apps
+        def run_server():
+            app = FastAPI()
+
+            @app.get("/")
+            async def root():
+                return {"message": "Welcome to my terminal app"}
+
+            serve_apps(
+                app,
+                terminal_routes={"/cli": "my_script.py"}
+            )
+
+        # Run the server function in a browser terminal
+        meta_serve(run_server)
+        ```
+    """
+    cfg = build_config(None, kwargs)
+    cfg._target = func
+    cfg._mode = "meta"
+
+    # Auto-generate title if not specified
+    if "title" not in kwargs and (cfg is None or cfg.title == "Terminal"):
+        cfg.title = f"{func.__name__} Server"
+
+    # If app_dir is not specified, try to determine it from the function's source
+    if app_dir is None:
+        try:
+            # Get the source file of the function
+            source_file = inspect.getsourcefile(func)
+            if source_file:
+                app_dir = os.path.dirname(os.path.abspath(source_file))
+                logger.debug(f"Detected app_dir from function source: {app_dir}")
+        except Exception as e:
+            logger.warning(f"Could not determine app_dir from function: {e}")
+
+    # Store the app_dir in the config for use by the wrapper script generator
+    if app_dir:
+        cfg._app_dir = Path(app_dir)
+
     ServeWithConfig.serve(cfg)

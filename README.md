@@ -32,7 +32,7 @@ This approach ensures a consistent experience across environments and simplifies
 
 ## Usage
 
-Terminaide offers two primary approaches: Single Terminal mode for quickly serving individual functions or scripts, and Multi Terminal mode for integrating multiple terminals into a FastAPI application. Start with Single mode for simplicity, then graduate to Multi mode when you need more flexibility.
+Terminaide offers three primary approaches: Single Terminal mode for quickly serving individual functions or scripts, Multi Terminal mode for integrating multiple terminals into a FastAPI application, and Meta Server mode for serving a server that itself serves terminals. Start with Single mode for simplicity, then graduate to Multi mode when you need more flexibility, or use Meta mode when you want to run an entire server in a browser terminal.
 
 ### Solo Mode 
 
@@ -205,6 +205,47 @@ serve_apps(
     title=None,
     debug=True,
     # etc.
+)
+```
+
+### Meta Server
+
+The Meta Server enables running a server that itself serves terminal instances within a browser terminal. This creates a "meta-server" where both the server process and the terminals it manages are accessible via web browsers, with proper directory context preservation.
+
+```python
+from fastapi import FastAPI
+from terminaide import serve_apps, meta_serve
+
+def run_my_server():
+    """This function starts a server with multiple terminals"""
+    app = FastAPI()
+    
+    @app.get("/")
+    async def root():
+        return {"message": "Welcome to my terminal app"}
+    
+    serve_apps(
+        app,
+        terminal_routes={
+            "/cli": "my_script.py",
+            "/admin": admin_function
+        }
+    )
+
+if __name__ == "__main__":
+    # Run the entire server in a browser terminal
+    meta_serve(run_my_server)
+```
+
+The Meta Server accepts the same configuration options as the Solo Server, plus:
+
+```python
+meta_serve(
+    func,                     # Function that starts your server
+    app_dir="/path/to/app",   # Application directory (auto-detected if not specified)
+    port=8000,                # Web server port
+    title=None,               # Terminal title (auto-generated: "{func_name} Server")
+    # ... plus all other Solo Server options
 )
 ```
 

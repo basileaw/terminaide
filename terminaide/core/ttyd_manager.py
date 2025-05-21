@@ -54,7 +54,8 @@ class TTYDManager:
         """
         try:
             self._ttyd_path = setup_ttyd(force_reinstall)
-            logger.debug(f"Using ttyd binary at: {self._ttyd_path}")
+            logger.debug("Using ttyd binary at:")
+            logger.debug(f"{self._ttyd_path}")
         except Exception as e:
             logger.error(f"Failed to set up ttyd: {e}")
             raise TTYDStartupError(f"Failed to set up ttyd: {e}")
