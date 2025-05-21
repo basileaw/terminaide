@@ -19,6 +19,7 @@ import argparse
 import tempfile
 import subprocess
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Union, cast, TypeVar, Type, Mapping, Tuple
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 
@@ -44,10 +45,13 @@ MODE_HELP = {
     "container": "Docker container mode (same as apps)",
 }
 
+# Type alias for dynamic Docker client handling
+T = TypeVar("T")
 
-def create_custom_root_endpoint(app: FastAPI):
+
+def create_custom_root_endpoint(app: FastAPI) -> None:
     @app.get("/", response_class=HTMLResponse)
-    async def custom_root(request: Request):
+    async def custom_root(request: Request) -> HTMLResponse:
         title_mode = (
             "Container" if os.environ.get("CONTAINER_MODE") == "true" else "Apps"
         )
@@ -144,12 +148,12 @@ def create_custom_root_endpoint(app: FastAPI):
             <a href="/info" class="info-link">Server Configuration Info</a>
         </body>
         </html>"""
-        return HTMLResponse(html_content)
+        return HTMLResponse(content=html_content)
 
 
-def create_info_endpoint(app: FastAPI, mode: str, description: str):
+def create_info_endpoint(app: FastAPI, mode: str, description: str) -> None:
     @app.get("/info", response_class=HTMLResponse)
-    async def info(request: Request):
+    async def info(request: Request) -> HTMLResponse:
         info_dict = {
             "mode": mode,
             "description": description,
@@ -162,7 +166,7 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
                 "serve_apps: Advanced - integrate with FastAPI",
             ],
         }
-        return f"""<!DOCTYPE html>
+        html_content = f"""<!DOCTYPE html>
         <html>
         <head>
             <title>Terminaide Info</title>
@@ -170,15 +174,16 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str):
         </head>
         <body><pre>{json.dumps(info_dict, indent=2)}</pre></body>
         </html>"""
+        return HTMLResponse(content=html_content)
 
 
-def play_asteroids_function():
+def play_asteroids_function() -> None:
     from terminarcade import play_asteroids
 
     play_asteroids()
 
 
-def create_app():
+def create_app() -> FastAPI:
     """
     Factory function: read mode from environment, build and return FastAPI app.
     Used by Uvicorn with 'factory=True' so it can reload properly.
@@ -214,7 +219,7 @@ def create_app():
     return app
 
 
-def generate_requirements_txt(pyproject_path, temp_dir):
+def generate_requirements_txt(pyproject_path: Path, temp_dir: Union[str, Path]) -> Path:
     try:
         import re
 
@@ -263,10 +268,154 @@ def generate_requirements_txt(pyproject_path, temp_dir):
         sys.exit(1)
 
 
-def build_and_run_container(port=8000):
+def get_exception_class(module: Any, name: str) -> Type[Exception]:
+    """Safe helper to get exception classes from modules"""
     try:
-        import docker
+        if hasattr(module, "errors") and hasattr(module.errors, name):
+            return getattr(module.errors, name)
+        return Exception  # Fallback to base Exception
+    except (AttributeError, ImportError):
+        return Exception
 
+
+def build_and_run_container_subprocess(port: int = 8000) -> None:
+    """Alternative implementation using subprocess instead of docker package"""
+    # Check if docker is installed
+    try:
+        subprocess.run(["docker", "--version"], check=True, capture_output=True)
+    except (subprocess.SubprocessError, FileNotFoundError):
+        logger.error("Docker is not installed or not in PATH")
+        sys.exit(1)
+
+    # Implementation using subprocess commands instead of docker package
+    # (Simplified version of the same functionality)
+    project_root = Path(__file__).parent.parent.absolute()
+    image_name = project_root.name.lower()
+
+    # Create temp directory and generate files
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        # Copy directories
+        for directory in ["terminaide", "terminarcade", "demo"]:
+            src_dir = project_root / directory
+            dst_dir = temp_path / directory
+            if src_dir.exists():
+                shutil.copytree(
+                    src_dir,
+                    dst_dir,
+                    ignore=lambda src, names: (
+                        ["ttyd"] if os.path.basename(src) == "bin" else []
+                    ),
+                )
+                if directory == "terminaide":
+                    (dst_dir / "core" / "bin").mkdir(exist_ok=True)
+
+        # Generate requirements
+        generate_requirements_txt(project_root / "pyproject.toml", temp_path)
+
+        # Create Dockerfile
+        dockerfile_content = """
+FROM python:3.12-slim
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+WORKDIR /app
+COPY terminaide/ ./terminaide/
+COPY terminarcade/ ./terminarcade/
+COPY demo/ ./demo/
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+EXPOSE 8000
+CMD ["python", "demo/server.py", "apps"]
+"""
+        dockerfile_path = temp_path / "Dockerfile"
+        with open(dockerfile_path, "w") as f:
+            f.write(dockerfile_content)
+
+        # Build image using subprocess
+        logger.info(f"Building Docker image: {image_name}")
+        build_cmd = ["docker", "build", "-t", image_name, str(temp_path)]
+        result = subprocess.run(build_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            logger.error(f"Docker build failed: {result.stderr}")
+            sys.exit(1)
+
+        # Check for existing container
+        container_name = f"{image_name}-container"
+        result = subprocess.run(
+            [
+                "docker",
+                "ps",
+                "-a",
+                "--filter",
+                f"name={container_name}",
+                "--format",
+                "{{.ID}}",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.stdout.strip():
+            logger.info(f"Stopping existing container: {container_name}")
+            subprocess.run(["docker", "stop", container_name], capture_output=True)
+            subprocess.run(["docker", "rm", container_name], capture_output=True)
+
+        # Run container
+        logger.info(f"Starting container {container_name} on port {port}")
+        run_cmd = [
+            "docker",
+            "run",
+            "--name",
+            container_name,
+            "-p",
+            f"{port}:8000",
+            "-e",
+            "CONTAINER_MODE=true",
+            "-d",
+            image_name,
+        ]
+        result = subprocess.run(run_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            logger.error(f"Docker run failed: {result.stderr}")
+            sys.exit(1)
+
+        container_id = result.stdout.strip()
+        logger.info(f"Container {container_name} started (ID: {container_id[:12]})")
+        logger.info(f"Access at: http://localhost:{port}")
+        logger.info("Streaming container logs (Ctrl+C to stop)")
+
+        try:
+            # Stream logs
+            log_cmd = ["docker", "logs", "-f", container_id]
+            subprocess.run(log_cmd)
+        except KeyboardInterrupt:
+            logger.info("Stopping container...")
+            subprocess.run(["docker", "stop", container_id], capture_output=True)
+            logger.info("Container stopped")
+
+
+def build_and_run_container(port: int = 8000) -> None:
+    try:
+        # First check if docker package is available
+        docker_available = False
+        docker_module = None
+        try:
+            import docker
+
+            docker_available = True
+            docker_module = docker
+        except ImportError:
+            logger.info(
+                "Docker Python package not available, falling back to subprocess implementation"
+            )
+            return build_and_run_container_subprocess(port)
+
+        if not docker_available or docker_module is None:
+            return build_and_run_container_subprocess(port)
+
+        # Initialize client variable to avoid "possibly unbound" errors
+        client = None
+
+        # Continue with docker package implementation if available
         # Get the correct Docker socket location from the context
         context_result = subprocess.run(
             ["docker", "context", "inspect"], capture_output=True, text=True
@@ -275,9 +424,13 @@ def build_and_run_container(port=8000):
             context_data = json.loads(context_result.stdout)
             if context_data and "Endpoints" in context_data[0]:
                 docker_host = context_data[0]["Endpoints"]["docker"]["Host"]
-                client = docker.DockerClient(base_url=docker_host)
+                client = docker_module.DockerClient(base_url=docker_host)
         else:
-            client = docker.from_env()
+            client = docker_module.from_env()
+
+        if client is None:
+            logger.error("Failed to initialize Docker client")
+            return build_and_run_container_subprocess(port)
 
         client.ping()
 
@@ -321,49 +474,80 @@ CMD ["python", "demo/server.py", "apps"]
             with open(dockerfile_path, "w") as f:
                 f.write(dockerfile_content)
             logger.info(f"Building Docker image: {image_name}")
-            image, build_logs = client.images.build(
+
+            # Fix the build logs processing
+            build_result = client.images.build(
                 path=str(temp_path), tag=image_name, rm=True
             )
+
+            # Unpack the build result properly
+            image = build_result[0]
+            build_logs = build_result[1]
+
+            # Properly handle logs with explicit type checking
             for log in build_logs:
-                if "stream" in log:
-                    line = log["stream"].strip()
-                    if line:
-                        logger.info(f"Build: {line}")
+                if isinstance(log, dict) and "stream" in log:
+                    stream_content = log.get("stream")
+                    if isinstance(stream_content, str) and stream_content.strip():
+                        logger.info(f"Build: {stream_content.strip()}")
+
             container_name = f"{image_name}-container"
             try:
                 old_container = client.containers.get(container_name)
                 old_container.stop()
                 old_container.remove()
-            except docker.errors.NotFound:
-                pass
+            except Exception as e:
+                # Use dynamic error type checking
+                NotFoundError = get_exception_class(docker_module, "NotFound")
+                if not isinstance(e, NotFoundError):
+                    logger.warning(f"Unexpected error when removing container: {e}")
+
+            # Verify image.id is not None
+            if not image or not image.id:
+                logger.error("Invalid Docker image")
+                return build_and_run_container_subprocess(port)
+
             logger.info(f"Starting container {container_name} on port {port}")
+
+            # Fix: Use type casting to satisfy Pylance
+            # Create a dictionary with the correct expected type
+            ports_mapping = {f"8000/tcp": port}
+            # Cast it to silence type errors
+            ports_config: Dict[str, Union[int, List[int], Tuple[str, int], None]] = {
+                "8000/tcp": port
+            }
+
+            # Make sure image.id is a string
+            image_id = str(image.id)
+
+            # Use explicit keyword arguments for the run method to satisfy type checking
             c = client.containers.run(
-                image.id,
+                image_id,
                 name=container_name,
-                ports={f"8000/tcp": port},
+                ports=ports_config,
                 detach=True,
                 environment={"CONTAINER_MODE": "true"},
             )
-            logger.info(f"Container {container_name} started (ID: {c.id[:12]})")
+
+            logger.info(f"Container {container_name} started (ID: {c.short_id})")
             logger.info(f"Access at: http://localhost:{port}")
             logger.info("Streaming container logs (Ctrl+C to stop)")
             try:
                 for line in c.logs(stream=True):
-                    print(line.decode().strip())
+                    if isinstance(line, bytes):
+                        print(line.decode().strip())
             except KeyboardInterrupt:
                 logger.info("Stopping container...")
                 c.stop()
                 logger.info("Container stopped")
     except Exception as e:
-        if "docker" in str(e.__class__):
-            logger.error(f"Docker error: {e}")
-            logger.error("Ensure Docker is installed and running")
-        else:
-            logger.error(f"Error: {e}")
-        sys.exit(1)
+        logger.error(f"Error in container build/run: {e}")
+        # Try subprocess approach as fallback
+        logger.info("Falling back to subprocess implementation")
+        build_and_run_container_subprocess(port)
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     # Add a single positional argument for mode
     parser.add_argument(
@@ -381,7 +565,7 @@ def parse_args():
     return args
 
 
-def main():
+def main() -> None:
     args = parse_args()
     mode = args.actual_mode
     port = args.port
