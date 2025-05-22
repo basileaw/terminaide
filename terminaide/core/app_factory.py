@@ -111,9 +111,9 @@ def generate_meta_server_wrapper(
     func: Callable, app_dir: Optional[Path] = None
 ) -> Path:
     """
-    Generate an ephemeral script that runs a server function in the correct directory context.
-    This is used for the meta_serve() function to ensure the server runs with the correct
-    path resolution for client scripts and other relative imports.
+    Generate an ephemeral script that runs a server function with correct path resolution
+    without changing the working directory. This preserves the original working directory
+    for file operations while ensuring imports and script resolution work correctly.
 
     Args:
         func: The server function to wrap
@@ -144,41 +144,36 @@ def generate_meta_server_wrapper(
     if isinstance(app_dir, str):
         app_dir = Path(app_dir)
 
-    # Generate the path injection code
+    # Generate the path injection code - add both current working directory and app directory
     bootstrap = (
         "import sys, os\n"
-        "# Add original paths to ensure imports work correctly\n"
-        f'original_dir = r"{app_dir}"\n'
-        "if original_dir not in sys.path:\n"
-        "    sys.path.insert(0, original_dir)\n"
-        "# Also add current working directory\n"
-        "if os.getcwd() not in sys.path:\n"
-        "    sys.path.insert(0, os.getcwd())\n\n"
+        "from pathlib import Path\n"
+        "# Preserve original working directory for file operations\n"
+        "original_cwd = os.getcwd()\n"
+        f'app_dir = r"{app_dir}"\n'
+        "# Add paths to ensure imports work correctly\n"
+        "if app_dir not in sys.path:\n"
+        "    sys.path.insert(0, app_dir)\n"
+        "if original_cwd not in sys.path:\n"
+        "    sys.path.insert(0, original_cwd)\n"
+        "# Monkey-patch sys.argv[0] to point to a file in the app directory\n"
+        "# This ensures ScriptConfig validation resolves paths correctly\n"
+        f'sys.argv[0] = str(Path(app_dir) / "main.py")\n\n'
     )
 
-    # Generate the directory context handling code
-    dir_context = (
-        "# Preserve directory context\n"
-        "import os\n"
-        "original_cwd = os.getcwd()\n"
-        f'target_dir = r"{app_dir}"\n'
-        "try:\n"
-        "    # Change to the target directory before executing\n"
-        "    os.chdir(target_dir)\n\n"
-    )
+    # Log the path setup on the meta-server side
+    original_cwd = os.getcwd()
+    logger.info(f"Meta-server starting from: {original_cwd}")
+    logger.info(f"App directory added to path: {app_dir}")
 
     # If it's a normal module (not main or mp_main)
     if module_name and module_name not in ("__main__", "__mp_main__"):
         wrapper_code = (
             f"# Meta-server wrapper for {func_name} from module {module_name}\n"
             f"{bootstrap}"
-            f"{dir_context}"
-            f"    # Import and run the server function\n"
-            f"    from {module_name} import {func_name}\n"
-            f"    {func_name}()\n"
-            f"finally:\n"
-            f"    # Always restore the original directory\n"
-            f"    os.chdir(original_cwd)\n"
+            f"# Import and run the server function (preserving working directory)\n"
+            f"from {module_name} import {func_name}\n"
+            f"{func_name}()\n"
         )
         script_path.write_text(wrapper_code, encoding="utf-8")
         return script_path
@@ -186,20 +181,14 @@ def generate_meta_server_wrapper(
     # Inline fallback (if __main__ or dynamically defined)
     try:
         source_code = inspect.getsource(func)
-        # We need to properly indent the function source code to fit into the try block
-        indented_source = "\n".join(f"    {line}" for line in source_code.splitlines())
 
         wrapper_code = (
             f"# Meta-server wrapper for {func_name} (from __main__ or dynamic)\n"
             f"{bootstrap}"
-            f"{dir_context}"
-            f"    # Define the server function\n"
-            f"{indented_source}\n\n"
-            f"    # Run the server function\n"
-            f"    {func_name}()\n"
-            f"finally:\n"
-            f"    # Always restore the original directory\n"
-            f"    os.chdir(original_cwd)\n"
+            f"# Define the server function\n"
+            f"{source_code}\n\n"
+            f"# Run the server function (preserving working directory)\n"
+            f"{func_name}()\n"
         )
         script_path.write_text(wrapper_code, encoding="utf-8")
         return script_path
