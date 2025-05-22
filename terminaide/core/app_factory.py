@@ -106,29 +106,97 @@ def generate_function_wrapper(func: Callable) -> Path:
         )
         return script_path
 
+def generate_meta_script_wrapper(script_path: Path, app_dir: Optional[Path] = None) -> Path:
+    """
+    Generate an ephemeral script that runs a server script with correct path resolution
+    without changing the working directory. This preserves the original working directory
+    for file operations while ensuring imports and script resolution work correctly.
+    
+    Args:
+        script_path: The server script to wrap
+        app_dir: The application directory (if None, will use the script's directory)
+        
+    Returns:
+        Path to the generated wrapper script
+    """
+    script_name = script_path.stem
+    
+    temp_dir = Path(tempfile.gettempdir()) / "terminaide_ephemeral"
+    temp_dir.mkdir(exist_ok=True)
+    wrapper_script_path = temp_dir / f"meta_script_{script_name}.py"
+    
+    # Determine app directory if not provided
+    if app_dir is None:
+        app_dir = script_path.parent
+        logger.debug(f"Using script directory as app_dir: {app_dir}")
+    
+    # Handle if app_dir is provided as a string
+    if isinstance(app_dir, str):
+        app_dir = Path(app_dir)
+    
+    # Generate the path injection code
+    bootstrap = (
+        "import sys, os\n"
+        "from pathlib import Path\n"
+        "import subprocess\n"
+        "# Preserve original working directory for file operations\n"
+        "original_cwd = os.getcwd()\n"
+        f'app_dir = r"{app_dir}"\n'
+        f'script_path = r"{script_path}"\n'
+        "# Add paths to ensure imports work correctly\n"
+        "if app_dir not in sys.path:\n"
+        "    sys.path.insert(0, app_dir)\n"
+        "if original_cwd not in sys.path:\n"
+        "    sys.path.insert(0, original_cwd)\n"
+        "# Monkey-patch sys.argv[0] to point to a file in the app directory\n"
+        "# This ensures ScriptConfig validation resolves paths correctly\n"
+        f'sys.argv[0] = str(Path(app_dir) / "main.py")\n\n'
+        "# Execute the script using subprocess to maintain proper context\n"
+        "try:\n"
+        f'    result = subprocess.run([sys.executable, script_path], check=True)\n'
+        "except subprocess.CalledProcessError as e:\n"
+        f'    print(f"Error running script {script_path}: {{e}}")\n'
+        "    sys.exit(e.returncode)\n"
+        "except KeyboardInterrupt:\n"
+        "    print(\"Script interrupted\")\n"
+        "    sys.exit(1)\n"
+    )
+    
+    # Log the path setup on the meta-server side
+    original_cwd = os.getcwd()
+    logger.info(f"Meta-server starting from: {original_cwd}")
+    logger.info(f"App directory added to path: {app_dir}")
+    logger.info(f"Target script: {script_path}")
+    
+    wrapper_code = (
+        f"# Meta-server wrapper for script {script_name}\n"
+        f"{bootstrap}"
+    )
+    
+    wrapper_script_path.write_text(wrapper_code, encoding="utf-8")
+    return wrapper_script_path
 
-def generate_meta_server_wrapper(
-    func: Callable, app_dir: Optional[Path] = None
-) -> Path:
+
+def generate_meta_server_wrapper(func: Callable, app_dir: Optional[Path] = None) -> Path:
     """
     Generate an ephemeral script that runs a server function with correct path resolution
     without changing the working directory. This preserves the original working directory
     for file operations while ensuring imports and script resolution work correctly.
-
+    
     Args:
         func: The server function to wrap
         app_dir: The application directory (if None, will try to detect from function source)
-
+        
     Returns:
         Path to the generated wrapper script
     """
     func_name = func.__name__
     module_name = getattr(func, "__module__", None)
-
+    
     temp_dir = Path(tempfile.gettempdir()) / "terminaide_ephemeral"
     temp_dir.mkdir(exist_ok=True)
     script_path = temp_dir / f"meta_server_{func_name}.py"
-
+    
     # Determine source directory if not provided
     if app_dir is None:
         try:
@@ -139,11 +207,11 @@ def generate_meta_server_wrapper(
         except Exception as e:
             logger.warning(f"Could not determine app_dir from function: {e}")
             app_dir = Path(os.getcwd())  # fallback to current dir if all else fails
-
+    
     # Handle if app_dir is provided as a string
     if isinstance(app_dir, str):
         app_dir = Path(app_dir)
-
+    
     # Generate the path injection code - add both current working directory and app directory
     bootstrap = (
         "import sys, os\n"
@@ -160,12 +228,12 @@ def generate_meta_server_wrapper(
         "# This ensures ScriptConfig validation resolves paths correctly\n"
         f'sys.argv[0] = str(Path(app_dir) / "main.py")\n\n'
     )
-
+    
     # Log the path setup on the meta-server side
     original_cwd = os.getcwd()
     logger.info(f"Meta-server starting from: {original_cwd}")
     logger.info(f"App directory added to path: {app_dir}")
-
+    
     # If it's a normal module (not main or mp_main)
     if module_name and module_name not in ("__main__", "__mp_main__"):
         wrapper_code = (
@@ -177,11 +245,11 @@ def generate_meta_server_wrapper(
         )
         script_path.write_text(wrapper_code, encoding="utf-8")
         return script_path
-
+    
     # Inline fallback (if __main__ or dynamically defined)
     try:
         source_code = inspect.getsource(func)
-
+        
         wrapper_code = (
             f"# Meta-server wrapper for {func_name} (from __main__ or dynamic)\n"
             f"{bootstrap}"
@@ -201,7 +269,6 @@ def generate_meta_server_wrapper(
         )
         script_path.write_text(error_script, encoding="utf-8")
         return script_path
-
 
 class ServeWithConfig:
     """Class responsible for handling the serving implementation for different modes."""
@@ -338,14 +405,27 @@ class ServeWithConfig:
     @classmethod
     def serve_meta(cls, config) -> None:
         """Implementation for serving a meta-server (a server that serves terminal instances)."""
-        func = config._target
+        target = config._target
         app_dir = getattr(config, "_app_dir", None)
-
-        logger.info(f"Creating meta-server wrapper for function: {func.__name__}")
-
-        # Generate the meta-server wrapper script
-        ephemeral_path = generate_meta_server_wrapper(func, app_dir)
-
+        
+        if callable(target):
+            # Handle function target
+            logger.info(f"Creating meta-server wrapper for function: {target.__name__}")
+            ephemeral_path = generate_meta_server_wrapper(target, app_dir)
+        else:
+            # Handle script target
+            script_path = Path(target)
+            if not script_path.is_absolute():
+                script_path = Path.cwd() / script_path
+            
+            if not script_path.exists():
+                logger.error(f"Meta-server script not found: {script_path}")
+                print(f"\033[91mError: Meta-server script not found: {script_path}\033[0m")
+                return
+            
+            logger.info(f"Creating meta-server wrapper for script: {script_path}")
+            ephemeral_path = generate_meta_script_wrapper(script_path, app_dir)
+        
         # Create a new config for the script serving
         script_config = type(config)(
             port=config.port,
@@ -359,22 +439,24 @@ class ServeWithConfig:
             mount_path=config.mount_path,
             ttyd_port=config.ttyd_port,
         )
-
+        
         # Copy preview_image if available
         if hasattr(config, "preview_image"):
             script_config.preview_image = config.preview_image
-
+        
         # Set the target to the wrapper script
         script_config._target = ephemeral_path
         script_config._mode = "meta"  # Preserve the meta mode
-        script_config._original_function_name = func.__name__
-
+        
+        if callable(target):
+            script_config._original_function_name = target.__name__
+        else:
+            script_config._original_script_name = script_path.name
+        
         logger.info("Meta-server wrapper script created at:")
         logger.info(f"{ephemeral_path}")
-        logger.debug(
-            f"Using title: {script_config.title} for meta-server {func.__name__}"
-        )
-
+        logger.debug(f"Using title: {script_config.title} for meta-server")
+        
         # Leverage the existing script serving functionality
         cls.serve_script(script_config)
 

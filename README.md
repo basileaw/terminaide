@@ -212,10 +212,13 @@ serve_apps(
 
 The Meta Server enables running a server that itself serves terminal instances within a browser terminal. This creates a "meta-server" where both the server process and the terminals it manages are accessible via web browsers, with proper directory context preservation.
 
+You can meta-serve either functions or scripts:
+
 ```python
 from fastapi import FastAPI
 from terminaide import serve_apps, meta_serve
 
+# Example 1: Meta-serve a function
 def run_my_server():
     """This function starts a server with multiple terminals"""
     app = FastAPI()
@@ -233,18 +236,22 @@ def run_my_server():
     )
 
 if __name__ == "__main__":
-    # Run the entire server in a browser terminal
+    # Run the entire server function in a browser terminal
     meta_serve(run_my_server)
+
+# Example 2: Meta-serve a script
+# If you have a server script file instead of a function
+meta_serve("server_script.py")
 ```
 
 The Meta Server accepts the same configuration options as the Solo Server, plus:
 
 ```python
 meta_serve(
-    func,                     # Function that starts your server
+    target,                   # Function or script that starts your server
     app_dir="/path/to/app",   # Application directory (auto-detected if not specified)
     port=8000,                # Web server port
-    title=None,               # Terminal title (auto-generated: "{func_name} Server")
+    title=None,               # Terminal title (auto-generated: "{target_name} Server")
     # ... plus all other Solo Server options
 )
 ```
