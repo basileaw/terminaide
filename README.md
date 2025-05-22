@@ -1,17 +1,19 @@
 # Terminaide
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/terminaide) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![PyPI - Version](https://img.shields.io/pypi/v/terminaide) 
 
-A handy Python library for serving CLI applications in a browser. Terminaide allows developers to instantly web-enable terminal-based Python applications without packaging or distribution overhead, making it ideal for prototypes, demos, and applications with small user bases.
+A handy Python library for serving CLI applications in a browser or desktop window. Terminaide allows developers to instantly web-enable terminal-based Python applications without packaging or distribution overhead, making it ideal for prototypes, demos, and applications with small user bases.
 
 ## How It Works
 
-Terminaide builds on three core technical elements:
+Terminaide builds on four core technical elements:
 
 1. **ttyd Management**: Automatically handles the installation and lifecycle of ttyd (terminal over WebSocket) binaries for the current platform. This eliminates the need for manual ttyd configuration.
 
 2. **Single-Port Proxying**: Routes all HTTP and WebSocket traffic through a single port, simplifying deployments in containers and cloud environments while maintaining cross-origin security.
 
 3. **FastAPI Integration**: Seamlessly integrates with FastAPI applications, allowing terminals to coexist with traditional web pages and REST endpoints via flexible route prioritization.
+
+4. **Desktop Mode**: Native desktop application support, allowing terminals to run in dedicated desktop windows instead of browsers for focused local development.
 
 ## Installation
 
@@ -32,26 +34,17 @@ This approach ensures a consistent experience across environments and simplifies
 
 ## Usage
 
-Terminaide offers three primary approaches: Single Terminal mode for quickly serving individual functions or scripts, Multi Terminal mode for integrating multiple terminals into a FastAPI application, and Meta Server mode for serving a server that itself serves terminals. Start with Single mode for simplicity, then graduate to Multi mode when you need more flexibility, or use Meta mode when you want to run an entire server in a browser terminal.
+Terminaide offers two primary approaches: Solo Mode for quickly serving individual functions, scripts, or servers, and Apps Mode for integrating multiple terminals into a FastAPI application. Start with Solo Mode for simplicity, then graduate to Apps Mode when you need multiple terminals in one application.
 
 ### Solo Mode 
 
-The Solo Server provides the fastest way to web-enable a Python function or script. It creates a standalone web server with a single terminal and handles all the configuration details for you. Choose between Function mode or Script mode based on your use case.
+The Solo Server provides the fastest way to web-enable a Python function, script, or server. It creates a standalone web server with a single terminal and handles all the configuration details for you. Choose between Function, Script, or Meta Server based on your use case.
 
-#### Script Server
-
-The absolute simplest way to use Terminaide is to serve an existing Python script that you don't want to modify:
-
-```python
-from terminaide import serve_script
-
-if __name__ == "__main__":
-    serve_script("my_script.py")
-```
+**Desktop Mode**: Solo Mode supports desktop mode via the `desktop=True` parameter, which opens the terminal in a native desktop window instead of a browser.
 
 #### Function Server
 
-However if you have even a **little** flexibility, you can serve a Python function directly from a single entry point. Just pass any Python function to `serve_function()` and it's instantly web-accessible: 
+Serve a Python function directly from a single entry point. Just pass any Python function to `serve_function()` and it's instantly accessible: 
 
 ```python
 from terminaide import serve_function
@@ -61,15 +54,69 @@ def hello():
     print(f"Hello, {name}!")
 
 if __name__ == "__main__":
-    serve_function(hello)  # That's it!
+    # Browser mode (default)
+    serve_function(hello)
+    
+    # Desktop mode with custom window size
+    serve_function(hello, desktop=True, desktop_width=800, desktop_height=600)
 ```
 
-#### Configuration Options
+#### Script Server
 
-Both Function and Script modes accept these configuration options:
+The absolute simplest way to use Terminaide is to serve an existing Python script that you don't want to modify:
 
 ```python
-# For serve_function(func, **kwargs) or serve_script(script_path, **kwargs)
+from terminaide import serve_script
+
+if __name__ == "__main__":
+    # Browser mode (default)
+    serve_script("my_script.py")
+    
+    # Desktop mode
+    serve_script("my_script.py", desktop=True)
+```
+
+#### Meta Server
+
+The Meta Server enables running a server that itself serves terminal instances. This creates a "meta-server" where both the server process and the terminals it manages are accessible, with proper directory context preservation.
+
+```python
+from fastapi import FastAPI
+from terminaide import serve_apps, meta_serve
+
+# Example 1: Meta-serve a function
+def run_my_server():
+    """This function starts a server with multiple terminals"""
+    app = FastAPI()
+    
+    @app.get("/")
+    async def root():
+        return {"message": "Welcome to my terminal app"}
+    
+    serve_apps(
+        app,
+        terminal_routes={
+            "/cli": "my_script.py",
+            "/admin": admin_function
+        }
+    )
+
+if __name__ == "__main__":
+    # Browser mode (default)
+    meta_serve(run_my_server)
+    
+    # Desktop mode with custom window size
+    meta_serve(run_my_server, desktop=True, desktop_width=1400, desktop_height=900)
+
+# Example 2: Meta-serve a script
+meta_serve("server_script.py", desktop=True)
+```
+
+#### Solo Mode Configuration Options
+
+All Solo Mode functions (`serve_function`, `serve_script`, `meta_serve`) accept these configuration options:
+
+```python
 kwargs = {
     # Server options
     "port": 8000,                # Web server port
@@ -79,6 +126,11 @@ kwargs = {
     "trust_proxy_headers": True, # Trust X-Forwarded-Proto headers
     "template_override": None,   # Custom HTML template path
     "preview_image": None,       # Custom preview image for social media sharing
+    
+    # Desktop mode options (Solo Mode only)
+    "desktop": False,            # Open in desktop window instead of browser
+    "desktop_width": 1200,       # Desktop window width in pixels
+    "desktop_height": 800,       # Desktop window height in pixels
     
     # Terminal appearance
     "theme": {
@@ -113,11 +165,20 @@ kwargs = {
     #     "PATH": None            # Use value from parent process
     # }
 }
+
+# Meta Server additional options
+meta_serve(
+    target,                   # Function or script that starts your server
+    app_dir="/path/to/app",   # Application directory (auto-detected if not specified)
+    # ... plus all options above
+)
 ```
 
-### Apps Server
+### Apps Mode
 
-The Apps Server extends the capabilities of the Solo Server to integrate multiple terminals into an existing FastAPI application. This approach gives you more control over routing, allows multiple terminals to coexist with regular web endpoints, and provides additional configuration options.
+The Apps Server extends terminaide's capabilities to integrate multiple terminals into an existing FastAPI application. This approach gives you more control over routing, allows multiple terminals to coexist with regular web endpoints, and provides additional configuration options.
+
+**Note**: Desktop mode is not yet supported for Apps Mode. Apps Mode currently supports browser mode only.
 
 You can use both functions and scripts in your terminal routes:
 
@@ -165,9 +226,9 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
 
-#### Advanced Configuration
+#### Apps Mode Configuration
 
-The Apps Server includes all the configuration options from the Solo Server, plus these additional options:
+The Apps Server includes all the configuration options from Solo Mode (except desktop options), plus these additional options:
 
 ```python
 serve_apps(
@@ -195,12 +256,12 @@ serve_apps(
         }
     },
     
-    # Additional multi-mode specific options
+    # Additional Apps Mode specific options
     mount_path="/",           # Base path for terminal mounting
     ttyd_port=7681,           # Base port for ttyd processes
     preview_image="default_preview.png",  # Default preview image for all routes
     
-    # Plus all options from single mode
+    # Plus all options from Solo Mode (except desktop options)
     port=8000,
     title=None,
     debug=True,
@@ -208,57 +269,9 @@ serve_apps(
 )
 ```
 
-### Meta Server
-
-The Meta Server enables running a server that itself serves terminal instances within a browser terminal. This creates a "meta-server" where both the server process and the terminals it manages are accessible via web browsers, with proper directory context preservation.
-
-You can meta-serve either functions or scripts:
-
-```python
-from fastapi import FastAPI
-from terminaide import serve_apps, meta_serve
-
-# Example 1: Meta-serve a function
-def run_my_server():
-    """This function starts a server with multiple terminals"""
-    app = FastAPI()
-    
-    @app.get("/")
-    async def root():
-        return {"message": "Welcome to my terminal app"}
-    
-    serve_apps(
-        app,
-        terminal_routes={
-            "/cli": "my_script.py",
-            "/admin": admin_function
-        }
-    )
-
-if __name__ == "__main__":
-    # Run the entire server function in a browser terminal
-    meta_serve(run_my_server)
-
-# Example 2: Meta-serve a script
-# If you have a server script file instead of a function
-meta_serve("server_script.py")
-```
-
-The Meta Server accepts the same configuration options as the Solo Server, plus:
-
-```python
-meta_serve(
-    target,                   # Function or script that starts your server
-    app_dir="/path/to/app",   # Application directory (auto-detected if not specified)
-    port=8000,                # Web server port
-    title=None,               # Terminal title (auto-generated: "{target_name} Server")
-    # ... plus all other Solo Server options
-)
-```
-
 ### Termin-Arcade Demo
 
-The `demo/` directory contains a client and server that demonstrate serveral ready-to-use configurations:
+The `demo/` directory contains a client and server that demonstrate several ready-to-use configurations:
 
 ```bash
 make serve              # Default mode with instructions
@@ -273,7 +286,6 @@ make serve container    # Run in Docker container, requires Docker Desktop
 - Python 3.12+
 - Linux or macOS 
 - macOS users need Xcode Command Line Tools (`xcode-select --install`)
-
 
 ## Limitations
 
