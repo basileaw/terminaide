@@ -319,6 +319,10 @@ def meta_serve(
     # Add desktop parameter to kwargs if provided
     if desktop:
         kwargs["desktop"] = desktop
+    if "desktop_width" not in kwargs:
+        kwargs["desktop_width"] = desktop_width
+    if "desktop_height" not in kwargs:
+        kwargs["desktop_height"] = desktop_height
 
     cfg = build_config(None, kwargs)
     cfg._target = target
