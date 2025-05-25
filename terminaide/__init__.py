@@ -52,7 +52,10 @@ if parent_dir not in sys.path:
 # Import terminarcade as a sibling package
 import terminarcade
 
-# ANSI color codes similar to uvicorn's
+
+import hashlib
+
+# Enhanced ANSI color codes
 COLORS = {
     "DEBUG": "\033[36m",  # Cyan
     "INFO": "\033[32m",  # Green
@@ -61,6 +64,38 @@ COLORS = {
     "CRITICAL": "\033[41m",  # Red background
     "RESET": "\033[0m",  # Reset colors
 }
+
+# Route color palette - bright, distinguishable colors
+ROUTE_COLORS = [
+    "\033[94m",   # Bright Blue
+    "\033[95m",   # Bright Magenta
+    "\033[96m",   # Bright Cyan
+    "\033[93m",   # Bright Yellow
+    "\033[91m",   # Bright Red
+    "\033[92m",   # Bright Green
+    "\033[97m",   # Bright White
+    "\033[35m",   # Magenta
+    "\033[34m",   # Blue
+    "\033[36m",   # Cyan
+    "\033[33m",   # Yellow
+    "\033[31m",   # Red
+    "\033[32m",   # Green
+    "\033[37m",   # White
+]
+
+def get_route_color(route_path: str) -> str:
+    """Get a consistent color for a route based on its path."""
+    # Use hash to get consistent color assignment
+    hash_value = int(hashlib.md5(route_path.encode()).hexdigest()[:8], 16)
+    color_index = hash_value % len(ROUTE_COLORS)
+    return ROUTE_COLORS[color_index]
+
+def colorize_route_title(title: str, route_path: str) -> str:
+    """Colorize a route title with its assigned color."""
+    if not sys.stdout.isatty():  # Only apply colors if running in a terminal
+        return title
+    color = get_route_color(route_path)
+    return f"{color}{title}{COLORS['RESET']}"
 
 
 class ColorAlignedFormatter(logging.Formatter):

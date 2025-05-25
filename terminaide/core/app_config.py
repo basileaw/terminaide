@@ -279,15 +279,11 @@ def configure_app(app: FastAPI, config: TTYDConfig):
     mode = "apps-server" if config.is_multi_script else "solo-server"
     entry_mode = getattr(config, "_mode", "script")
 
-    # Update log message to include meta mode
+    # Simplified configuration logging
     if entry_mode == "meta":
-        logger.info(
-            f"Configuring ttyd service with {config.mount_path} mounting (meta-server mode)"
-        )
+        logger.info(f"Configuring meta-server with {config.mount_path} mounting")
     else:
-        logger.info(
-            f"Configuring ttyd service with {config.mount_path} mounting ({entry_mode} API, {mode} mode)"
-        )
+        logger.info(f"Configuring {mode} with {config.mount_path} mounting ({entry_mode} API)")
 
     ttyd_manager = TTYDManager(config)
     proxy_manager = ProxyManager(config)

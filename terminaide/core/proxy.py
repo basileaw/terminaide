@@ -16,6 +16,7 @@ from fastapi.responses import Response, StreamingResponse
 
 from .exceptions import ProxyError, RouteNotFoundError
 from .data_models import TTYDConfig, ScriptConfig
+from .route_colors import route_color_manager
 
 logger = logging.getLogger("terminaide")
 
@@ -32,9 +33,10 @@ class ProxyManager:
         self.targets: Dict[str, Dict[str, str]] = {}
         self._initialize_targets()
 
+        # Simplified logging - just count and mode info
         entry_mode = getattr(self.config, "_mode", "script")
         logger.info(
-            f"Proxy ready for {len(self.targets)} routes "
+            f"Proxy configured for {len(self.targets)} routes "
             f"({entry_mode} API, {'apps-server' if self.config.is_multi_script else 'solo-server'} mode)"
         )
 
@@ -67,10 +69,6 @@ class ProxyManager:
                 continue
             host = f"{self.config.ttyd_options.interface}:{port}"
             self.targets[route_path] = {"host": host, "port": port}
-            logger.info(
-                f"Route '{route_path}' => {host} "
-                f"(terminal path: {self.config.get_terminal_path_for_route(route_path)})"
-            )
 
     @property
     def http_client(self) -> httpx.AsyncClient:
@@ -187,9 +185,7 @@ class ProxyManager:
             logger.error(f"HTTP proxy error: {e}")
             raise ProxyError(f"Failed to proxy request: {e}")
 
-    async def proxy_websocket(
-        self, websocket: WebSocket, route_path: Optional[str] = None
-    ) -> None:
+    async def proxy_websocket(self, websocket: WebSocket, route_path: Optional[str] = None) -> None:
         """
         Forward WebSocket connections to ttyd, including bidirectional data flow.
         """
@@ -200,17 +196,27 @@ class ProxyManager:
                 if not script_config:
                     raise RouteNotFoundError(f"No config for WebSocket path: {ws_path}")
                 route_path = script_config.route_path
+            else:
+                script_config = None
+                for cfg in self.config.script_configs:
+                    if cfg.route_path == route_path:
+                        script_config = cfg
+                        break
 
             target_info = self.targets.get(route_path)
             if not target_info:
                 raise RouteNotFoundError(f"No target info for route: {route_path}")
 
-            # Always use ws:// for internal connections to ttyd
             host = target_info["host"]
             ws_url = f"ws://{host}/ws"
 
             await websocket.accept(subprotocol="tty")
-            logger.info(f"Connecting WebSocket to {ws_url} for route {route_path}")
+            
+            # Simplified WebSocket connection logging
+            if script_config:
+                title = script_config.title or self.config.title
+                colored_title = route_color_manager.colorize_title(title, route_path)
+                logger.info(f"WebSocket connected: '{colored_title}' at {route_path}")
 
             async with websockets.connect(
                 ws_url, subprotocols=["tty"], ping_interval=None, close_timeout=5

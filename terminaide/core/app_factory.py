@@ -295,19 +295,22 @@ class ServeWithConfig:
         This ensures that X-Forwarded-Proto from proxies like ngrok is respected,
         preventing mixed-content errors behind HTTPS tunnels or load balancers.
         """
+        
         if config.trust_proxy_headers:
             try:
-                from .middleware import ProxyHeaderMiddleware
+                from .middleware import ProxyHeaderMiddleware, TerminalAccessLoggingMiddleware
 
-                # Make sure it isn't already added
-                if not any(
-                    m.cls.__name__ == "ProxyHeaderMiddleware"
-                    for m in getattr(app, "user_middleware", [])
-                ):
+                if not any(m.cls.__name__ == "ProxyHeaderMiddleware" for m in getattr(app, "user_middleware", [])):
                     app.add_middleware(ProxyHeaderMiddleware)
                     logger.info("Added proxy header middleware for HTTPS detection")
+                    
+                # Add terminal access logging middleware
+                if not any(m.cls.__name__ == "TerminalAccessLoggingMiddleware" for m in getattr(app, "user_middleware", [])):
+                    app.add_middleware(TerminalAccessLoggingMiddleware, config=ttyd_config)
+                    logger.debug("Added terminal access logging middleware")
+                    
             except Exception as e:
-                logger.warning(f"Failed to add proxy header middleware: {e}")
+                logger.warning(f"Failed to add middleware: {e}")
 
     @classmethod
     def display_banner(cls, mode):

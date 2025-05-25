@@ -15,9 +15,11 @@ from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
+
 from .exceptions import TTYDStartupError, TTYDProcessError, PortAllocationError
 from .ttyd_installer import setup_ttyd
 from .data_models import TTYDConfig, ScriptConfig
+from .route_colors import route_color_manager
 
 logger = logging.getLogger("terminaide")
 
@@ -215,16 +217,11 @@ class TTYDManager:
         entry_mode = getattr(self.config, "_mode", "script")
 
         # Count function-based routes
-        function_count = sum(
-            1 for cfg in self.config.script_configs if cfg.is_function_based
-        )
-        script_count_str = f"{script_count} ttyd processes"
-        if function_count > 0:
-            script_count_str += f" ({function_count} function-based, {script_count - function_count} script-based)"
-
-        logger.info(
-            f"Starting {script_count_str} ({mode_type} mode via {entry_mode} API)"
-        )
+        function_count = sum(1 for cfg in self.config.script_configs if cfg.is_function_based)
+        
+        type_info = f"({function_count} function, {script_count - function_count} script)" if function_count > 0 else f"({script_count} script)"
+        
+        logger.info(f"Starting {script_count} ttyd processes {type_info}")
 
         success_count = 0
         for script_config in self.config.script_configs:
@@ -232,11 +229,7 @@ class TTYDManager:
                 self.start_process(script_config)
                 success_count += 1
             except Exception as e:
-                logger.error(
-                    f"Failed to start process for {script_config.route_path}: {e}"
-                )
-
-        logger.info(f"Started {success_count}/{script_count} processes successfully")
+                logger.error(f"Failed to start process for {script_config.route_path}: {e}")
 
     def start_process(self, script_config: ScriptConfig) -> None:
         """
@@ -279,31 +272,24 @@ class TTYDManager:
             for _ in range(checks):
                 if process.poll() is not None:
                     stderr = process.stderr.read().decode("utf-8")
-                    logger.error(
-                        f"ttyd failed to start for route {route_path}: {stderr}"
-                    )
+                    logger.error(f"ttyd failed to start for route {route_path}: {stderr}")
                     self.processes.pop(route_path, None)
                     self.start_times.pop(route_path, None)
                     raise TTYDStartupError(stderr=stderr)
 
                 if self.is_process_running(route_path):
-                    # Add info about function vs script based
-                    route_type = (
-                        "function-based"
-                        if script_config.is_function_based
-                        else "script-based"
+                    # Standardized logging with separate lines
+                    title = script_config.title or self.config.title
+                    main_line, script_line = route_color_manager.format_route_info(
+                        route_path, title, script_config, port=port, pid=process.pid
                     )
-                    # Single consolidated log message after successful start
-                    logger.info(
-                        f"Started ttyd ({route_type}): {route_path} (port:{port}, pid:{process.pid})"
-                    )
+                    logger.info(f"Started ttyd: {main_line}")
+                    logger.info(script_line)
                     return
 
                 time.sleep(check_interval)
 
-            logger.error(
-                f"ttyd for route {route_path} did not start within the timeout"
-            )
+            logger.error(f"ttyd for route {route_path} did not start within the timeout")
             self.processes.pop(route_path, None)
             self.start_times.pop(route_path, None)
             raise TTYDStartupError(f"Timeout starting ttyd for route {route_path}")
