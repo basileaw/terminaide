@@ -61,10 +61,6 @@ def serve_function(
             - template_override: Custom HTML template path
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
             - preview_image: Custom preview image for social media sharing (default: None)
-
-    Note:
-        Desktop mode requires pywebview and requests libraries. Install with:
-        pip install pywebview requests
     """
     # Add desktop parameters to kwargs if provided
     if desktop:
@@ -112,10 +108,6 @@ def serve_script(
             - template_override: Custom HTML template path
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
             - preview_image: Custom preview image for social media sharing (default: None)
-
-    Note:
-        Desktop mode requires pywebview and requests libraries. Install with:
-        pip install pywebview requests
     """
     # Add desktop parameters to kwargs if provided
     if desktop:
@@ -311,10 +303,6 @@ def meta_serve(
         # Meta-serve a script in desktop mode
         meta_serve("server_script.py", desktop=True)
         ```
-
-    Note:
-        Desktop mode requires pywebview and requests libraries. Install with:
-        pip install pywebview requests
     """
     # Add desktop parameter to kwargs if provided
     if desktop:

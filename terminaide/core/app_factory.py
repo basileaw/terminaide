@@ -16,7 +16,6 @@ import logging
 import uvicorn
 import tempfile
 import subprocess
-import requests
 import webview
 from pathlib import Path
 from fastapi import FastAPI
@@ -300,7 +299,6 @@ class ServeWithConfig:
             try:
                 from .middleware import (
                     ProxyHeaderMiddleware,
-                    TerminalAccessLoggingMiddleware,
                 )
 
                 if not any(
