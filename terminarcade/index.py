@@ -4,6 +4,7 @@ import curses
 import signal
 import sys
 import importlib
+import art
 
 stdscr = None
 exit_requested = False
@@ -92,40 +93,16 @@ def _index_menu_loop(stdscr_param):
     # Get screen dimensions
     my, mx = stdscr.getmaxyx()
 
-    # Title ASCII art options based on screen width
-    title_lines = [
-        "████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗      █████╗ ██████╗  ██████╗ █████╗ ██████╗ ███████╗",
-        "╚══██╔══╝██╔════╝██╔══██╗████╗ ████║██║████╗  ██║     ██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔════╝",
-        "   ██║   █████╗  ██████╔╝██╔████╔██║██║██╔██╗ ██║     ███████║██████╔╝██║     ███████║██║  ██║█████╗  ",
-        "   ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║██║██║╚██╗██║     ██╔══██║██╔══██╗██║     ██╔══██║██║  ██║██╔══╝  ",
-        "   ██║   ███████╗██║  ██║██║ ╚═╝ ██║██║██║ ╚████║     ██║  ██║██║  ██║╚██████╗██║  ██║██████╔╝███████╗",
-        "   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝     ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝",
-    ]
-
-    simple_title_lines = [
-        " _____              _         _                   _      ",
-        "|_   _|__ _ __ _ __ (_)_ __   /_\\  _ __ ___ __ _  _| | ___ ",
-        "  | |/ _ \\ '__| '_ \\| | '_ \\ //_\\\\| '__/ __/ _` |/ _` |/ _ \\",
-        "  | |  __/ |  | | | | | | | /  _ \\ | | (_| (_| | (_| |  __/",
-        "  |_|\\___|_|  |_| |_|_|_| |_\\_/ \\_\\_|  \\___\\__,_|\\__,_|\\___|",
-    ]
-
-    very_simple_title = [
-        "==============================",
-        "||     TERMIN-ARCADE       ||",
-        "==============================",
-    ]
-
-    # Choose title based on screen width
-    if mx >= 90:
-        title_to_use = title_lines
-    elif mx >= 60:
-        title_to_use = simple_title_lines
-    else:
-        title_to_use = very_simple_title
+    # Generate ASCII art banner
+    ascii_art = art.text2art("TERMINARCADE", font='ansishadow')
+    title_lines = ascii_art.split('\n')
+    
+    # Remove any empty trailing lines
+    while title_lines and not title_lines[-1].strip():
+        title_lines.pop()
 
     # Draw title
-    for i, line in enumerate(title_to_use):
+    for i, line in enumerate(title_lines):
         if len(line) <= mx:
             safe_addstr(
                 stdscr,
@@ -136,7 +113,7 @@ def _index_menu_loop(stdscr_param):
             )
 
     # Calculate starting Y position after the title
-    sy = 2 + len(title_to_use)
+    sy = 1 + len(title_lines)
 
     # Draw instructions
     instr = "Use ←/→ to navigate, Enter to select, Q to quit"
