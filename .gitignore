@@ -11,3 +11,4 @@ test.py
 
 terminaide/core/bin/*
 !terminaide/core/bin/.gitkeep
+.aider*
