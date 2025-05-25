@@ -16,8 +16,8 @@ import logging
 import uvicorn
 import tempfile
 import subprocess
-import webview
 import requests
+import webview
 from pathlib import Path
 from fastapi import FastAPI
 from typing import Callable, Optional
@@ -390,16 +390,6 @@ class ServeWithConfig:
     @classmethod
     def serve_desktop(cls, config: TerminaideConfig) -> None:
         """Serve the application in a desktop window using pywebview."""
-        try:
-            import webview
-        except ImportError:
-            logger.error(
-                "pywebview library required for desktop mode. Install with: pip install pywebview"
-            )
-            print("\033[91mError: pywebview library required for desktop mode.\033[0m")
-            print("Install with: pip install pywebview")
-            return
-
         logger.info(f"Starting desktop application: {config.title}")
 
         # Create subprocess command to start the terminaide server
