@@ -9,7 +9,7 @@ packages = [
 ]
 readme = "README.md"
 repository = "https://github.com/bazeindustries/terminaide"
-version = "0.6.2"
+version = "0.6.3"
 
 [tool.poetry.dependencies]
 bs4 = "^0.0.2"
