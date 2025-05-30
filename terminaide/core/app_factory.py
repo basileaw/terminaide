@@ -408,6 +408,7 @@ class ServeWithConfig:
                 f"serve_script(r'{ephemeral_path}', "
                 f"port={config.port}, title='{config.title}', "
                 f"debug={config.debug}, theme={config.theme}, "
+                f"banner={config.banner}, "
                 f"forward_env={repr(config.forward_env)})"
             )
         elif config._mode == "script":
@@ -417,6 +418,7 @@ class ServeWithConfig:
                 f"serve_script(r'{script_path}', "
                 f"port={config.port}, title='{config.title}', "
                 f"debug={config.debug}, theme={config.theme}, "
+                f"banner={config.banner}, "
                 f"forward_env={repr(config.forward_env)})"
             )
         elif config._mode == "meta":
@@ -431,6 +433,7 @@ class ServeWithConfig:
                     f"serve_script(r'{ephemeral_path}', "
                     f"port={config.port}, title='{config.title}', "
                     f"debug={config.debug}, theme={config.theme}, "
+                    f"banner={config.banner}, "
                     f"forward_env={repr(config.forward_env)})"
                 )
             else:
@@ -444,6 +447,7 @@ class ServeWithConfig:
                     f"serve_script(r'{ephemeral_path}', "
                     f"port={config.port}, title='{config.title}', "
                     f"debug={config.debug}, theme={config.theme}, "
+                    f"banner={config.banner}, "
                     f"forward_env={repr(config.forward_env)})"
                 )
         elif config._mode == "apps":
@@ -527,7 +531,9 @@ class ServeWithConfig:
     @classmethod
     def serve(cls, config) -> None:
         """Serves the application based on the configuration mode."""
-        cls.display_banner(config._mode)
+        # Only display banner if config.banner is True
+        if config.banner:
+            cls.display_banner(config._mode)
 
         # Check if desktop mode is requested
         if config.desktop:
@@ -558,6 +564,7 @@ class ServeWithConfig:
             os.environ["TERMINAIDE_PORT"] = str(config.port)
             os.environ["TERMINAIDE_TITLE"] = config.title
             os.environ["TERMINAIDE_DEBUG"] = "1" if config.debug else "0"
+            os.environ["TERMINAIDE_BANNER"] = "1" if config.banner else "0"
             os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
 
@@ -582,6 +589,7 @@ class ServeWithConfig:
                 title=config.title,
                 theme=config.theme,
                 debug=config.debug,
+                banner=config.banner,
                 forward_env=config.forward_env,
                 ttyd_options=config.ttyd_options,
                 template_override=config.template_override,
@@ -637,6 +645,7 @@ class ServeWithConfig:
             desktop=config.desktop,
             desktop_width=config.desktop_width,
             desktop_height=config.desktop_height,
+            banner=config.banner,
             forward_env=config.forward_env,
             ttyd_options=config.ttyd_options,
             template_override=config.template_override,
@@ -682,6 +691,7 @@ class ServeWithConfig:
             os.environ["TERMINAIDE_PORT"] = str(config.port)
             os.environ["TERMINAIDE_TITLE"] = config.title
             os.environ["TERMINAIDE_DEBUG"] = "1" if config.debug else "0"
+            os.environ["TERMINAIDE_BANNER"] = "1" if config.banner else "0"
             os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
             os.environ["TERMINAIDE_MODE"] = config._mode
@@ -804,6 +814,7 @@ class AppFactory:
         port_str = os.environ["TERMINAIDE_PORT"]
         title = os.environ["TERMINAIDE_TITLE"]
         debug = os.environ.get("TERMINAIDE_DEBUG") == "1"
+        banner = os.environ.get("TERMINAIDE_BANNER", "1") == "1"
         theme_str = os.environ.get("TERMINAIDE_THEME") or "{}"
         forward_env_str = os.environ.get("TERMINAIDE_FORWARD_ENV", "True")
         preview_image_str = os.environ.get("TERMINAIDE_PREVIEW_IMAGE")
@@ -855,6 +866,7 @@ class AppFactory:
             title=title,
             theme=theme,
             debug=debug,
+            banner=banner,
             forward_env=forward_env,
         )
 
@@ -868,7 +880,9 @@ class AppFactory:
         config._target = ephemeral_path
         config._mode = "function"
 
-        ServeWithConfig.display_banner(config._mode)
+        # Only display banner if config.banner is True
+        if config.banner:
+            ServeWithConfig.display_banner(config._mode)
 
         # <-- ADD PROXY MIDDLEWARE FOR RELOAD MODE -->
         ServeWithConfig.add_proxy_middleware_if_needed(app, config)
@@ -901,6 +915,7 @@ class AppFactory:
         port_str = os.environ["TERMINAIDE_PORT"]
         title = os.environ["TERMINAIDE_TITLE"]
         debug = os.environ.get("TERMINAIDE_DEBUG") == "1"
+        banner = os.environ.get("TERMINAIDE_BANNER", "1") == "1"
         theme_str = os.environ.get("TERMINAIDE_THEME") or "{}"
         forward_env_str = os.environ.get("TERMINAIDE_FORWARD_ENV", "True")
         mode = os.environ.get("TERMINAIDE_MODE", "script")
@@ -928,6 +943,7 @@ class AppFactory:
             title=title,
             theme=theme,
             debug=debug,
+            banner=banner,
             forward_env=forward_env,
         )
 
@@ -941,7 +957,9 @@ class AppFactory:
         config._target = script_path
         config._mode = mode
 
-        ServeWithConfig.display_banner(config._mode)
+        # Only display banner if config.banner is True
+        if config.banner:
+            ServeWithConfig.display_banner(config._mode)
 
         # <-- ADD PROXY MIDDLEWARE FOR RELOAD MODE -->
         ServeWithConfig.add_proxy_middleware_if_needed(app, config)

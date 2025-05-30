@@ -38,6 +38,7 @@ def serve_function(
     desktop: bool = False,
     desktop_width: int = 1200,
     desktop_height: int = 800,
+    banner: bool = True,
     **kwargs,
 ) -> None:
     """Serve a Python function in a browser terminal or desktop window.
@@ -50,6 +51,7 @@ def serve_function(
         desktop: If True, open in a desktop window instead of browser (default: False)
         desktop_width: Width of desktop window in pixels (default: 1200)
         desktop_height: Height of desktop window in pixels (default: 800)
+        banner: If True, display the Terminaide startup banner (default: True)
         **kwargs: Additional configuration overrides:
             - port: Web server port (default: 8000)
             - title: Terminal window title (default: "{func_name}()")
@@ -69,6 +71,8 @@ def serve_function(
         kwargs["desktop_width"] = desktop_width
     if "desktop_height" not in kwargs:
         kwargs["desktop_height"] = desktop_height
+    # Add banner parameter to kwargs
+    kwargs["banner"] = banner
 
     cfg = build_config(config, kwargs)
     cfg._target = func
@@ -87,6 +91,7 @@ def serve_script(
     desktop: bool = False,
     desktop_width: int = 1200,
     desktop_height: int = 800,
+    banner: bool = True,
     **kwargs,
 ) -> None:
     """Serve a Python script in a browser terminal or desktop window.
@@ -97,6 +102,9 @@ def serve_script(
         script_path: Path to the script file to serve
         config: Configuration options for the terminal
         desktop: If True, open in a desktop window instead of browser (default: False)
+        desktop_width: Width of desktop window in pixels (default: 1200)
+        desktop_height: Height of desktop window in pixels (default: 800)
+        banner: If True, display the Terminaide startup banner (default: True)
         **kwargs: Additional configuration overrides:
             - port: Web server port (default: 8000)
             - title: Terminal window title (default: "Script Name")
@@ -116,6 +124,8 @@ def serve_script(
         kwargs["desktop_width"] = desktop_width
     if "desktop_height" not in kwargs:
         kwargs["desktop_height"] = desktop_height
+    # Add banner parameter to kwargs
+    kwargs["banner"] = banner
 
     cfg = build_config(config, kwargs)
     cfg._target = Path(script_path)
@@ -140,6 +150,7 @@ def serve_apps(
     desktop: bool = False,
     desktop_width: int = 1200,
     desktop_height: int = 800,
+    banner: bool = True,
     **kwargs,
 ) -> None:
     """Integrate multiple terminals into a FastAPI application.
@@ -160,6 +171,9 @@ def serve_apps(
         config: Configuration options for the terminals
         desktop: If True, open in a desktop window instead of browser (default: False)
                 Note: Desktop mode for serve_apps is not yet implemented
+        desktop_width: Width of desktop window in pixels (default: 1200)
+        desktop_height: Height of desktop window in pixels (default: 800)
+        banner: If True, display the Terminaide startup banner (default: True)
         **kwargs: Additional configuration overrides:
             - port: Web server port (default: 8000)
             - title: Default terminal window title (default: auto-generated)
@@ -231,6 +245,8 @@ def serve_apps(
         kwargs["desktop_width"] = desktop_width
     if "desktop_height" not in kwargs:
         kwargs["desktop_height"] = desktop_height
+    # Add banner parameter to kwargs
+    kwargs["banner"] = banner
 
     cfg = build_config(config, kwargs)
     cfg._target = terminal_routes
@@ -246,6 +262,7 @@ def meta_serve(
     desktop: bool = False,
     desktop_width: int = 1200,
     desktop_height: int = 800,
+    banner: bool = True,
     **kwargs,
 ) -> None:
     """Serve a meta-server (a server that serves terminal instances) in a browser terminal or desktop window,
@@ -261,6 +278,9 @@ def meta_serve(
         app_dir: The directory containing your application (defaults to the directory
                  of the file where the function is defined or the script is located)
         desktop: If True, open in a desktop window instead of browser (default: False)
+        desktop_width: Width of desktop window in pixels (default: 1200)
+        desktop_height: Height of desktop window in pixels (default: 800)
+        banner: If True, display the Terminaide startup banner (default: True)
         **kwargs: Additional configuration overrides:
             - port: Web server port (default: 8000)
             - title: Terminal window title (default: "{target_name} Server")
@@ -297,6 +317,9 @@ def meta_serve(
         # Run the server function in a desktop window
         meta_serve(run_server, desktop=True)
 
+        # Run without the Terminaide banner
+        meta_serve(run_server, banner=False)
+
         # Example 2: Meta-serve a script
         meta_serve("server_script.py")
 
@@ -311,6 +334,8 @@ def meta_serve(
         kwargs["desktop_width"] = desktop_width
     if "desktop_height" not in kwargs:
         kwargs["desktop_height"] = desktop_height
+    # Add banner parameter to kwargs
+    kwargs["banner"] = banner
 
     cfg = build_config(None, kwargs)
     cfg._target = target

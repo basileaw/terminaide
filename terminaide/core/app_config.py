@@ -6,7 +6,6 @@ This module contains shared configuration classes and utilities used by differen
 """
 
 import sys
-import os
 import shutil
 import logging
 import hashlib
@@ -118,6 +117,7 @@ class TerminaideConfig:
     desktop: bool = False
     desktop_width: int = 1200
     desktop_height: int = 800
+    banner: bool = True
     forward_env: Union[bool, List[str], Dict[str, Optional[str]]] = True
 
     # Advanced configuration
@@ -283,7 +283,9 @@ def configure_app(app: FastAPI, config: TTYDConfig):
     if entry_mode == "meta":
         logger.info(f"Configuring meta-server with {config.mount_path} mounting")
     else:
-        logger.info(f"Configuring {mode} with {config.mount_path} mounting ({entry_mode} API)")
+        logger.info(
+            f"Configuring {mode} with {config.mount_path} mounting ({entry_mode} API)"
+        )
 
     ttyd_manager = TTYDManager(config)
     proxy_manager = ProxyManager(config)
