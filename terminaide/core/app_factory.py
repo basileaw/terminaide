@@ -745,6 +745,10 @@ class ServeWithConfig:
     @classmethod
     def serve_apps(cls, config) -> None:
         """Implementation for serving multiple apps."""
+        # Display banner if enabled, for consistency with other serve methods
+        if config.banner:
+            cls.display_banner(config._mode)
+
         app = config._app
         terminal_routes = config._target
 
