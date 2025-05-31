@@ -7,7 +7,7 @@ service within a FastAPI application, with four distinct API paths:
 
 1. serve_function: simplest entry point - run a function in a terminal
 2. serve_script: simple path - run a Python script in a terminal
-3. serve_apps: advanced path - integrate multiple terminals into a FastAPI application
+3. serve_apps: advanced path - integrate multiple terminals and index pages into a FastAPI application
 4. meta_serve: advanced path - run a server that serves terminal instances in a browser terminal
 """
 
@@ -20,6 +20,7 @@ from typing import Optional, Dict, Any, Union, List, Callable
 
 from .core.app_config import TerminaideConfig, build_config
 from .core.app_factory import ServeWithConfig, AppFactory
+from .core.index_page import IndexPage
 
 logger = logging.getLogger("terminaide")
 
@@ -145,7 +146,9 @@ def serve_script(
 
 def serve_apps(
     app: FastAPI,
-    terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any], Callable]],
+    terminal_routes: Dict[
+        str, Union[str, Path, List, Dict[str, Any], Callable, IndexPage]
+    ],
     config: Optional[TerminaideConfig] = None,
     desktop: bool = False,
     desktop_width: int = 1200,
@@ -153,16 +156,17 @@ def serve_apps(
     banner: bool = True,
     **kwargs,
 ) -> None:
-    """Integrate multiple terminals into a FastAPI application.
+    """Integrate multiple terminals and index pages into a FastAPI application.
 
     This function configures a FastAPI application to serve multiple terminal instances
-    at different routes.
+    and/or index pages at different routes.
 
     Args:
         app: FastAPI application to extend
-        terminal_routes: Dictionary mapping paths to scripts or functions. Each value can be:
+        terminal_routes: Dictionary mapping paths to scripts, functions, or index pages. Each value can be:
             - A string or Path object pointing to a script file
             - A Python callable function object
+            - An IndexPage instance for creating navigable menu pages
             - A list [script_path, arg1, arg2, ...] for scripts with arguments
             - A dictionary with advanced configuration:
                 - For scripts: {"client_script": "path.py", "args": [...], ...}
@@ -191,7 +195,7 @@ def serve_apps(
     Examples:
         ```python
         from fastapi import FastAPI
-        from terminaide import serve_apps
+        from terminaide import serve_apps, IndexPage
 
         app = FastAPI()
 
@@ -209,12 +213,24 @@ def serve_apps(
         serve_apps(
             app,
             terminal_routes={
+                # Index page at root
+                "/": IndexPage(
+                    title="CLI TOOLS",
+                    intro="Select a tool to get started.",
+                    menu=[
+                        {"path": "/deploy", "title": "DEPLOY"},
+                        {"path": "/monitor", "title": "MONITOR"},
+                        {"path": "/logs", "title": "LOGS"},
+                        {"path": "https://github.com/myorg", "title": "GITHUB"},
+                    ]
+                ),
+
                 # Script-based terminals
-                "/cli1": "script1.py",
-                "/cli2": ["script2.py", "--arg1", "value"],
-                "/cli3": {
-                    "client_script": "script3.py",
-                    "title": "Advanced CLI"
+                "/deploy": "scripts/deploy.py",
+                "/monitor": ["scripts/monitor.py", "--verbose"],
+                "/logs": {
+                    "client_script": "scripts/logs.py",
+                    "title": "System Logs"
                 },
 
                 # Function-based terminals
@@ -223,7 +239,28 @@ def serve_apps(
                     "function": greeting,
                     "title": "Admin Greeting Terminal",
                     "preview_image": "admin_preview.png"
-                }
+                },
+
+                # Index page with groups
+                "/tools": IndexPage(
+                    title="TOOLS",
+                    groups=[
+                        {
+                            "menu": [
+                                {"path": "/tools/format", "title": "FORMAT"},
+                                {"path": "/tools/lint", "title": "LINT"},
+                            ]
+                        },
+                        {
+                            "name": "Advanced",
+                            "menu": [
+                                {"path": "/tools/profile", "title": "PROFILE"},
+                                {"path": "/tools/debug", "title": "DEBUG"},
+                            ]
+                        }
+                    ],
+                    cycle_key="shift+g"
+                )
             }
         )
         ```

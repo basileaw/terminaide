@@ -18,7 +18,7 @@ from fastapi import FastAPI
 
 from .exceptions import TTYDStartupError, TTYDProcessError, PortAllocationError
 from .ttyd_installer import setup_ttyd
-from .data_models import TTYDConfig, ScriptConfig
+from .data_models import TTYDConfig, ScriptConfig, IndexPageConfig
 from .route_colors import route_color_manager
 
 logger = logging.getLogger("terminaide")
@@ -43,6 +43,11 @@ class TTYDManager:
         self.processes: Dict[str, subprocess.Popen] = {}
         self.start_times: Dict[str, datetime] = {}
 
+        # Filter to only terminal routes (ScriptConfig instances)
+        self.terminal_configs: List[ScriptConfig] = [
+            cfg for cfg in config.route_configs if isinstance(cfg, ScriptConfig)
+        ]
+
         # Base port handling
         self._base_port = config.port
         self._allocate_ports()
@@ -64,12 +69,10 @@ class TTYDManager:
 
     def _allocate_ports(self) -> None:
         """
-        Allocate and validate ports for each script configuration.
+        Allocate and validate ports for each terminal configuration.
         """
-        configs_to_assign = [c for c in self.config.script_configs if c.port is None]
-        assigned_ports = {
-            c.port for c in self.config.script_configs if c.port is not None
-        }
+        configs_to_assign = [c for c in self.terminal_configs if c.port is None]
+        assigned_ports = {c.port for c in self.terminal_configs if c.port is not None}
         next_port = self._base_port
 
         # Track newly assigned ports
@@ -207,29 +210,38 @@ class TTYDManager:
 
     def start(self) -> None:
         """
-        Start all ttyd processes for each configured script.
+        Start all ttyd processes for each configured terminal script.
         """
-        if not self.config.script_configs:
-            raise TTYDStartupError("No script configurations found")
+        if not self.terminal_configs:
+            logger.info("No terminal routes configured - no ttyd processes to start")
+            return
 
-        script_count = len(self.config.script_configs)
+        script_count = len(self.terminal_configs)
         mode_type = "apps-server" if self.config.is_multi_script else "solo-server"
         entry_mode = getattr(self.config, "_mode", "script")
 
         # Count function-based routes
-        function_count = sum(1 for cfg in self.config.script_configs if cfg.is_function_based)
-        
-        type_info = f"({function_count} function, {script_count - function_count} script)" if function_count > 0 else f"({script_count} script)"
-        
+        function_count = sum(
+            1 for cfg in self.terminal_configs if cfg.is_function_based
+        )
+
+        type_info = (
+            f"({function_count} function, {script_count - function_count} script)"
+            if function_count > 0
+            else f"({script_count} script)"
+        )
+
         logger.info(f"Starting {script_count} ttyd processes {type_info}")
 
         success_count = 0
-        for script_config in self.config.script_configs:
+        for script_config in self.terminal_configs:
             try:
                 self.start_process(script_config)
                 success_count += 1
             except Exception as e:
-                logger.error(f"Failed to start process for {script_config.route_path}: {e}")
+                logger.error(
+                    f"Failed to start process for {script_config.route_path}: {e}"
+                )
 
     def start_process(self, script_config: ScriptConfig) -> None:
         """
@@ -272,7 +284,9 @@ class TTYDManager:
             for _ in range(checks):
                 if process.poll() is not None:
                     stderr = process.stderr.read().decode("utf-8")
-                    logger.error(f"ttyd failed to start for route {route_path}: {stderr}")
+                    logger.error(
+                        f"ttyd failed to start for route {route_path}: {stderr}"
+                    )
                     self.processes.pop(route_path, None)
                     self.start_times.pop(route_path, None)
                     raise TTYDStartupError(stderr=stderr)
@@ -289,7 +303,9 @@ class TTYDManager:
 
                 time.sleep(check_interval)
 
-            logger.error(f"ttyd for route {route_path} did not start within the timeout")
+            logger.error(
+                f"ttyd for route {route_path} did not start within the timeout"
+            )
             self.processes.pop(route_path, None)
             self.start_times.pop(route_path, None)
             raise TTYDStartupError(f"Timeout starting ttyd for route {route_path}")
@@ -383,7 +399,9 @@ class TTYDManager:
         Gather health data for all processes, including status and uptime.
         """
         processes_health = []
-        for cfg in self.config.script_configs:
+
+        # Only check terminal configs, not index pages
+        for cfg in self.terminal_configs:
             route_path = cfg.route_path
             running = self.is_process_running(route_path)
 
@@ -401,6 +419,11 @@ class TTYDManager:
                 }
             )
 
+        # Count index pages separately
+        index_page_count = sum(
+            1 for cfg in self.config.route_configs if isinstance(cfg, IndexPageConfig)
+        )
+
         # Log a compact summary of process health with function info
         running_count = sum(1 for p in processes_health if p["status"] == "running")
         function_count = sum(
@@ -409,13 +432,16 @@ class TTYDManager:
 
         if function_count > 0:
             logger.debug(
-                f"Health check: {running_count}/{len(processes_health)} processes running "
+                f"Health check: {running_count}/{len(processes_health)} terminal processes running "
                 f"({function_count} function-based, {len(processes_health) - function_count} script-based)"
             )
         else:
             logger.debug(
-                f"Health check: {running_count}/{len(processes_health)} processes running"
+                f"Health check: {running_count}/{len(processes_health)} terminal processes running"
             )
+
+        if index_page_count > 0:
+            logger.debug(f"Index pages configured: {index_page_count}")
 
         entry_mode = getattr(self.config, "_mode", "script")
 
@@ -424,6 +450,8 @@ class TTYDManager:
             "ttyd_path": str(self._ttyd_path) if self._ttyd_path else None,
             "is_multi_script": self.config.is_multi_script,
             "process_count": len(self.processes),
+            "terminal_count": len(self.terminal_configs),
+            "index_page_count": index_page_count,
             "function_count": function_count,
             "script_count": len(processes_health) - function_count,
             "mounting": "root" if self.config.is_root_mounted else "non-root",
@@ -437,7 +465,7 @@ class TTYDManager:
         """
         logger.info(f"Restarting ttyd for route {route_path}")
         script_config = None
-        for cfg in self.config.script_configs:
+        for cfg in self.terminal_configs:
             if cfg.route_path == route_path:
                 script_config = cfg
                 break

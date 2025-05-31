@@ -55,6 +55,21 @@ html5lib = ["html5lib"]
 lxml = ["lxml"]
 
 [[package]]
+name = "bigfont"
+version = "0.1.0"
+description = "renderer for large ascii fonts"
+optional = false
+python-versions = "*"
+files = []
+develop = false
+
+[package.source]
+type = "git"
+url = "https://github.com/cjdurkin/bigfont.git"
+reference = "HEAD"
+resolved_reference = "4a6fa9ce9b5028979ed859173b0d3713d5abc227"
+
+[[package]]
 name = "bottle"
 version = "0.13.3"
 description = "Fast and simple WSGI-framework for small web-applications."
@@ -615,6 +630,17 @@ files = [
 typing-extensions = ">=4.6.0,<4.7.0 || >4.7.0"
 
 [[package]]
+name = "pyfiglet"
+version = "1.0.2"
+description = "Pure-python FIGlet implementation"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "pyfiglet-1.0.2-py3-none-any.whl", hash = "sha256:889b351d79c99e50a3f619c8f8e6ffdb27fd8c939fc43ecbd7559bd57d5f93ea"},
+    {file = "pyfiglet-1.0.2.tar.gz", hash = "sha256:758788018ab8faaddc0984e1ea05ff330d3c64be663c513cc1f105f6a3066dab"},
+]
+
+[[package]]
 name = "pygments"
 version = "2.19.1"
 description = "Pygments is a syntax highlighting package written in Python."
@@ -1055,4 +1081,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.12"
-content-hash = "4a521c0428e4a7156fab86daede2805790c2dade5ed75a21ef3347eea31281a0"
+content-hash = "252e7dff5bf067b92dc517013532ae76458ebfc198b2eb21a4c096cab05c352f"

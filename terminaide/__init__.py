@@ -10,7 +10,8 @@ management automatically across supported platforms.
 The package offers four entry points with increasing complexity:
 1. serve_function: The simplest way to serve a Python function in a browser terminal
 2. serve_script: Simple path to serve a Python script file in a terminal
-3. serve_apps: Advanced path to integrate multiple terminals (both functions and scripts) into a FastAPI application
+3. serve_apps: Advanced path to integrate multiple terminals (both functions and scripts)
+              and index pages into a FastAPI application
 4. meta_serve: Advanced path to run a server that serves terminal instances in a browser terminal
 
 Supported Platforms:
@@ -24,6 +25,7 @@ import logging
 from pathlib import Path
 from .termin_api import serve_function, serve_script, serve_apps, meta_serve
 from .core.data_models import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
+from .core.index_page import IndexPage
 from .core.ttyd_installer import setup_ttyd, get_platform_info
 from .core.exceptions import (
     terminaideError,
@@ -67,21 +69,22 @@ COLORS = {
 
 # Route color palette - bright, distinguishable colors
 ROUTE_COLORS = [
-    "\033[94m",   # Bright Blue
-    "\033[95m",   # Bright Magenta
-    "\033[96m",   # Bright Cyan
-    "\033[93m",   # Bright Yellow
-    "\033[91m",   # Bright Red
-    "\033[92m",   # Bright Green
-    "\033[97m",   # Bright White
-    "\033[35m",   # Magenta
-    "\033[34m",   # Blue
-    "\033[36m",   # Cyan
-    "\033[33m",   # Yellow
-    "\033[31m",   # Red
-    "\033[32m",   # Green
-    "\033[37m",   # White
+    "\033[94m",  # Bright Blue
+    "\033[95m",  # Bright Magenta
+    "\033[96m",  # Bright Cyan
+    "\033[93m",  # Bright Yellow
+    "\033[91m",  # Bright Red
+    "\033[92m",  # Bright Green
+    "\033[97m",  # Bright White
+    "\033[35m",  # Magenta
+    "\033[34m",  # Blue
+    "\033[36m",  # Cyan
+    "\033[33m",  # Yellow
+    "\033[31m",  # Red
+    "\033[32m",  # Green
+    "\033[37m",  # White
 ]
+
 
 def get_route_color(route_path: str) -> str:
     """Get a consistent color for a route based on its path."""
@@ -89,6 +92,7 @@ def get_route_color(route_path: str) -> str:
     hash_value = int(hashlib.md5(route_path.encode()).hexdigest()[:8], 16)
     color_index = hash_value % len(ROUTE_COLORS)
     return ROUTE_COLORS[color_index]
+
 
 def colorize_route_title(title: str, route_path: str) -> str:
     """Colorize a route title with its assigned color."""
@@ -134,6 +138,8 @@ __all__ = [
     "meta_serve",
     # Add terminarcade to the exported names
     "terminarcade",
+    # Index page support
+    "IndexPage",
     # Configuration objects
     "TTYDConfig",
     "ScriptConfig",

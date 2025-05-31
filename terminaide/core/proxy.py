@@ -15,7 +15,7 @@ from fastapi import Request, WebSocket
 from fastapi.responses import Response, StreamingResponse
 
 from .exceptions import ProxyError, RouteNotFoundError
-from .data_models import TTYDConfig, ScriptConfig
+from .data_models import TTYDConfig, ScriptConfig, IndexPageConfig
 from .route_colors import route_color_manager
 
 logger = logging.getLogger("terminaide")
@@ -33,10 +33,15 @@ class ProxyManager:
         self.targets: Dict[str, Dict[str, str]] = {}
         self._initialize_targets()
 
+        # Filter to only terminal routes
+        self.terminal_configs = [
+            cfg for cfg in config.route_configs if isinstance(cfg, ScriptConfig)
+        ]
+
         # Simplified logging - just count and mode info
         entry_mode = getattr(self.config, "_mode", "script")
         logger.info(
-            f"Proxy configured for {len(self.targets)} routes "
+            f"Proxy configured for {len(self.targets)} terminal routes "
             f"({entry_mode} API, {'apps-server' if self.config.is_multi_script else 'solo-server'} mode)"
         )
 
@@ -59,16 +64,18 @@ class ProxyManager:
 
     def _initialize_targets(self) -> None:
         """
-        Build base URLs for each script configuration's ttyd process.
+        Build base URLs for each terminal route's ttyd process.
         """
-        for script_config in self.config.script_configs:
-            route_path = script_config.route_path
-            port = script_config.port
-            if port is None:
-                logger.error(f"No port assigned to route {route_path}")
-                continue
-            host = f"{self.config.ttyd_options.interface}:{port}"
-            self.targets[route_path] = {"host": host, "port": port}
+        # Only process ScriptConfig routes
+        for route_config in self.config.route_configs:
+            if isinstance(route_config, ScriptConfig):
+                route_path = route_config.route_path
+                port = route_config.port
+                if port is None:
+                    logger.error(f"No port assigned to terminal route {route_path}")
+                    continue
+                host = f"{self.config.ttyd_options.interface}:{port}"
+                self.targets[route_path] = {"host": host, "port": port}
 
     @property
     def http_client(self) -> httpx.AsyncClient:
@@ -91,14 +98,19 @@ class ProxyManager:
         """
         Retrieve the script config and target info for a given request path.
         """
-        script_config = self.config.get_script_config_for_path(request_path)
-        if not script_config:
-            raise RouteNotFoundError(f"No config for path: {request_path}")
-        route_path = script_config.route_path
+        # Use the existing method that returns the route config
+        route_config = self.config.get_route_config_for_path(request_path)
+
+        # Ensure it's a ScriptConfig (terminal route)
+        if not route_config or not isinstance(route_config, ScriptConfig):
+            raise RouteNotFoundError(f"No terminal route for path: {request_path}")
+
+        route_path = route_config.route_path
         target_info = self.targets.get(route_path)
         if not target_info:
             raise RouteNotFoundError(f"No target info for route: {route_path}")
-        return script_config, target_info
+
+        return route_config, target_info
 
     def _strip_path_prefix(self, path: str, script_config: ScriptConfig) -> str:
         """
@@ -185,23 +197,34 @@ class ProxyManager:
             logger.error(f"HTTP proxy error: {e}")
             raise ProxyError(f"Failed to proxy request: {e}")
 
-    async def proxy_websocket(self, websocket: WebSocket, route_path: Optional[str] = None) -> None:
+    async def proxy_websocket(
+        self, websocket: WebSocket, route_path: Optional[str] = None
+    ) -> None:
         """
         Forward WebSocket connections to ttyd, including bidirectional data flow.
         """
         try:
             if route_path is None:
                 ws_path = websocket.url.path
-                script_config = self.config.get_script_config_for_path(ws_path)
-                if not script_config:
-                    raise RouteNotFoundError(f"No config for WebSocket path: {ws_path}")
-                route_path = script_config.route_path
+                route_config = self.config.get_route_config_for_path(ws_path)
+                if not route_config or not isinstance(route_config, ScriptConfig):
+                    raise RouteNotFoundError(
+                        f"No terminal route for WebSocket path: {ws_path}"
+                    )
+                route_path = route_config.route_path
+                script_config = route_config
             else:
+                # Find the script config for the given route path
                 script_config = None
-                for cfg in self.config.script_configs:
+                for cfg in self.terminal_configs:
                     if cfg.route_path == route_path:
                         script_config = cfg
                         break
+
+                if not script_config:
+                    raise RouteNotFoundError(
+                        f"No terminal route found for path: {route_path}"
+                    )
 
             target_info = self.targets.get(route_path)
             if not target_info:
@@ -211,7 +234,7 @@ class ProxyManager:
             ws_url = f"ws://{host}/ws"
 
             await websocket.accept(subprotocol="tty")
-            
+
             # Simplified WebSocket connection logging
             if script_config:
                 title = script_config.title or self.config.title
@@ -288,22 +311,35 @@ class ProxyManager:
         Return data for each proxy route, including endpoints and script info.
         """
         routes_info = []
-        for script_config in self.config.script_configs:
-            route_path = script_config.route_path
-            target_info = self.targets.get(route_path, {})
-            host = target_info.get("host", "")
 
-            routes_info.append(
-                {
-                    "route_path": route_path,
-                    "script": str(script_config.client_script),
-                    "terminal_path": self.config.get_terminal_path_for_route(
-                        route_path
-                    ),
-                    "port": target_info.get("port"),
-                    "title": script_config.title or self.config.title,
-                }
-            )
+        # Process all route configs, not just terminal ones
+        for route_config in self.config.route_configs:
+            route_path = route_config.route_path
+
+            if isinstance(route_config, ScriptConfig):
+                target_info = self.targets.get(route_path, {})
+                routes_info.append(
+                    {
+                        "type": "terminal",
+                        "route_path": route_path,
+                        "script": str(route_config.effective_script_path),
+                        "terminal_path": self.config.get_terminal_path_for_route(
+                            route_path
+                        ),
+                        "port": target_info.get("port"),
+                        "title": route_config.title or self.config.title,
+                    }
+                )
+            elif isinstance(route_config, IndexPageConfig):
+                routes_info.append(
+                    {
+                        "type": "index",
+                        "route_path": route_path,
+                        "title": route_config.title
+                        or getattr(route_config.index_page, "page_title", "Index"),
+                        "menu_items": len(route_config.index_page.get_all_menu_items()),
+                    }
+                )
 
         entry_mode = getattr(self.config, "_mode", "script")
 
@@ -312,5 +348,6 @@ class ProxyManager:
             "mount_path": self.config.mount_path,
             "is_root_mounted": self.config.is_root_mounted,
             "is_multi_script": self.config.is_multi_script,
-            "entry_mode": entry_mode,  # Add entry mode to routes info
+            "has_index_pages": self.config.has_index_pages,
+            "entry_mode": entry_mode,
         }

@@ -21,7 +21,14 @@ from typing import Optional, Dict, Union, Tuple, List, Callable, Any
 from .proxy import ProxyManager
 from .ttyd_manager import TTYDManager
 from .exceptions import TemplateError
-from .data_models import TTYDConfig, ThemeConfig, TTYDOptions, create_script_configs
+from .data_models import (
+    TTYDConfig,
+    ThemeConfig,
+    TTYDOptions,
+    ScriptConfig,
+    IndexPageConfig,
+    create_route_configs,
+)
 
 logger = logging.getLogger("terminaide")
 
@@ -181,7 +188,17 @@ def configure_routes(
     templates: Jinja2Templates,
     template_file: str,
 ) -> None:
-    """Define routes for TTYD: health, interface, websocket, and proxy."""
+    """Define routes for TTYD terminals and index pages."""
+
+    # Check if index template exists
+    template_dir = Path(templates.env.loader.searchpath[0])
+    index_template_file = "index.html"
+    has_index_template = (template_dir / index_template_file).exists()
+
+    if config.has_index_pages and not has_index_template:
+        logger.warning(
+            f"Index pages configured but {index_template_file} not found in templates directory"
+        )
 
     @app.get(f"{config.mount_path}/health")
     async def health_check():
@@ -190,88 +207,138 @@ def configure_routes(
             "proxy": proxy_manager.get_routes_info(),
         }
 
-    for script_config in config.script_configs:
-        route_path = script_config.route_path
-        terminal_path = config.get_terminal_path_for_route(route_path)
-        title = script_config.title or config.title
+    # Process all route configs
+    for route_config in config.route_configs:
+        route_path = route_config.route_path
 
-        # Debug logging for preview image config
-        logger.debug(f"Script config preview_image: {script_config.preview_image}")
-        logger.debug(f"Config preview_image: {config.preview_image}")
+        if isinstance(route_config, IndexPageConfig):
+            # Handle index page route
+            @app.get(route_path, response_class=HTMLResponse)
+            async def index_page_handler(
+                request: Request,
+                route_config=route_config,
+            ):
+                try:
+                    # Get the index page instance
+                    index_page = route_config.index_page
 
-        # Get preview image path - prefer script_config's image, fall back to config's, then default
-        preview_image = "preview.png"  # Default fallback
+                    # Build template context
+                    context = index_page.to_template_context()
+                    context["request"] = request
 
-        # Try script config preview first
-        if script_config.preview_image and script_config.preview_image.exists():
-            logger.debug(
-                f"Using script config preview image: {script_config.preview_image}"
-            )
-            preview_image = copy_preview_image_to_static(script_config.preview_image)
-        elif script_config.preview_image:
-            logger.warning(
-                f"Script preview image doesn't exist: {script_config.preview_image}"
-            )
+                    # Handle preview image
+                    preview_image_path = route_config.get_preview_image()
+                    if preview_image_path and preview_image_path.exists():
+                        preview_image = copy_preview_image_to_static(preview_image_path)
+                    else:
+                        preview_image = "preview.png"
 
-        # If no script preview or it failed, try global config
-        elif config.preview_image:
-            logger.debug(f"Using global config preview image: {config.preview_image}")
-            if config.preview_image.exists():
-                preview_image = copy_preview_image_to_static(config.preview_image)
-            else:
+                    context["preview_image"] = preview_image
+
+                    logger.debug(f"Rendering index page for route {route_path}")
+
+                    # Check if index template exists
+                    if not has_index_template:
+                        return HTMLResponse(
+                            content=f"<h1>Index template not found</h1><p>Please create {index_template_file}</p>",
+                            status_code=500,
+                        )
+
+                    return templates.TemplateResponse(index_template_file, context)
+                except Exception as e:
+                    logger.error(
+                        f"Error rendering index page for route {route_path}: {e}"
+                    )
+                    raise TemplateError(index_template_file, str(e))
+
+        elif isinstance(route_config, ScriptConfig):
+            # Handle terminal route
+            terminal_path = config.get_terminal_path_for_route(route_path)
+            title = route_config.title or config.title
+
+            # Debug logging for preview image config
+            logger.debug(f"Script config preview_image: {route_config.preview_image}")
+            logger.debug(f"Config preview_image: {config.preview_image}")
+
+            # Get preview image path - prefer script_config's image, fall back to config's, then default
+            preview_image = "preview.png"  # Default fallback
+
+            # Try script config preview first
+            if route_config.preview_image and route_config.preview_image.exists():
+                logger.debug(
+                    f"Using script config preview image: {route_config.preview_image}"
+                )
+                preview_image = copy_preview_image_to_static(route_config.preview_image)
+            elif route_config.preview_image:
                 logger.warning(
-                    f"Global preview image doesn't exist: {config.preview_image}"
+                    f"Script preview image doesn't exist: {route_config.preview_image}"
                 )
-        else:
-            logger.debug("No custom preview images configured, using default")
 
-        logger.debug(f"Final preview image for route {route_path}: {preview_image}")
-
-        @app.get(route_path, response_class=HTMLResponse)
-        async def terminal_interface(
-            request: Request,
-            route_path=route_path,
-            terminal_path=terminal_path,
-            title=title,
-            preview_image=preview_image,
-        ):
-            try:
-                logger.debug(f"Rendering template with preview_image={preview_image}")
-                return templates.TemplateResponse(
-                    template_file,
-                    {
-                        "request": request,
-                        "mount_path": terminal_path,
-                        "theme": config.theme.model_dump(),
-                        "title": title,
-                        "preview_image": preview_image,
-                    },
+            # If no script preview or it failed, try global config
+            elif config.preview_image:
+                logger.debug(
+                    f"Using global config preview image: {config.preview_image}"
                 )
-            except Exception as e:
-                logger.error(f"Template rendering error for route {route_path}: {e}")
-                raise TemplateError(template_file, str(e))
+                if config.preview_image.exists():
+                    preview_image = copy_preview_image_to_static(config.preview_image)
+                else:
+                    logger.warning(
+                        f"Global preview image doesn't exist: {config.preview_image}"
+                    )
+            else:
+                logger.debug("No custom preview images configured, using default")
 
-        @app.websocket(f"{terminal_path}/ws")
-        async def terminal_ws(websocket: WebSocket, route_path=route_path):
-            await proxy_manager.proxy_websocket(websocket, route_path=route_path)
+            logger.debug(f"Final preview image for route {route_path}: {preview_image}")
 
-        @app.api_route(
-            f"{terminal_path}/{{path:path}}",
-            methods=[
-                "GET",
-                "POST",
-                "PUT",
-                "DELETE",
-                "OPTIONS",
-                "HEAD",
-                "PATCH",
-                "TRACE",
-            ],
-        )
-        async def proxy_terminal_request(
-            request: Request, path: str, route_path=route_path
-        ):
-            return await proxy_manager.proxy_http(request)
+            @app.get(route_path, response_class=HTMLResponse)
+            async def terminal_interface(
+                request: Request,
+                route_path=route_path,
+                terminal_path=terminal_path,
+                title=title,
+                preview_image=preview_image,
+            ):
+                try:
+                    logger.debug(
+                        f"Rendering template with preview_image={preview_image}"
+                    )
+                    return templates.TemplateResponse(
+                        template_file,
+                        {
+                            "request": request,
+                            "mount_path": terminal_path,
+                            "theme": config.theme.model_dump(),
+                            "title": title,
+                            "preview_image": preview_image,
+                        },
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Template rendering error for route {route_path}: {e}"
+                    )
+                    raise TemplateError(template_file, str(e))
+
+            @app.websocket(f"{terminal_path}/ws")
+            async def terminal_ws(websocket: WebSocket, route_path=route_path):
+                await proxy_manager.proxy_websocket(websocket, route_path=route_path)
+
+            @app.api_route(
+                f"{terminal_path}/{{path:path}}",
+                methods=[
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "DELETE",
+                    "OPTIONS",
+                    "HEAD",
+                    "PATCH",
+                    "TRACE",
+                ],
+            )
+            async def proxy_terminal_request(
+                request: Request, path: str, route_path=route_path
+            ):
+                return await proxy_manager.proxy_http(request)
 
 
 def configure_app(app: FastAPI, config: TTYDConfig):
@@ -359,11 +426,15 @@ def convert_terminaide_config_to_ttyd_config(
         # Handle function target for serve_function mode
         terminal_routes = {"/": config._target}
 
-    script_configs = create_script_configs(terminal_routes)
+    # Use create_route_configs instead of create_script_configs
+    route_configs = create_route_configs(terminal_routes)
 
-    # If we have script configs and a custom title is set, apply it to the first script config
-    if script_configs and config.title != "Terminal":
-        script_configs[0].title = config.title
+    # If we have route configs and a custom title is set, apply it to the first script config
+    if route_configs and config.title != "Terminal":
+        for cfg in route_configs:
+            if isinstance(cfg, ScriptConfig):
+                cfg.title = config.title
+                break
 
     # Debug log for preview_image
     if hasattr(config, "preview_image") and config.preview_image:
@@ -377,10 +448,17 @@ def convert_terminaide_config_to_ttyd_config(
     # Convert ttyd_options dict to TTYDOptions
     ttyd_options_config = TTYDOptions(**(config.ttyd_options or {}))
 
+    # Find the first script config for backward compatibility
+    first_script_config = None
+    for cfg in route_configs:
+        if isinstance(cfg, ScriptConfig):
+            first_script_config = cfg
+            break
+
     ttyd_config = TTYDConfig(
         client_script=(
-            script_configs[0].client_script
-            if script_configs and not script_configs[0].is_function_based
+            first_script_config.client_script
+            if first_script_config and not first_script_config.is_function_based
             else None
         ),
         mount_path=config.mount_path,
@@ -391,7 +469,7 @@ def convert_terminaide_config_to_ttyd_config(
         preview_image=config.preview_image,  # Pass the preview_image to TTYDConfig
         title=config.title,  # Keep the original title
         debug=config.debug,
-        script_configs=script_configs,
+        route_configs=route_configs,  # Use route_configs instead of script_configs
         forward_env=config.forward_env,
     )
 
