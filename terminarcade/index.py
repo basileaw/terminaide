@@ -4,7 +4,7 @@ import curses
 import signal
 import sys
 import importlib
-import art
+from terminaide import generate_ascii_banner
 
 stdscr = None
 exit_requested = False
@@ -94,8 +94,12 @@ def _index_menu_loop(stdscr_param):
     my, mx = stdscr.getmaxyx()
 
     # Generate ASCII art banner
-    ascii_art = art.text2art("TERMINARCADE", font="ansishadow")
-    title_lines = ascii_art.split("\n")
+    ascii_art = generate_ascii_banner("TERMINARCADE")
+    if ascii_art:
+        title_lines = ascii_art.split("\n")
+    else:
+        # Fallback if generation fails
+        title_lines = ["TERMINARCADE"]
 
     # Remove any empty trailing lines
     while title_lines and not title_lines[-1].strip():

@@ -33,20 +33,6 @@ test = ["anyio[trio]", "blockbuster (>=1.5.23)", "coverage[toml] (>=7)", "except
 trio = ["trio (>=0.26.1)"]
 
 [[package]]
-name = "art"
-version = "6.5"
-description = "ASCII Art Library For Python"
-optional = false
-python-versions = ">=3.6"
-files = [
-    {file = "art-6.5-py3-none-any.whl", hash = "sha256:70706408144c45c666caab690627d5c74aea7b6c7ce8cc968408ddeef8d84afd"},
-    {file = "art-6.5.tar.gz", hash = "sha256:a98d77b42c278697ec6cf4b5bdcdfd997f6b2425332da078d4e31e31377d1844"},
-]
-
-[package.extras]
-dev = ["bandit (>=1.5.1)", "coverage (>=4.1)", "pydocstyle (>=3.0.0)", "vulture (>=1.0)"]
-
-[[package]]
 name = "beautifulsoup4"
 version = "4.13.4"
 description = "Screen-scraping library"
@@ -1095,4 +1081,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.12"
-content-hash = "cfa942b23490190d5361a65320f5b72bc30afb60547e48fafa92621df12d9d1d"
+content-hash = "252e7dff5bf067b92dc517013532ae76458ebfc198b2eb21a4c096cab05c352f"
