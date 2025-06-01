@@ -213,15 +213,20 @@ def serve_apps(
         serve_apps(
             app,
             terminal_routes={
-                # Simple index page at root
+                # Simple index page at root (single menu, no cycling)
                 "/": IndexPage(
                     title="CLI TOOLS",
                     subtitle="Select a tool to get started.",
                     menu=[
-                        {"path": "/deploy", "title": "DEPLOY"},
-                        {"path": "/monitor", "title": "MONITOR"},
-                        {"path": "/logs", "title": "LOGS"},
-                        {"path": "https://github.com/myorg", "title": "GITHUB"},
+                        {
+                            "label": "Use arrow keys to navigate, Enter to select",
+                            "options": [
+                                {"path": "/deploy", "title": "DEPLOY"},
+                                {"path": "/monitor", "title": "MONITOR"},
+                                {"path": "/logs", "title": "LOGS"},
+                                {"path": "https://github.com/myorg", "title": "GITHUB"},
+                            ]
+                        }
                     ]
                 ),
 
@@ -241,27 +246,29 @@ def serve_apps(
                     "preview_image": "admin_preview.png"
                 },
 
-                # Index page with groups and menu subtitle
+                # Index page with multiple menus and cycling
                 "/tools": IndexPage(
                     title="TOOLS",
-                    groups=[
-                        {
-                            "menu": [
-                                {"path": "/tools/format", "title": "FORMAT"},
-                                {"path": "/tools/lint", "title": "LINT"},
-                            ]
-                        },
-                        {
-                            "name": "Advanced Tools",
-                            "menu": [
-                                {"path": "/tools/profile", "title": "PROFILE"},
-                                {"path": "/tools/debug", "title": "DEBUG"},
-                            ]
-                        }
-                    ],
-                    menu_title="Select a development tool",
-                    menu_subtitle="[shift+g to cycle tool categories]",
-                    cycle_key="shift+g"
+                    menu={
+                        "cycle_key": "shift+g",
+                        "groups": [
+                            {
+                                "label": "Basic Tools",
+                                "options": [
+                                    {"path": "/tools/format", "title": "FORMAT"},
+                                    {"path": "/tools/lint", "title": "LINT"},
+                                ]
+                            },
+                            {
+                                "label": "Advanced Tools",
+                                "options": [
+                                    {"path": "/tools/profile", "title": "PROFILE"},
+                                    {"path": "/tools/debug", "title": "DEBUG"},
+                                ]
+                            }
+                        ]
+                    },
+                    epititle="[shift+g to cycle tool categories]"
                 )
             }
         )

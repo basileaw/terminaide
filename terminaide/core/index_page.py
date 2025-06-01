@@ -41,25 +41,25 @@ class MenuItem:
 
 
 class MenuGroup:
-    """Group of menu items with optional name."""
+    """Group of menu items with a label."""
 
-    def __init__(self, menu: List[Dict[str, str]], name: Optional[str] = None):
+    def __init__(self, label: str, options: List[Dict[str, str]]):
         """
         Initialize a menu group.
 
         Args:
-            menu: List of menu items as dictionaries
-            name: Optional group name (shown when group is active)
+            label: The label shown for this group of menu items
+            options: List of menu items as dictionaries with 'path' and 'title'
         """
-        self.name = name
-        self.menu_items = [MenuItem(**item) for item in menu]
+        self.label = label
+        self.menu_items = [MenuItem(**item) for item in options]
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        result = {"menu": [item.to_dict() for item in self.menu_items]}
-        if self.name:
-            result["name"] = self.name
-        return result
+        return {
+            "label": self.label,
+            "options": [item.to_dict() for item in self.menu_items],
+        }
 
 
 class IndexPage:
@@ -74,18 +74,14 @@ class IndexPage:
     def __init__(
         self,
         # Content
-        menu: Optional[List[Dict[str, str]]] = None,
-        groups: Optional[List[Dict[str, Any]]] = None,
+        menu: Union[List[Dict[str, Any]], Dict[str, Any]],
         subtitle: Optional[str] = None,
-        menu_title: str = "Use arrow keys to navigate, Enter to select",
-        menu_subtitle: Optional[str] = None,
+        epititle: Optional[str] = None,
         # Title/ASCII options
         title: Optional[str] = None,
         page_title: Optional[str] = None,
         ascii_art: Optional[str] = None,
         supertitle: Optional[str] = None,
-        # Group cycling
-        cycle_key: str = "shift+p",
         # Assets
         preview_image: Optional[Union[str, Path]] = None,
     ):
@@ -93,57 +89,77 @@ class IndexPage:
         Initialize an IndexPage.
 
         Args:
-            menu: Simple list of menu items (use this OR groups, not both)
-            groups: List of menu groups for multiple sections
+            menu: Either:
+                - A list of menu groups (for single menu or when cycle_key not needed)
+                - A dict with 'groups' and 'cycle_key' keys (for multiple menus with cycling)
+                  Example: {"cycle_key": "shift+g", "groups": [{"label": "...", "options": [...]}]}
             subtitle: Text paragraph below the title
-            menu_title: Default title shown for menus (default: "Use arrow keys to navigate, Enter to select")
-                       This title is used for ungrouped menus or groups without their own name
-            menu_subtitle: Optional text shown below the menu items (e.g., "[shift+g to cycle groups]")
+            epititle: Optional text shown below the menu items
             title: Text to convert to ASCII art using ansi-shadow font
             page_title: Browser tab title (defaults to title)
             ascii_art: Pre-made ASCII art (alternative to generated)
             supertitle: Regular text above ASCII art
-            cycle_key: Key combination to cycle between groups
             preview_image: Path to preview image for social media
 
         Raises:
-            ValueError: If both menu and groups are provided, or neither
+            ValueError: If menu is empty or has invalid structure
         """
-        # Validation: must have either menu or groups, not both
-        if (menu is None) == (groups is None):
-            raise ValueError(
-                "Must provide either 'menu' or 'groups', but not both. "
-                "Use 'menu' for a simple single menu, or 'groups' for multiple sections."
-            )
+        # Parse menu structure
+        if isinstance(menu, dict):
+            # Dict format with cycle_key
+            if "groups" not in menu:
+                raise ValueError("Menu dict must contain 'groups' key")
+            if "cycle_key" not in menu:
+                raise ValueError("Menu dict must contain 'cycle_key' key")
 
-        # Convert menu items
-        if menu:
-            self.menu_items = [MenuItem(**item) for item in menu]
-            self.groups = None
+            menu_groups = menu["groups"]
+            self.cycle_key = menu["cycle_key"]
+
+            # Validate cycle_key
+            self._validate_cycle_key()
         else:
-            self.menu_items = None
-            self.groups = [MenuGroup(**g) for g in groups]
+            # List format (no cycle_key)
+            menu_groups = menu
+            self.cycle_key = "shift+p"  # Default, won't be used if single group
+
+        # Validate menu structure
+        if not menu_groups:
+            raise ValueError("Menu must contain at least one group")
+
+        for i, group in enumerate(menu_groups):
+            if not isinstance(group, dict):
+                raise ValueError(f"Menu group at index {i} must be a dictionary")
+            if "label" not in group:
+                raise ValueError(
+                    f"Menu group at index {i} missing required 'label' key"
+                )
+            if "options" not in group:
+                raise ValueError(
+                    f"Menu group at index {i} missing required 'options' key"
+                )
+            if not isinstance(group["options"], list):
+                raise ValueError(f"Menu group at index {i} 'options' must be a list")
+            if not group["options"]:
+                raise ValueError(
+                    f"Menu group at index {i} must have at least one option"
+                )
+
+        # Convert menu groups
+        self.groups = [MenuGroup(g["label"], g["options"]) for g in menu_groups]
 
         # Store text/title options
         self.subtitle = subtitle
-        self.menu_title = menu_title
-        self.menu_subtitle = menu_subtitle
+        self.epititle = epititle
         self.title = title
         self.page_title = page_title or title or "Index"
         self.ascii_art = ascii_art
         self.supertitle = supertitle
-
-        # Group cycling configuration
-        self.cycle_key = cycle_key
 
         # Handle preview image
         if preview_image:
             self.preview_image = Path(preview_image)
         else:
             self.preview_image = None
-
-        # Validate cycle_key format
-        self._validate_cycle_key()
 
     def _validate_cycle_key(self) -> None:
         """Validate the cycle key format."""
@@ -173,13 +189,9 @@ class IndexPage:
         Returns:
             List of all MenuItem objects across all groups
         """
-        if self.menu_items:
-            return self.menu_items
-
         all_items = []
-        if self.groups:
-            for group in self.groups:
-                all_items.extend(group.menu_items)
+        for group in self.groups:
+            all_items.extend(group.menu_items)
         return all_items
 
     def to_template_context(self) -> Dict[str, Any]:
@@ -195,13 +207,8 @@ class IndexPage:
             title_ascii = generate_ascii_banner(self.title)
 
         # Prepare groups data for JavaScript
-        if self.groups:
-            groups_data = [group.to_dict() for group in self.groups]
-            has_groups = True
-        else:
-            # Single menu becomes a single unnamed group
-            groups_data = [{"menu": [item.to_dict() for item in self.menu_items]}]
-            has_groups = False
+        groups_data = [group.to_dict() for group in self.groups]
+        has_multiple_groups = len(self.groups) > 1
 
         # Count total items for grid sizing hints
         total_items = len(self.get_all_menu_items())
@@ -212,9 +219,8 @@ class IndexPage:
             "title_ascii": title_ascii,
             "supertitle": self.supertitle,
             "subtitle": self.subtitle,
-            "menu_title": self.menu_title,
-            "menu_subtitle": self.menu_subtitle,
-            "has_groups": has_groups,
+            "epititle": self.epititle,
+            "has_multiple_groups": has_multiple_groups,
             "groups_json": groups_data,
             "cycle_key": self.cycle_key,
             "total_items": total_items,
@@ -225,7 +231,7 @@ class IndexPage:
     def __repr__(self) -> str:
         """String representation for debugging."""
         item_count = len(self.get_all_menu_items())
-        group_count = len(self.groups) if self.groups else 1
+        group_count = len(self.groups)
         return (
             f"IndexPage(title='{self.title}', "
             f"items={item_count}, groups={group_count})"
