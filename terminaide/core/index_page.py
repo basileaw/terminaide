@@ -75,7 +75,8 @@ class IndexPage:
         menu: Optional[List[Dict[str, str]]] = None,
         groups: Optional[List[Dict[str, Any]]] = None,
         subtitle: Optional[str] = None,
-        instructions: Optional[str] = None,
+        menu_title: str = "Use arrow keys to navigate, Enter to select",
+        menu_subtitle: Optional[str] = None,
         # Title/ASCII options
         title: Optional[str] = None,
         page_title: Optional[str] = None,
@@ -94,7 +95,9 @@ class IndexPage:
             menu: Simple list of menu items (use this OR groups, not both)
             groups: List of menu groups for multiple sections
             subtitle: Text paragraph below the title
-            instructions: Optional navigation instructions (if not provided, no instructions shown)
+            menu_title: Default title shown for menus (default: "Use arrow keys to navigate, Enter to select")
+                       This title is used for ungrouped menus or groups without their own name
+            menu_subtitle: Optional text shown below the menu items (e.g., "[shift+g to cycle groups]")
             title: Text to convert to ASCII art
             page_title: Browser tab title (defaults to title)
             ascii_art: Pre-made ASCII art (alternative to generated)
@@ -123,7 +126,8 @@ class IndexPage:
 
         # Store text/title options
         self.subtitle = subtitle
-        self.instructions = instructions  # No default value
+        self.menu_title = menu_title
+        self.menu_subtitle = menu_subtitle
         self.title = title
         self.page_title = page_title or title or "Index"
         self.ascii_art = ascii_art
@@ -273,7 +277,8 @@ class IndexPage:
             "title_ascii": title_ascii,
             "supertitle": self.supertitle,
             "subtitle": self.subtitle,
-            "instructions": self.instructions,
+            "menu_title": self.menu_title,
+            "menu_subtitle": self.menu_subtitle,
             "has_groups": has_groups,
             "groups_json": groups_data,
             "cycle_key": self.cycle_key,

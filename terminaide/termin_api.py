@@ -213,10 +213,10 @@ def serve_apps(
         serve_apps(
             app,
             terminal_routes={
-                # Index page at root
+                # Simple index page at root
                 "/": IndexPage(
                     title="CLI TOOLS",
-                    intro="Select a tool to get started.",
+                    subtitle="Select a tool to get started.",
                     menu=[
                         {"path": "/deploy", "title": "DEPLOY"},
                         {"path": "/monitor", "title": "MONITOR"},
@@ -241,7 +241,7 @@ def serve_apps(
                     "preview_image": "admin_preview.png"
                 },
 
-                # Index page with groups
+                # Index page with groups and menu subtitle
                 "/tools": IndexPage(
                     title="TOOLS",
                     groups=[
@@ -252,13 +252,15 @@ def serve_apps(
                             ]
                         },
                         {
-                            "name": "Advanced",
+                            "name": "Advanced Tools",
                             "menu": [
                                 {"path": "/tools/profile", "title": "PROFILE"},
                                 {"path": "/tools/debug", "title": "DEBUG"},
                             ]
                         }
                     ],
+                    menu_title="Select a development tool",
+                    menu_subtitle="[shift+g to cycle tool categories]",
                     cycle_key="shift+g"
                 )
             }
