@@ -27,6 +27,7 @@ from .termin_api import serve_function, serve_script, serve_apps, meta_serve
 from .core.data_models import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
 from .core.index_page import IndexPage
 from .core.ttyd_installer import setup_ttyd, get_platform_info
+from .core.ascii_utils import generate_ascii_banner
 from .core.exceptions import (
     terminaideError,
     BinaryError,
@@ -125,6 +126,7 @@ handler = logging.StreamHandler()
 handler.setFormatter(ColorAlignedFormatter())
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
+logger.propagate = False  # Prevent propagation to root logger to avoid duplicate logs
 
 # Ensure bin directory exists on import
 bin_dir = Path(__file__).parent / "core" / "bin"
@@ -140,6 +142,8 @@ __all__ = [
     "terminarcade",
     # Index page support
     "IndexPage",
+    # ASCII banner generation
+    "generate_ascii_banner",
     # Configuration objects
     "TTYDConfig",
     "ScriptConfig",

@@ -12,6 +12,8 @@ import logging
 from typing import Optional, List, Dict, Any, Union
 from pathlib import Path
 
+from .ascii_utils import generate_ascii_banner
+
 logger = logging.getLogger("terminaide")
 
 
@@ -81,7 +83,6 @@ class IndexPage:
         title: Optional[str] = None,
         page_title: Optional[str] = None,
         ascii_art: Optional[str] = None,
-        ascii_font: str = "ansi-shadow",  # Changed default to ansi-shadow
         supertitle: Optional[str] = None,
         # Group cycling
         cycle_key: str = "shift+p",
@@ -98,10 +99,9 @@ class IndexPage:
             menu_title: Default title shown for menus (default: "Use arrow keys to navigate, Enter to select")
                        This title is used for ungrouped menus or groups without their own name
             menu_subtitle: Optional text shown below the menu items (e.g., "[shift+g to cycle groups]")
-            title: Text to convert to ASCII art
+            title: Text to convert to ASCII art using ansi-shadow font
             page_title: Browser tab title (defaults to title)
             ascii_art: Pre-made ASCII art (alternative to generated)
-            ascii_font: Font name for ASCII generation (default: ansi-shadow)
             supertitle: Regular text above ASCII art
             cycle_key: Key combination to cycle between groups
             preview_image: Path to preview image for social media
@@ -131,7 +131,6 @@ class IndexPage:
         self.title = title
         self.page_title = page_title or title or "Index"
         self.ascii_art = ascii_art
-        self.ascii_font = ascii_font
         self.supertitle = supertitle
 
         # Group cycling configuration
@@ -167,70 +166,6 @@ class IndexPage:
                 f"Invalid key in cycle_key. Must be a single character, got: {key}"
             )
 
-    def generate_ascii_title(self) -> Optional[str]:
-        """
-        Generate ASCII art from title text using bigfont.
-
-        Returns:
-            ASCII art string, or None if generation fails
-        """
-        if not self.title:
-            return None
-
-        try:
-            from bigfont.font import font_from_file
-
-            # Get the misc directory
-            misc_dir = Path(__file__).parent / "misc"
-
-            # Try to find the requested font file
-            font_file = misc_dir / f"{self.ascii_font}.flf"
-
-            # If exact match doesn't exist, try some variations
-            if not font_file.exists():
-                # Try with underscores instead of hyphens
-                alt_name = self.ascii_font.replace("-", "_")
-                font_file = misc_dir / f"{alt_name}.flf"
-
-                if not font_file.exists():
-                    # Try without any separators
-                    alt_name = self.ascii_font.replace("-", "").replace("_", "")
-                    font_file = misc_dir / f"{alt_name}.flf"
-
-                    if not font_file.exists():
-                        # Default to ansi-shadow if requested font not found
-                        logger.warning(
-                            f"Font '{self.ascii_font}' not found, using ansi-shadow"
-                        )
-                        font_file = misc_dir / "ansi-shadow.flf"
-
-            if not font_file.exists():
-                logger.error(f"No font files found in {misc_dir}")
-                return None
-
-            # Load the font
-            myfont = font_from_file(str(font_file))
-
-            # Convert BigLetter object to string
-            big_letter_obj = myfont.render(self.title)
-            ascii_text = str(big_letter_obj)
-
-            logger.debug(f"Generated ASCII art using font: {font_file.name}")
-
-            # Remove ALL trailing whitespace and newlines
-            ascii_text = ascii_text.rstrip()
-
-            return ascii_text
-
-        except ImportError:
-            logger.warning(
-                "bigfont not installed. Install with: pip install git+https://github.com/cjdurkin/bigfont.git"
-            )
-            return None
-        except Exception as e:
-            logger.warning(f"Failed to generate ASCII art: {e}")
-            return None
-
     def get_all_menu_items(self) -> List[MenuItem]:
         """
         Get all menu items as a flat list.
@@ -257,7 +192,7 @@ class IndexPage:
         # Generate ASCII title if needed and not provided
         title_ascii = None
         if not self.ascii_art and self.title:
-            title_ascii = self.generate_ascii_title()
+            title_ascii = generate_ascii_banner(self.title)
 
         # Prepare groups data for JavaScript
         if self.groups:

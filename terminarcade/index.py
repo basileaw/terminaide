@@ -94,9 +94,9 @@ def _index_menu_loop(stdscr_param):
     my, mx = stdscr.getmaxyx()
 
     # Generate ASCII art banner
-    ascii_art = art.text2art("TERMINARCADE", font='ansishadow')
-    title_lines = ascii_art.split('\n')
-    
+    ascii_art = art.text2art("TERMINARCADE", font="ansishadow")
+    title_lines = ascii_art.split("\n")
+
     # Remove any empty trailing lines
     while title_lines and not title_lines[-1].strip():
         title_lines.pop()
