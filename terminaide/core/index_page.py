@@ -12,7 +12,7 @@ import logging
 from typing import Optional, List, Dict, Any, Union
 from pathlib import Path
 
-from .ascii_utils import generate_ascii_banner
+from .ascii_utils import termin_ascii
 
 logger = logging.getLogger("terminaide")
 
@@ -204,7 +204,7 @@ class IndexPage:
         # Generate ASCII title if needed and not provided
         title_ascii = None
         if not self.ascii_art and self.title:
-            title_ascii = generate_ascii_banner(self.title)
+            title_ascii = termin_ascii(self.title)
 
         # Prepare groups data for JavaScript
         groups_data = [group.to_dict() for group in self.groups]

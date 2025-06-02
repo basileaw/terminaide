@@ -14,7 +14,7 @@ from typing import Optional
 logger = logging.getLogger("terminaide")
 
 
-def generate_ascii_banner(text: str) -> Optional[str]:
+def termin_ascii(text: str) -> Optional[str]:
     """
     Generate ASCII art banner from text using the ansi-shadow font.
 
@@ -29,9 +29,9 @@ def generate_ascii_banner(text: str) -> Optional[str]:
 
     Example:
         ```python
-        from terminaide import generate_ascii_banner
+        from terminaide import termin_ascii
 
-        banner = generate_ascii_banner("HELLO")
+        banner = termin_ascii("HELLO")
         if banner:
             print(banner)
         ```

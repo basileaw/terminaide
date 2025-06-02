@@ -4,7 +4,7 @@ import curses
 import signal
 import sys
 import importlib
-from terminaide import generate_ascii_banner
+from terminaide import termin_ascii
 
 stdscr = None
 exit_requested = False
@@ -94,7 +94,7 @@ def _index_menu_loop(stdscr_param):
     my, mx = stdscr.getmaxyx()
 
     # Generate ASCII art banner
-    ascii_art = generate_ascii_banner("TERMINARCADE")
+    ascii_art = termin_ascii("TERMINARCADE")
     if ascii_art:
         title_lines = ascii_art.split("\n")
     else:
