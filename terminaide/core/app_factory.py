@@ -769,6 +769,8 @@ class ServeWithConfig:
                         f"Function '{func.__name__}' will use wrapper script at {wrapper_path}"
                     )
 
+        # Add middleware silently, we'll log during startup
+        middleware_added = False
         if config.trust_proxy_headers:
             try:
                 from .middleware import ProxyHeaderMiddleware
@@ -778,10 +780,14 @@ class ServeWithConfig:
                     for m in getattr(app, "user_middleware", [])
                 ):
                     app.add_middleware(ProxyHeaderMiddleware)
-                    logger.info("Added proxy header middleware for HTTPS detection")
+                    middleware_added = True
+                    # Store the flag for logging during lifespan startup
+                    app.state.terminaide_middleware_added = True
+
             except Exception as e:
                 logger.warning(f"Failed to add proxy header middleware: {e}")
 
+        # Rest of the method remains the same...
         sentinel_attr = "_terminaide_lifespan_attached"
         if getattr(app.state, sentinel_attr, False):
             return
@@ -792,6 +798,12 @@ class ServeWithConfig:
 
         @asynccontextmanager
         async def terminaide_merged_lifespan(_app: FastAPI):
+            # Log middleware addition at startup (after banner has been shown)
+            if getattr(_app.state, "terminaide_middleware_added", False):
+                logger.info("Added proxy header middleware for HTTPS detection")
+                # Clear the flag so we don't log again
+                delattr(_app.state, "terminaide_middleware_added")
+
             if original_lifespan is not None:
                 async with original_lifespan(_app):
                     async with terminaide_lifespan(_app, ttyd_config):
