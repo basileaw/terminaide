@@ -49,7 +49,22 @@ from .core.exceptions import (
 
 # Try to import terminarcade as an optional subpackage
 try:
-    from . import terminarcade
+    from .terminarcade import play as _terminarcade_play
+
+    # Create a callable wrapper that defaults to "index" when called with "games"
+    class TerminArcade:
+        def __call__(self, mode="index"):
+            if mode == "games":
+                mode = "index"
+            return _terminarcade_play(mode)
+
+        # Make the module attributes accessible
+        def __getattr__(self, name):
+            import terminaide.terminarcade as _mod
+
+            return getattr(_mod, name)
+
+    terminarcade = TerminArcade()
 except ImportError:
     terminarcade = None
 
