@@ -26,6 +26,7 @@ if project_root not in sys.path:
 
 from terminaide import logger
 from terminaide import serve_function, serve_script, serve_apps, termin_ascii
+from terminaide.core.index_page import IndexPage
 from demo.container import build_and_run_container
 
 CURRENT_DIR = Path(__file__).parent
@@ -42,108 +43,23 @@ MODE_HELP = {
     "container": "Docker container mode (same as apps)",
 }
 
-def create_custom_root_endpoint(app: FastAPI) -> None:
-    @app.get("/", response_class=HTMLResponse)
-    async def custom_root(request: Request) -> HTMLResponse:
-        title_mode = (
-            "Container" if os.environ.get("CONTAINER_MODE") == "true" else "Apps"
-        )
-        
-        # Generate ASCII art banner using termin_ascii
-        ascii_banner = termin_ascii("TERMIN-ARCADE")
-        if not ascii_banner:
-            # Fallback if termin_ascii fails
-            ascii_banner = "TERMIN-ARCADE"
-        
-        html_content = f"""<!DOCTYPE html>
-        <html>
-        <head>
-            <title>{title_mode} Mode</title>
-            <link rel="icon" type="image/x-icon" href="/terminaide-static/favicon.ico">
-            <style>
-                body {{
-                    font-family: 'Courier New', monospace;
-                    line-height: 1.5;
-                    background-color: black;
-                    color: #f0f0f0;
-                    text-align: center;
-                    padding: 40px 20px;
-                    margin: 0;
-                }}
-                .ascii-banner pre {{
-                    margin: 0 auto 40px;
-                    white-space: pre;
-                    line-height: 1;
-                    display: inline-block;
-                    text-align: left;
-                    background: linear-gradient(
-                        to right,
-                        red,
-                        orange,
-                        yellow,
-                        green,
-                        blue,
-                        indigo,
-                        violet
-                    );
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
-                    color: transparent;
-                }}
-                .card {{
-                    background-color: #2d2d2d;
-                    max-width: 600px;
-                    margin: 0 auto 30px;
-                    padding: 20px;
-                }}
-                .terminal-box {{
-                    border: 1px solid #fff;
-                    max-width: 400px;
-                    margin: 30px auto;
-                    padding: 10px;
-                    color: #fff;
-                }}
-                .links {{
-                    display: flex;
-                    justify-content: center;
-                    gap: 20px;
-                    margin: 30px auto;
-                }}
-                .terminal-link {{
-                    display: inline-block;
-                    background-color: #fff;
-                    color: #000;
-                    padding: 8px 20px;
-                    text-decoration: none;
-                    font-weight: bold;
-                }}
-                .info-link {{
-                    color: #fff;
-                    text-decoration: none;
-                    display: inline-block;
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="ascii-banner">
-                <pre>{ascii_banner}</pre>
-            </div>
-            <div class="card">
-                This demo shows how HTML pages and terminal applications can be combined in one server.
-                Each game runs in its own terminal instance.
-            </div>
-            <div class="terminal-box">
-                Available Games
-            </div>
-            <div class="links">
-                <a href="/snake" class="terminal-link">Snake</a>
-                <a href="/tetris" class="terminal-link">Tetris</a>
-                <a href="/pong" class="terminal-link">Pong</a>
-            </div>
-            <a href="/info" class="info-link">Server Configuration Info</a>
-        </body>
-        </html>"""
-        return HTMLResponse(content=html_content)
+def create_index_page() -> IndexPage:
+    """Create IndexPage configuration for the terminal arcade."""
+    return IndexPage(
+        title="TERMIN-ARCADE",
+        subtitle="This demo shows how HTML pages and terminal applications can be combined in one server. Each game runs in its own terminal instance.",
+        menu=[
+            {
+                "label": "Available Games",
+                "options": [
+                    {"path": "/snake", "title": "Snake"},
+                    {"path": "/tetris", "title": "Tetris"},
+                    {"path": "/pong", "title": "Pong"},
+                    {"path": "/info", "title": "Server Info"},
+                ]
+            }
+        ]
+    )
 
 
 def create_info_endpoint(app: FastAPI, mode: str, description: str) -> None:
@@ -190,10 +106,10 @@ def create_app() -> FastAPI:
     # Don't try to use any Docker stuff here - just handle the apps mode
     if mode == "apps":
         description = "Apps mode - HTML root + separate terminal routes"
-        create_custom_root_endpoint(app)
         serve_apps(
             app,
             terminal_routes={
+                "/": create_index_page(),
                 "/snake": {
                     "client_script": [CLIENT_SCRIPT, "--snake"],
                     "title": "Termin-Arcade (Snake)",
