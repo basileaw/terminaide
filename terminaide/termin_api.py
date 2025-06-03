@@ -39,7 +39,7 @@ def serve_function(
     desktop: bool = False,
     desktop_width: int = 1200,
     desktop_height: int = 800,
-    banner: bool = True,
+    banner: Union[bool, str] = True,
     **kwargs,
 ) -> None:
     """Serve a Python function in a browser terminal or desktop window.
@@ -52,7 +52,8 @@ def serve_function(
         desktop: If True, open in a desktop window instead of browser (default: False)
         desktop_width: Width of desktop window in pixels (default: 1200)
         desktop_height: Height of desktop window in pixels (default: 800)
-        banner: If True, display the Terminaide startup banner (default: True)
+        banner: Controls banner display. True shows Rich panel, False disables banner,
+               string value prints the string directly (default: True)
         **kwargs: Additional configuration overrides:
             - port: Web server port (default: 8000)
             - title: Terminal window title (default: "{func_name}()")
@@ -92,7 +93,7 @@ def serve_script(
     desktop: bool = False,
     desktop_width: int = 1200,
     desktop_height: int = 800,
-    banner: bool = True,
+    banner: Union[bool, str] = True,
     **kwargs,
 ) -> None:
     """Serve a Python script in a browser terminal or desktop window.
@@ -105,7 +106,8 @@ def serve_script(
         desktop: If True, open in a desktop window instead of browser (default: False)
         desktop_width: Width of desktop window in pixels (default: 1200)
         desktop_height: Height of desktop window in pixels (default: 800)
-        banner: If True, display the Terminaide startup banner (default: True)
+        banner: Controls banner display. True shows Rich panel, False disables banner,
+               string value prints the string directly (default: True)
         **kwargs: Additional configuration overrides:
             - port: Web server port (default: 8000)
             - title: Terminal window title (default: "Script Name")
@@ -153,7 +155,7 @@ def serve_apps(
     desktop: bool = False,
     desktop_width: int = 1200,
     desktop_height: int = 800,
-    banner: bool = True,
+    banner: Union[bool, str] = True,
     **kwargs,
 ) -> None:
     """Integrate multiple terminals and index pages into a FastAPI application.
@@ -177,7 +179,8 @@ def serve_apps(
                 Note: Desktop mode for serve_apps is not yet implemented
         desktop_width: Width of desktop window in pixels (default: 1200)
         desktop_height: Height of desktop window in pixels (default: 800)
-        banner: If True, display the Terminaide startup banner (default: True)
+        banner: Controls banner display. True shows Rich panel, False disables banner,
+               string value prints the string directly (default: True)
         **kwargs: Additional configuration overrides:
             - port: Web server port (default: 8000)
             - title: Default terminal window title (default: auto-generated)
@@ -308,7 +311,7 @@ def meta_serve(
     desktop: bool = False,
     desktop_width: int = 1200,
     desktop_height: int = 800,
-    banner: bool = True,
+    banner: Union[bool, str] = True,
     **kwargs,
 ) -> None:
     """Serve a meta-server (a server that serves terminal instances) in a browser terminal or desktop window,
@@ -326,7 +329,8 @@ def meta_serve(
         desktop: If True, open in a desktop window instead of browser (default: False)
         desktop_width: Width of desktop window in pixels (default: 1200)
         desktop_height: Height of desktop window in pixels (default: 800)
-        banner: If True, display the Terminaide startup banner (default: True)
+        banner: Controls banner display. True shows Rich panel, False disables banner,
+               string value prints the string directly (default: True)
         **kwargs: Additional configuration overrides:
             - port: Web server port (default: 8000)
             - title: Terminal window title (default: "{target_name} Server")

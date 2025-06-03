@@ -312,12 +312,29 @@ class ServeWithConfig:
                 logger.warning(f"Failed to add middleware: {e}")
 
     @classmethod
-    def display_banner(cls, mode):
-        """Display a minimal banner indicating the mode using Rich."""
+    def display_banner(cls, mode, banner_value):
+        """Display a banner based on the banner parameter value.
+        
+        Args:
+            mode: The serving mode (function, script, apps, meta)
+            banner_value: True for Rich panel, False for no banner, or a string to print directly
+        """
         if os.environ.get("TERMINAIDE_BANNER_SHOWN") == "1":
             return
         os.environ["TERMINAIDE_BANNER_SHOWN"] = "1"
+        
+        # Handle string banner - print it directly
+        if isinstance(banner_value, str):
+            print(banner_value)
+            logger.debug(f"Starting Terminaide in {mode.upper()} mode")
+            return
+        
+        # Handle boolean False - no banner
+        if banner_value is False:
+            logger.debug(f"Starting Terminaide in {mode.upper()} mode (banner disabled)")
+            return
 
+        # Handle boolean True - show Rich panel
         try:
             from rich.console import Console
             from rich.panel import Panel
@@ -344,7 +361,7 @@ class ServeWithConfig:
             banner = f"== TERMINAIDE SERVING IN {mode_upper} MODE =="
             print(f"\033[1m\033[92m{banner}\033[0m")
 
-        logger.debug(f"Starting Terminaide in {mode_upper} mode")
+        logger.debug(f"Starting Terminaide in {mode.upper()} mode")
 
     @classmethod
     def _wait_for_server(cls, url: str, timeout: int = 15) -> bool:
@@ -408,7 +425,7 @@ class ServeWithConfig:
                 f"serve_script(r'{ephemeral_path}', "
                 f"port={config.port}, title='{config.title}', "
                 f"debug={config.debug}, theme={config.theme}, "
-                f"banner={config.banner}, "
+                f"banner={repr(config.banner)}, "
                 f"forward_env={repr(config.forward_env)})"
             )
         elif config._mode == "script":
@@ -418,7 +435,7 @@ class ServeWithConfig:
                 f"serve_script(r'{script_path}', "
                 f"port={config.port}, title='{config.title}', "
                 f"debug={config.debug}, theme={config.theme}, "
-                f"banner={config.banner}, "
+                f"banner={repr(config.banner)}, "
                 f"forward_env={repr(config.forward_env)})"
             )
         elif config._mode == "meta":
@@ -433,7 +450,7 @@ class ServeWithConfig:
                     f"serve_script(r'{ephemeral_path}', "
                     f"port={config.port}, title='{config.title}', "
                     f"debug={config.debug}, theme={config.theme}, "
-                    f"banner={config.banner}, "
+                    f"banner={repr(config.banner)}, "
                     f"forward_env={repr(config.forward_env)})"
                 )
             else:
@@ -447,7 +464,7 @@ class ServeWithConfig:
                     f"serve_script(r'{ephemeral_path}', "
                     f"port={config.port}, title='{config.title}', "
                     f"debug={config.debug}, theme={config.theme}, "
-                    f"banner={config.banner}, "
+                    f"banner={repr(config.banner)}, "
                     f"forward_env={repr(config.forward_env)})"
                 )
         elif config._mode == "apps":
@@ -531,9 +548,9 @@ class ServeWithConfig:
     @classmethod
     def serve(cls, config) -> None:
         """Serves the application based on the configuration mode."""
-        # Only display banner if config.banner is True
+        # Display banner based on config.banner value
         if config.banner:
-            cls.display_banner(config._mode)
+            cls.display_banner(config._mode, config.banner)
 
         # Check if desktop mode is requested
         if config.desktop:
@@ -564,7 +581,9 @@ class ServeWithConfig:
             os.environ["TERMINAIDE_PORT"] = str(config.port)
             os.environ["TERMINAIDE_TITLE"] = config.title
             os.environ["TERMINAIDE_DEBUG"] = "1" if config.debug else "0"
-            os.environ["TERMINAIDE_BANNER"] = "1" if config.banner else "0"
+            # For banner, serialize as JSON to handle both bool and string
+            import json
+            os.environ["TERMINAIDE_BANNER"] = json.dumps(config.banner)
             os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
 
@@ -747,7 +766,7 @@ class ServeWithConfig:
         """Implementation for serving multiple apps."""
         # Display banner if enabled, for consistency with other serve methods
         if config.banner:
-            cls.display_banner(config._mode)
+            cls.display_banner(config._mode, config.banner)
 
         app = config._app
         terminal_routes = config._target
@@ -830,7 +849,13 @@ class AppFactory:
         port_str = os.environ["TERMINAIDE_PORT"]
         title = os.environ["TERMINAIDE_TITLE"]
         debug = os.environ.get("TERMINAIDE_DEBUG") == "1"
-        banner = os.environ.get("TERMINAIDE_BANNER", "1") == "1"
+        # Deserialize banner from JSON to handle both bool and string
+        import json
+        banner_str = os.environ.get("TERMINAIDE_BANNER", "true")
+        try:
+            banner = json.loads(banner_str)
+        except:
+            banner = True
         theme_str = os.environ.get("TERMINAIDE_THEME") or "{}"
         forward_env_str = os.environ.get("TERMINAIDE_FORWARD_ENV", "True")
         preview_image_str = os.environ.get("TERMINAIDE_PREVIEW_IMAGE")
@@ -896,9 +921,9 @@ class AppFactory:
         config._target = ephemeral_path
         config._mode = "function"
 
-        # Only display banner if config.banner is True
+        # Display banner based on config.banner value
         if config.banner:
-            ServeWithConfig.display_banner(config._mode)
+            ServeWithConfig.display_banner(config._mode, config.banner)
 
         # <-- ADD PROXY MIDDLEWARE FOR RELOAD MODE -->
         ServeWithConfig.add_proxy_middleware_if_needed(app, config)

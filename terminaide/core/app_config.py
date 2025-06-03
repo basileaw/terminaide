@@ -124,7 +124,7 @@ class TerminaideConfig:
     desktop: bool = False
     desktop_width: int = 1200
     desktop_height: int = 800
-    banner: bool = True
+    banner: Union[bool, str] = True
     forward_env: Union[bool, List[str], Dict[str, Optional[str]]] = True
 
     # Advanced configuration
