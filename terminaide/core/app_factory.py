@@ -710,7 +710,9 @@ class ServeWithConfig:
             os.environ["TERMINAIDE_PORT"] = str(config.port)
             os.environ["TERMINAIDE_TITLE"] = config.title
             os.environ["TERMINAIDE_DEBUG"] = "1" if config.debug else "0"
-            os.environ["TERMINAIDE_BANNER"] = "1" if config.banner else "0"
+            # For banner, serialize as JSON to handle both bool and string
+            import json
+            os.environ["TERMINAIDE_BANNER"] = json.dumps(config.banner)
             os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
             os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
             os.environ["TERMINAIDE_MODE"] = config._mode
@@ -956,7 +958,13 @@ class AppFactory:
         port_str = os.environ["TERMINAIDE_PORT"]
         title = os.environ["TERMINAIDE_TITLE"]
         debug = os.environ.get("TERMINAIDE_DEBUG") == "1"
-        banner = os.environ.get("TERMINAIDE_BANNER", "1") == "1"
+        # Deserialize banner from JSON to handle both bool and string
+        import json
+        banner_str = os.environ.get("TERMINAIDE_BANNER", "true")
+        try:
+            banner = json.loads(banner_str)
+        except:
+            banner = True
         theme_str = os.environ.get("TERMINAIDE_THEME") or "{}"
         forward_env_str = os.environ.get("TERMINAIDE_FORWARD_ENV", "True")
         mode = os.environ.get("TERMINAIDE_MODE", "script")
@@ -998,9 +1006,9 @@ class AppFactory:
         config._target = script_path
         config._mode = mode
 
-        # Only display banner if config.banner is True
+        # Display banner based on config.banner value
         if config.banner:
-            ServeWithConfig.display_banner(config._mode)
+            ServeWithConfig.display_banner(config._mode, config.banner)
 
         # <-- ADD PROXY MIDDLEWARE FOR RELOAD MODE -->
         ServeWithConfig.add_proxy_middleware_if_needed(app, config)
