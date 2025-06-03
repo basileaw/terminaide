@@ -14,7 +14,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Now import from terminarcade
-from terminarcade import play_snake, play_pong, play_tetris, show_index
+from terminaide.terminarcade import play_snake, play_pong, play_tetris, show_index
 
 def main():
     """Parse command-line arguments and run the selected game."""

@@ -35,7 +35,7 @@ CURRENT_DIR = Path(__file__).parent
 CLIENT_SCRIPT = CURRENT_DIR / "client.py"
 # Convert project_root to a Path object for path operations
 project_root_path = Path(project_root)
-INSTRUCTIONS_PATH = project_root_path / "terminarcade" / "instructions.py"
+INSTRUCTIONS_PATH = project_root_path / "terminaide" / "terminarcade" / "instructions.py"
 
 MODE_HELP = {
     "default": "Default (getting started interface)",
@@ -178,7 +178,7 @@ def create_info_endpoint(app: FastAPI, mode: str, description: str) -> None:
 
 
 def play_asteroids_function() -> None:
-    from terminarcade import play_asteroids
+    from terminaide.terminarcade import play_asteroids
 
     play_asteroids()
 
@@ -296,7 +296,7 @@ def build_and_run_container_subprocess(port: int = 8000) -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         # Copy directories
-        for directory in ["terminaide", "terminarcade", "demo"]:
+        for directory in ["terminaide", "demo"]:
             src_dir = project_root / directory
             dst_dir = temp_path / directory
             if src_dir.exists():
@@ -320,7 +320,6 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 WORKDIR /app
 COPY terminaide/ ./terminaide/
-COPY terminarcade/ ./terminarcade/
 COPY demo/ ./demo/
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
@@ -440,7 +439,7 @@ def build_and_run_container(port: int = 8000) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             # Update directory list - now includes demo directory
-            for directory in ["terminaide", "terminarcade", "demo"]:
+            for directory in ["terminaide", "demo"]:
                 src_dir = project_root / directory
                 dst_dir = temp_path / directory
                 if src_dir.exists():

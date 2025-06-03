@@ -5,7 +5,6 @@ license = "MIT"
 name = "terminaide"
 packages = [
   {include = "terminaide"},
-  {include = "terminarcade"},
 ]
 readme = "README.md"
 repository = "https://github.com/bazeindustries/terminaide"

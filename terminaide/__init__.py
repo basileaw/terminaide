@@ -47,13 +47,11 @@ from .core.exceptions import (
     DuplicateRouteError,
 )
 
-# Add parent directory to path to make terminarcade importable
-parent_dir = os.path.dirname(os.path.dirname(__file__))
-if parent_dir not in sys.path:
-    sys.path.insert(0, parent_dir)
-
-# Import terminarcade as a sibling package
-import terminarcade
+# Try to import terminarcade as an optional subpackage
+try:
+    from . import terminarcade
+except ImportError:
+    terminarcade = None
 
 
 import hashlib
@@ -138,8 +136,6 @@ __all__ = [
     "serve_script",
     "serve_apps",
     "meta_serve",
-    # Add terminarcade to the exported names
-    "terminarcade",
     # Index page support
     "IndexPage",
     # ASCII banner generation
@@ -170,3 +166,7 @@ __all__ = [
     "ScriptConfigurationError",
     "DuplicateRouteError",
 ]
+
+# Add terminarcade to exports only if it's available
+if terminarcade is not None:
+    __all__.append("terminarcade")
