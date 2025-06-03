@@ -13,13 +13,9 @@ python demo/server.py --container         # Run the apps mode in a Docker contai
 import os
 import sys
 import json
-import shutil
 import uvicorn
 import argparse
-import tempfile
-import subprocess
 from pathlib import Path
-from typing import Union
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 
@@ -30,6 +26,7 @@ if project_root not in sys.path:
 
 from terminaide import logger
 from terminaide import serve_function, serve_script, serve_apps
+from demo.container import build_and_run_container
 
 CURRENT_DIR = Path(__file__).parent
 CLIENT_SCRIPT = CURRENT_DIR / "client.py"
@@ -215,172 +212,6 @@ def create_app() -> FastAPI:
     return app
 
 
-def generate_requirements_txt(pyproject_path: Path, temp_dir: Union[str, Path]) -> Path:
-    try:
-        import re
-
-        logger.info("Generating requirements.txt (excluding demo)")
-        req_path = Path(temp_dir) / "requirements.txt"
-
-        # Read pyproject.toml
-        with open(pyproject_path, "r") as f:
-            content = f.read()
-
-        # Find the main dependencies section
-        deps_section = re.search(
-            r"\[tool\.poetry\.dependencies\](.*?)(?=\n\[|$)",
-            content,
-            re.DOTALL,
-        )
-
-        if not deps_section:
-            raise ValueError("No dependencies section found in pyproject.toml")
-
-        deps = []
-        # Extract package names using regex, one per line
-        for line in deps_section.group(1).strip().split("\n"):
-            # Skip empty lines and the python requirement
-            if not line.strip() or line.strip().startswith("python"):
-                continue
-
-            # Extract package name (part before =, ^ or spaces)
-            match = re.match(r"([a-zA-Z0-9_-]+)\s*=", line.strip())
-            if match:
-                package = match.group(1).strip()
-                deps.append(package)
-
-        if not deps:
-            raise ValueError("No dependencies found in pyproject.toml")
-
-        # Write to requirements.txt
-        with open(req_path, "w") as f:
-            for dep in deps:
-                f.write(f"{dep}\n")
-
-        logger.info(f"Requirements file at {req_path}")
-        return req_path
-    except Exception as e:
-        logger.error(f"Failed to generate requirements: {e}")
-        sys.exit(1)
-
-
-def build_and_run_container_subprocess(port: int = 8000) -> None:
-    """Alternative implementation using subprocess instead of docker package"""
-    # Check if docker is installed
-    try:
-        subprocess.run(["docker", "--version"], check=True, capture_output=True)
-    except (subprocess.SubprocessError, FileNotFoundError):
-        logger.error("Docker is not installed or not in PATH")
-        sys.exit(1)
-
-    # Implementation using subprocess commands instead of docker package
-    # (Simplified version of the same functionality)
-    project_root = Path(__file__).parent.parent.absolute()
-    image_name = project_root.name.lower()
-
-    # Create temp directory and generate files
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
-        # Copy directories
-        for directory in ["terminaide", "demo"]:
-            src_dir = project_root / directory
-            dst_dir = temp_path / directory
-            if src_dir.exists():
-                shutil.copytree(
-                    src_dir,
-                    dst_dir,
-                    ignore=lambda src, names: (
-                        ["ttyd"] if os.path.basename(src) == "bin" else []
-                    ),
-                )
-                if directory == "terminaide":
-                    (dst_dir / "core" / "bin").mkdir(exist_ok=True)
-
-        # Generate requirements
-        generate_requirements_txt(project_root / "pyproject.toml", temp_path)
-
-        # Create Dockerfile
-        dockerfile_content = """
-FROM python:3.12-slim
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
-WORKDIR /app
-COPY terminaide/ ./terminaide/
-COPY demo/ ./demo/
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
-EXPOSE 8000
-CMD ["python", "demo/server.py", "apps"]
-"""
-        dockerfile_path = temp_path / "Dockerfile"
-        with open(dockerfile_path, "w") as f:
-            f.write(dockerfile_content)
-
-        # Build image using subprocess
-        logger.info(f"Building Docker image: {image_name}")
-        build_cmd = ["docker", "build", "-t", image_name, str(temp_path)]
-        result = subprocess.run(build_cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            logger.error(f"Docker build failed: {result.stderr}")
-            sys.exit(1)
-
-        # Check for existing container
-        container_name = f"{image_name}-container"
-        result = subprocess.run(
-            [
-                "docker",
-                "ps",
-                "-a",
-                "--filter",
-                f"name={container_name}",
-                "--format",
-                "{{.ID}}",
-            ],
-            capture_output=True,
-            text=True,
-        )
-        if result.stdout.strip():
-            logger.info(f"Stopping existing container: {container_name}")
-            subprocess.run(["docker", "stop", container_name], capture_output=True)
-            subprocess.run(["docker", "rm", container_name], capture_output=True)
-
-        # Run container
-        logger.info(f"Starting container {container_name} on port {port}")
-        run_cmd = [
-            "docker",
-            "run",
-            "--name",
-            container_name,
-            "-p",
-            f"{port}:8000",
-            "-e",
-            "CONTAINER_MODE=true",
-            "-d",
-            image_name,
-        ]
-        result = subprocess.run(run_cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            logger.error(f"Docker run failed: {result.stderr}")
-            sys.exit(1)
-
-        container_id = result.stdout.strip()
-        logger.info(f"Container {container_name} started (ID: {container_id[:12]})")
-        logger.info(f"Access at: http://localhost:{port}")
-        logger.info("Streaming container logs (Ctrl+C to stop)")
-
-        try:
-            # Stream logs
-            log_cmd = ["docker", "logs", "-f", container_id]
-            subprocess.run(log_cmd)
-        except KeyboardInterrupt:
-            logger.info("Stopping container...")
-            subprocess.run(["docker", "stop", container_id], capture_output=True)
-            logger.info("Container stopped")
-
-
-def build_and_run_container(port: int = 8000) -> None:
-    """Build and run the application in a Docker container using subprocess commands"""
-    build_and_run_container_subprocess(port)
 
 
 def parse_args() -> argparse.Namespace:
