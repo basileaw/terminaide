@@ -26,10 +26,7 @@ uvicorn = "^0.34.2"
 pywebview = "^5.4"
 requests = "^2.32.3"
 pyfiglet = "^1.0.2"
-bigfont = {git = "https://github.com/cjdurkin/bigfont.git"}
 
-[tool.poetry.group.demo.dependencies]
-docker = "^7.1.0"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"

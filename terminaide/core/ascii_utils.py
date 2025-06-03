@@ -37,17 +37,16 @@ def termin_ascii(text: str) -> Optional[str]:
         ```
 
     Note:
-        Requires the bigfont library. Install with:
-        pip install git+https://github.com/cjdurkin/bigfont.git
+        Uses the vendored bigfont library included with terminaide.
     """
     if not text:
         return None
 
     try:
-        from bigfont.font import font_from_file
+        from terminaide.vendor.bigfont.font import font_from_file
     except ImportError:
         logger.warning(
-            "bigfont not installed. Install with: pip install git+https://github.com/cjdurkin/bigfont.git"
+            "bigfont vendor package not found"
         )
         return None
 
