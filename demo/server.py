@@ -33,7 +33,9 @@ CURRENT_DIR = Path(__file__).parent
 CLIENT_SCRIPT = CURRENT_DIR / "client.py"
 # Convert project_root to a Path object for path operations
 project_root_path = Path(project_root)
-INSTRUCTIONS_PATH = project_root_path / "terminaide" / "terminarcade" / "instructions.py"
+INSTRUCTIONS_PATH = (
+    project_root_path / "terminaide" / "terminarcade" / "instructions.py"
+)
 
 MODE_HELP = {
     "default": "Default (getting started interface)",
@@ -42,6 +44,7 @@ MODE_HELP = {
     "apps": "Apps mode (HTML + routes)",
     "container": "Docker container mode (same as apps)",
 }
+
 
 def create_index_page() -> IndexPage:
     """Create IndexPage configuration for the terminal arcade."""
@@ -56,9 +59,9 @@ def create_index_page() -> IndexPage:
                     {"path": "/tetris", "title": "Tetris"},
                     {"path": "/pong", "title": "Pong"},
                     {"path": "/info", "title": "Server Info"},
-                ]
+                ],
             }
-        ]
+        ],
     )
 
 
@@ -128,8 +131,6 @@ def create_app() -> FastAPI:
         create_info_endpoint(app, mode, description)
 
     return app
-
-
 
 
 def parse_args() -> argparse.Namespace:
@@ -209,8 +210,6 @@ def main() -> None:
 
     # APPS MODE
     if mode == "apps":
-        logger.info(f"Visit http://localhost:{port} for the main interface")
-        logger.info(f"Visit http://localhost:{port}/info for details")
         uvicorn.run(
             "demo.server:create_app",
             factory=True,

@@ -38,10 +38,12 @@
         }
 
         .title-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             width: 100%;
-            text-align: center;
-            overflow-x: auto;
             margin-bottom: 0;
+            overflow: hidden;
         }
 
         .supertitle {
@@ -51,24 +53,67 @@
             text-align: center;
         }
 
+        .ascii-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            margin-bottom: 0;
+            padding: 0 40px;
+            box-sizing: border-box;
+        }
+
+        /* Responsive margins for different screen sizes */
+        @media (max-width: 1200px) {
+            .ascii-wrapper {
+                padding: 0 30px;
+            }
+        }
+
+        @media (max-width: 800px) {
+            .ascii-wrapper {
+                padding: 0 20px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .ascii-wrapper {
+                padding: 0 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .ascii-wrapper {
+                padding: 0 10px;
+            }
+        }
+
         .ascii-art {
             color: #fff;
             line-height: 1.2;
             white-space: pre;
-            font-size: 16px;
             text-align: center;
-            display: inline-block;
             margin-bottom: 0;
+            font-size: 16px;
+            transform-origin: center;
+            transform: scale(1);
         }
 
         .title {
             color: #a9c4e4;
             line-height: 1.2;
             white-space: pre;
-            font-size: 26px;
             text-align: center;
-            display: inline-block;
             margin-bottom: 0;
+            font-size: 26px;
+            transform-origin: center;
+            transform: scale(1);
+        }
+
+        /* Use JavaScript-based scaling for optimal fit */
+        .ascii-art.auto-scale,
+        .title.auto-scale {
+            transition: transform 0.3s ease;
         }
 
         .content-wrapper {
@@ -279,11 +324,37 @@
             font-weight: bold;
             text-align: center;
             margin-bottom: 0;
+            transform-origin: center;
         }
 
-        @media (max-width: 768px) {
+        /* Responsive scaling for fallback title to match ASCII art scaling */
+        @media (max-width: 1200px) {
             .title-fallback {
-                font-size: 32px;
+                font-size: 43px; /* 48px * 0.9 */
+            }
+        }
+
+        @media (max-width: 1000px) {
+            .title-fallback {
+                font-size: 38px; /* 48px * 0.8 */
+            }
+        }
+
+        @media (max-width: 800px) {
+            .title-fallback {
+                font-size: 34px; /* 48px * 0.7 */
+            }
+        }
+
+        @media (max-width: 600px) {
+            .title-fallback {
+                font-size: 29px; /* 48px * 0.6 */
+            }
+        }
+
+        @media (max-width: 480px) {
+            .title-fallback {
+                font-size: 24px; /* 48px * 0.5 */
             }
         }
     </style>
@@ -299,12 +370,16 @@
 
             {% if ascii_art %}
             <!-- Custom ASCII art (if provided) -->
-            <pre class="ascii-art">{{ ascii_art }}</pre>
+            <div class="ascii-wrapper">
+                <pre class="ascii-art">{{ ascii_art }}</pre>
+            </div>
             {% endif %}
 
             {% if title_ascii %}
             <!-- Generated ASCII banner from title -->
-            <pre class="title">{{ title_ascii }}</pre>
+            <div class="ascii-wrapper">
+                <pre class="title">{{ title_ascii }}</pre>
+            </div>
             {% elif not ascii_art and title %}
             <!-- Fallback when pyfiglet is not available -->
             <div class="title-fallback">{{ title }}</div>
@@ -355,9 +430,47 @@
         let gridCols = 1;
         let gridRows = 1;
 
+        function scaleAsciiArt() {
+            const asciiElements = document.querySelectorAll('.ascii-art, .title');
+            
+            asciiElements.forEach(element => {
+                const wrapper = element.parentElement;
+                if (!wrapper || !wrapper.classList.contains('ascii-wrapper')) return;
+                
+                // Reset scale to measure natural size
+                element.style.transform = 'scale(1)';
+                element.classList.add('auto-scale');
+                
+                // Get natural width and available width
+                const elementWidth = element.scrollWidth;
+                const wrapperWidth = wrapper.clientWidth;
+                
+                // Reserve margin space (subtract from available width)
+                const marginSpace = Math.min(80, wrapperWidth * 0.1); // 10% margin or 80px max
+                const targetWidth = wrapperWidth - marginSpace;
+                
+                // Calculate scale factor to fit within target width
+                let scale = 1;
+                if (elementWidth > targetWidth) {
+                    scale = Math.max(0.3, targetWidth / elementWidth);
+                }
+                
+                // Apply scale
+                element.style.transform = `scale(${scale})`;
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
+            // Scale ASCII art to fit container
+            scaleAsciiArt();
+            
             // Initialize with first group
             renderMenuForGroup(0);
+
+            // Handle window resize
+            window.addEventListener('resize', function() {
+                scaleAsciiArt();
+            });
 
             // Handle keyboard navigation
             document.addEventListener('keydown', function (e) {
