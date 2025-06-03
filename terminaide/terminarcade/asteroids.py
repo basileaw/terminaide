@@ -6,21 +6,20 @@ import random
 import time
 import signal
 import sys
+from terminaide import termin_ascii
 
 # Globals to mirror snake.py
 stdscr = None
 exit_requested = False
 back_to_menu = False
 
-# ASCII art to display at the top of the screen (centered).
-ASTEROIDS_ASCII_ART = [
-    "████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗       █████╗ ███████╗████████╗███████╗██████╗  ██████╗ ██╗██████╗ ███████╗",
-    "╚══██╔══╝██╔════╝██╔══██╗████╗ ████║██║████╗  ██║      ██╔══██╗██╔════╝╚══██╔══╝██╔════╝██╔══██╗██╔═══██╗██║██╔══██╗██╔════╝",
-    "   ██║   █████╗  ██████╔╝██╔████╔██║██║██╔██╗ ██║█████╗███████║███████╗   ██║   █████╗  ██████╔╝██║   ██║██║██║  ██║███████╗",
-    "   ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║██║██║╚██╗██║╚════╝██╔══██║╚════██║   ██║   ██╔══╝  ██╔══██╗██║   ██║██║██║  ██║╚════██║",
-    "   ██║   ███████╗██║  ██║██║ ╚═╝ ██║██║██║ ╚████║      ██║  ██║███████║   ██║   ███████╗██║  ██║╚██████╔╝██║██████╔╝███████║",
-    "   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝      ╚═╝  ╚═╝╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝╚═════╝ ╚══════╝",
-]
+# Generate ASCII art using termin_ascii
+ascii_art = termin_ascii("TERMIN-ASTEROIDS")
+if ascii_art:
+    ASTEROIDS_ASCII_ART = ascii_art.split('\n')
+else:
+    # Fallback if termin_ascii fails
+    ASTEROIDS_ASCII_ART = ["TERMIN-ASTEROIDS"]
 
 # A small subtitle beneath the ASCII art
 SUBTITLE = ""

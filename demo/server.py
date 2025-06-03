@@ -25,7 +25,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from terminaide import logger
-from terminaide import serve_function, serve_script, serve_apps
+from terminaide import serve_function, serve_script, serve_apps, termin_ascii
 from demo.container import build_and_run_container
 
 CURRENT_DIR = Path(__file__).parent
@@ -48,6 +48,13 @@ def create_custom_root_endpoint(app: FastAPI) -> None:
         title_mode = (
             "Container" if os.environ.get("CONTAINER_MODE") == "true" else "Apps"
         )
+        
+        # Generate ASCII art banner using termin_ascii
+        ascii_banner = termin_ascii("TERMIN-ARCADE")
+        if not ascii_banner:
+            # Fallback if termin_ascii fails
+            ascii_banner = "TERMIN-ARCADE"
+        
         html_content = f"""<!DOCTYPE html>
         <html>
         <head>
@@ -119,12 +126,7 @@ def create_custom_root_endpoint(app: FastAPI) -> None:
         </head>
         <body>
             <div class="ascii-banner">
-                <pre>████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗      █████╗ ██████╗  ██████╗ █████╗ ██████╗ ███████╗
-╚══██╔══╝██╔════╝██╔══██╗████╗ ████║██║████╗  ██║     ██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔══██╗██╔════╝
-   ██║   █████╗  ██████╔╝██╔████╔██║██║██╔██╗ ██║     ███████║██████╔╝██║     ███████║██║  ██║█████╗  
-   ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║██║██║╚██╗██║     ██╔══██║██╔══██╗██║     ██╔══██║██║  ██║██╔══╝  
-   ██║   ███████╗██║  ██║██║ ╚═╝ ██║██║██║ ╚████║     ██║  ██║██║  ██║╚██████╗██║  ██║██████╔╝███████╗
-   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝     ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═════╝ ╚══════╝</pre>
+                <pre>{ascii_banner}</pre>
             </div>
             <div class="card">
                 This demo shows how HTML pages and terminal applications can be combined in one server.
