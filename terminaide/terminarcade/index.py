@@ -94,12 +94,12 @@ def _index_menu_loop(stdscr_param):
     my, mx = stdscr.getmaxyx()
 
     # Generate ASCII art banner
-    ascii_art = termin_ascii("TERMINARCADE")
+    ascii_art = termin_ascii("TERMIN-ARCADE")
     if ascii_art:
         title_lines = ascii_art.split("\n")
     else:
         # Fallback if generation fails
-        title_lines = ["TERMINARCADE"]
+        title_lines = ["TERMIN-ARCADE"]
 
     # Remove any empty trailing lines
     while title_lines and not title_lines[-1].strip():
@@ -262,7 +262,7 @@ def run_game(game_name):
     # Force reload the appropriate module
     if game_name == "snake":
         # Force reload the module to get a fresh instance
-        snake_module = reload_module("terminarcade.snake")
+        snake_module = reload_module("terminaide.terminarcade.snake")
         # Reset module-level state
         snake_module.exit_requested = False
         snake_module.stdscr = None
@@ -272,14 +272,14 @@ def run_game(game_name):
         return result == "back_to_menu"
 
     elif game_name == "tetris":
-        tetris_module = reload_module("terminarcade.tetris")
+        tetris_module = reload_module("terminaide.terminarcade.tetris")
         tetris_module.exit_requested = False
         tetris_module.stdscr = None
         result = tetris_module.play_tetris(from_index=True)
         return result == "back_to_menu"
 
     elif game_name == "pong":
-        pong_module = reload_module("terminarcade.pong")
+        pong_module = reload_module("terminaide.terminarcade.pong")
         pong_module.exit_requested = False
         pong_module.stdscr = None
         result = pong_module.play_pong(from_index=True)
@@ -312,9 +312,7 @@ def show_index():
                 cleanup()
                 return
 
-            # End curses mode before running games
-            if stdscr:
-                curses.endwin()
+            # curses.wrapper already ended curses mode, no need to call endwin again
 
             # Run the selected game with fresh module state
             # If it returns True, we should go back to menu; otherwise exit

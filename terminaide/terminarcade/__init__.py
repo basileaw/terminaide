@@ -32,7 +32,7 @@ def play(game_mode="index"):
     Run a terminarcade game directly.
 
     Args:
-        game_mode: String indicating which game to run ("index", "snake", "pong", "tetris", "asteroids")
+        game_mode: String indicating which game to run ("index", "games", "snake", "pong", "tetris", "asteroids")
     """
     if game_mode == "snake":
         play_snake()
@@ -42,7 +42,7 @@ def play(game_mode="index"):
         play_tetris()
     elif game_mode == "asteroids":
         play_asteroids()
-    elif game_mode == "index":
+    elif game_mode in ["index", "games"]:
         show_index()
     else:
         raise ValueError(f"Unknown game mode: {game_mode}")
