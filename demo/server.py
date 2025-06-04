@@ -26,7 +26,7 @@ if project_root not in sys.path:
 
 from terminaide import logger
 from terminaide import serve_function, serve_script, serve_apps, termin_ascii
-from terminaide.core.index_page import IndexPage
+from terminaide import IndexPage
 from demo.container import build_and_run_container
 
 CURRENT_DIR = Path(__file__).parent
@@ -50,7 +50,7 @@ def create_index_page() -> IndexPage:
     """Create IndexPage configuration for the terminal arcade."""
     return IndexPage(
         title="TERMIN-ARCADE",
-        subtitle="This demo shows how HTML pages and terminal applications can be combined in one server. Each game runs in its own terminal instance.",
+        subtitle="This demo shows HTML pages and terminal applications combined in one server, running a separate terminal for each game.",
         menu=[
             {
                 "label": "Available Games",

@@ -25,6 +25,7 @@ from .pong import play_pong
 from .tetris import play_tetris
 from .asteroids import play_asteroids
 from .index import show_index
+from .instructions import instructions
 
 
 def play(game_mode="index"):
@@ -32,7 +33,7 @@ def play(game_mode="index"):
     Run a terminarcade game directly.
 
     Args:
-        game_mode: String indicating which game to run ("index", "games", "snake", "pong", "tetris", "asteroids")
+        game_mode: String indicating which game to run ("index", "games", "snake", "pong", "tetris", "asteroids", "instructions")
     """
     if game_mode == "snake":
         play_snake()
@@ -44,6 +45,16 @@ def play(game_mode="index"):
         play_asteroids()
     elif game_mode in ["index", "games"]:
         show_index()
+    elif game_mode == "instructions":
+        import curses
+        import os
+        print("\033[?25l", end="")  # Hide cursor
+        os.environ.setdefault('NCURSES_NO_SETBUF', '1')
+        try:
+            curses.wrapper(instructions)
+        finally:
+            from .instructions import cleanup
+            cleanup()
     else:
         raise ValueError(f"Unknown game mode: {game_mode}")
 
@@ -58,6 +69,7 @@ __all__ = [
     "play_tetris",
     "play_asteroids",
     "show_index",
+    "instructions",
     "play",
     "terminarcade",
 ]

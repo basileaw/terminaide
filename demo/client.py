@@ -9,7 +9,7 @@ from terminaide import terminarcade
 
 
 def main():
-    terminarcade("games")
+    terminarcade("instructions")
 
 
 if __name__ == "__main__":
