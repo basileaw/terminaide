@@ -1,22 +1,14 @@
+
 #!/usr/bin/env python3
-"""
-Docker container functionality for terminaide demo.
+"""Docker container functionality for terminaide demo."""
 
-This module can be run directly:
-    python demo/container.py [--port 8000]
-
-Or through the main demo server:
-    python demo/server.py container
-    make serve container
-"""
-
+import argparse
 import os
 import re
-import sys
 import shutil
-import argparse
-import tempfile
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
 from typing import Union
 
@@ -29,10 +21,7 @@ from terminaide import logger
 
 
 def generate_requirements_txt(pyproject_path: Path, temp_dir: Union[str, Path]) -> Path:
-    """
-    Generate requirements.txt from pyproject.toml dependencies.
-    Excludes development dependencies.
-    """
+    """Generate requirements.txt from pyproject.toml dependencies (excludes dev deps)."""
     try:
         logger.info("Generating requirements.txt (excluding demo)")
         req_path = Path(temp_dir) / "requirements.txt"
@@ -80,12 +69,15 @@ def generate_requirements_txt(pyproject_path: Path, temp_dir: Union[str, Path]) 
 
 
 def build_and_run_container(port: int = 8000) -> None:
-    """
-    Build and run the application in a Docker container.
-
+    """Build and run the application in a Docker container.
+    
     Args:
         port: Host port to expose (container always uses 8000 internally)
     """
+    # Set up logging with terminaide formatter
+    from terminaide.core.logging import setup_package_logging
+    setup_package_logging(configure=True)
+    
     # Check if docker is installed
     try:
         subprocess.run(["docker", "--version"], check=True, capture_output=True)
@@ -107,7 +99,7 @@ def build_and_run_container(port: int = 8000) -> None:
                 shutil.copytree(
                     src_dir,
                     dst_dir,
-                    ignore=lambda src, names: (
+                    ignore=lambda src, _: (
                         ["ttyd"] if os.path.basename(src) == "ttyd_bin" else []
                     ),
                 )
@@ -195,7 +187,7 @@ CMD ["python", "demo/server.py", "apps"]
             logger.info("Container stopped")
 
 
-def main():
+def main() -> None:
     """Main entry point when running this module directly."""
     parser = argparse.ArgumentParser(
         description="Build and run terminaide demo in a Docker container",
@@ -205,7 +197,7 @@ Examples:
   python demo/container.py              # Run on default port 8000
   python demo/container.py --port 8080  # Run on custom port
   PYTHONPATH=. python demo/container.py # Run from any directory
-        """,
+""",
     )
     parser.add_argument(
         "--port",
@@ -214,9 +206,6 @@ Examples:
         help="Host port to expose (default: 8000)",
     )
     args = parser.parse_args()
-
-    # Set up logging
-    logger.setLevel("INFO")
 
     logger.info(f"Starting terminaide container on port {args.port}")
     build_and_run_container(args.port)
