@@ -27,7 +27,7 @@ from .termin_api import serve_function, serve_script, serve_apps, meta_serve
 from .core.data_models import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
 from .core.index_page import IndexPage
 from .core.ttyd_installer import setup_ttyd, get_platform_info
-from .core.ascii_utils import termin_ascii
+from .core.utils import termin_ascii
 from .core.logging import setup_package_logging, get_route_color, colorize_route_title
 from .core.exceptions import (
     terminaideError,
