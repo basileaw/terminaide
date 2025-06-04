@@ -19,55 +19,14 @@ Supported Platforms:
 - macOS ARM64 (Apple Silicon)
 """
 
-import sys
-import os
 import logging
 from pathlib import Path
 from .termin_api import serve_function, serve_script, serve_apps, meta_serve
 from .core.data_models import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
 from .core.index_page import IndexPage
-from .core.ttyd_installer import setup_ttyd, get_platform_info
 from .core.utils import termin_ascii
-from .core.logging import setup_package_logging, get_route_color, colorize_route_title
-from .core.exceptions import (
-    terminaideError,
-    BinaryError,
-    InstallationError,
-    PlatformNotSupportedError,
-    DependencyError,
-    DownloadError,
-    TTYDStartupError,
-    TTYDProcessError,
-    ClientScriptError,
-    TemplateError,
-    ProxyError,
-    ConfigurationError,
-    RouteNotFoundError,
-    PortAllocationError,
-    ScriptConfigurationError,
-    DuplicateRouteError,
-)
 
-# Try to import terminarcade as an optional subpackage
-try:
-    from .terminarcade import play as _terminarcade_play
-
-    # Create a callable wrapper that defaults to "index" when called with "games"
-    class TerminArcade:
-        def __call__(self, mode="index"):
-            if mode == "games":
-                mode = "index"
-            return _terminarcade_play(mode)
-
-        # Make the module attributes accessible
-        def __getattr__(self, name):
-            import terminaide.terminarcade as _mod
-
-            return getattr(_mod, name)
-
-    terminarcade = TerminArcade()
-except ImportError:
-    terminarcade = None
+from .terminarcade import play as terminarcade
 
 
 # Get package-level logger (configuration happens when serve_* functions are called)
@@ -92,28 +51,6 @@ __all__ = [
     "ScriptConfig",
     "ThemeConfig",
     "TTYDOptions",
-    # Binary management
-    "setup_ttyd",
-    "get_platform_info",
-    # Exceptions
-    "terminaideError",
-    "BinaryError",
-    "InstallationError",
-    "PlatformNotSupportedError",
-    "DependencyError",
-    "DownloadError",
-    "TTYDStartupError",
-    "TTYDProcessError",
-    "ClientScriptError",
-    "TemplateError",
-    "ProxyError",
-    "ConfigurationError",
-    "RouteNotFoundError",
-    "PortAllocationError",
-    "ScriptConfigurationError",
-    "DuplicateRouteError",
+    # Games
+    "terminarcade",
 ]
-
-# Add terminarcade to exports only if it's available
-if terminarcade is not None:
-    __all__.append("terminarcade")
