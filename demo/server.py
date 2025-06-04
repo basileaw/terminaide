@@ -11,25 +11,20 @@ python demo/server.py container           # Run the apps mode in a Docker contai
 """
 
 import os
-import sys
 import uvicorn
 import argparse
-from pathlib import Path
 from fastapi import FastAPI
-
-# Add project root to path to ensure imports work correctly
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
 from terminaide import logger
 from terminaide import serve_function, serve_script, serve_apps
-from terminaide import IndexPage
+from terminaide import IndexPage, terminarcade
+from terminaide.terminarcade import (
+    play_snake,
+    play_tetris,
+    play_pong,
+    play_asteroids,
+    instructions,
+)
 from demo.container import build_and_run_container
-
-CURRENT_DIR = Path(__file__).parent
-CLIENT_SCRIPT = CURRENT_DIR / "client.py"
-
 
 
 def create_index_page() -> IndexPage:
@@ -44,53 +39,11 @@ def create_index_page() -> IndexPage:
                     {"path": "/snake", "title": "Snake"},
                     {"path": "/tetris", "title": "Tetris"},
                     {"path": "/pong", "title": "Pong"},
+                    {"path": "/asteroids", "title": "Asteroids"},
                 ],
             }
         ],
     )
-
-
-def play_asteroids_function() -> None:
-    from terminaide import terminarcade
-    terminarcade("asteroids")
-
-
-def instructions_function() -> None:
-    from terminaide import terminarcade
-    terminarcade("instructions")
-
-
-def create_app() -> FastAPI:
-    """
-    Factory function: read mode from environment, build and return FastAPI app.
-    Used by Uvicorn with 'factory=True' so it can reload properly.
-    """
-    mode = os.environ.get("TERMINAIDE_MODE", "default")
-    app = FastAPI(title=f"Terminaide - {mode.upper()} Mode")
-
-    # Don't try to use any Docker stuff here - just handle the apps mode
-    if mode == "apps":
-        serve_apps(
-            app,
-            terminal_routes={
-                "/": create_index_page(),
-                "/snake": {
-                    "client_script": [CLIENT_SCRIPT, "--snake"],
-                    "title": "Termin-Arcade (Snake)",
-                },
-                "/tetris": {
-                    "client_script": [CLIENT_SCRIPT, "--tetris"],
-                    "title": "Termin-Arcade (Tetris)",
-                },
-                "/pong": {
-                    "client_script": [CLIENT_SCRIPT, "--pong"],
-                    "title": "Termin-Arcade (Pong)",
-                },
-            },
-            debug=True,
-        )
-
-    return app
 
 
 def parse_args() -> argparse.Namespace:
@@ -105,8 +58,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
-
-    # Store the mode directly
     args.actual_mode = args.mode
     return args
 
@@ -122,14 +73,10 @@ def main() -> None:
         os.environ["WATCHFILES_POLL_DELAY"] = "0.1"
         os.environ["TERMINAIDE_VERBOSE"] = "0"
         log_level = "WARNING" if mode != "apps" else "INFO"
-        # Set terminaide logger level directly
         logger.setLevel(log_level)
-        # Also set uvicorn logger level
         import logging
 
         logging.getLogger("uvicorn").setLevel(log_level)
-
-    logger.info(f"Starting server in {mode.upper()} mode on port {port}")
 
     if mode == "container":
         build_and_run_container(port)
@@ -138,45 +85,69 @@ def main() -> None:
     # DEFAULT MODE
     if mode == "default":
         serve_function(
-            instructions_function,
+            instructions,
             port=port,
             title="Instructions",
             debug=True,
-            reload=True,  # <-- Enable reload for default mode
+            reload=True,
         )
         return
 
     # FUNCTION MODE
     if mode == "function":
         serve_function(
-            play_asteroids_function,
+            play_asteroids,
             port=port,
             title="Function Mode",
             debug=True,
-            reload=True,  # <-- Enable reload for function mode
+            reload=True,
         )
         return
 
     # SCRIPT MODE
     if mode == "script":
         serve_script(
-            CLIENT_SCRIPT,
+            "client.py",
             port=port,
             title="Script Mode",
             debug=True,
-            reload=True,  # <-- Enable reload for script mode
+            reload=True,
         )
         return
 
     # APPS MODE
     if mode == "apps":
+        global app
+        app = FastAPI(title="Terminaide - APPS Mode")
+        serve_apps(
+            app,
+            terminal_routes={
+                "/": create_index_page(),
+                "/snake": {
+                    "function": play_snake,
+                    "title": "Snake",
+                },
+                "/tetris": {
+                    "function": play_tetris,
+                    "title": "Tetris",
+                },
+                "/pong": {
+                    "function": play_pong,
+                    "title": "Pong",
+                },
+                "/asteroids": {
+                    "function": play_asteroids,
+                    "title": "Asteroids",
+                },
+            },
+            debug=True,
+        )
         uvicorn.run(
-            "demo.server:create_app",
-            factory=True,
+            "demo.server:app",
             host="0.0.0.0",
             port=port,
             reload=True,
-            reload_dirs=[str(project_root)],
+            reload_dirs=["."],
         )
 
 
