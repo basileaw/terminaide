@@ -87,19 +87,12 @@ class CursesMenuItem(MenuItem):
         Launch this menu item.
         
         Returns:
-            bool: True if should return to menu, False if should exit
+            bool: True to return to menu (always true now)
         """
         if self.function:
             try:
-                # If function has from_index parameter, call it with True
-                import inspect
-                sig = inspect.signature(self.function)
-                if 'from_index' in sig.parameters:
-                    result = self.function(from_index=True)
-                    return result == "back_to_menu"
-                else:
-                    self.function()
-                    return True  # Return to menu by default
+                self.function()
+                return True  # Always return to menu
             except Exception as e:
                 logger.error(f"Error executing function {self.function.__name__}: {e}")
                 return True
@@ -107,10 +100,10 @@ class CursesMenuItem(MenuItem):
         elif self.script:
             try:
                 # Execute script
-                result = subprocess.run([sys.executable, self.script], 
-                                      capture_output=False, 
-                                      check=False)
-                return True  # Return to menu after script execution
+                subprocess.run([sys.executable, self.script], 
+                              capture_output=False, 
+                              check=False)
+                return True  # Always return to menu
             except Exception as e:
                 logger.error(f"Error executing script {self.script}: {e}")
                 return True
@@ -150,9 +143,9 @@ class CursesMenuItem(MenuItem):
             
             # Call the appropriate play function
             play_function = getattr(game_module, f"play_{game_name}")
-            result = play_function(from_index=True)
+            play_function()
             
-            return result == "back_to_menu"
+            return True  # Always return to menu
             
         except Exception as e:
             logger.error(f"Error launching terminarcade game {game_name}: {e}")
@@ -588,12 +581,8 @@ class CursesIndex:
                 # If choice is a CursesMenuItem, launch it
                 if isinstance(choice, CursesMenuItem):
                     last_selection = choice.path
-                    return_to_menu = choice.launch()
-                    
-                    if not return_to_menu:
-                        # Don't return to menu - exit
-                        return last_selection
-                    # Otherwise continue the loop (show menu again)
+                    choice.launch()  # Always returns True now
+                    # Continue the loop (show menu again)
                 else:
                     # Fallback for non-CursesMenuItem objects
                     return choice

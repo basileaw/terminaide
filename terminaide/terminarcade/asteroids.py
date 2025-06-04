@@ -11,7 +11,6 @@ from terminaide import termin_ascii
 # Globals to mirror snake.py
 stdscr = None
 exit_requested = False
-back_to_menu = False
 
 # Generate ASCII art using termin_ascii
 ascii_art = termin_ascii("TERMIN-ASTEROIDS")
@@ -303,7 +302,7 @@ def run_game(stdscr, max_y, max_x, high_score):
     One round of the Asteroids game.
     Returns the final score for this round.
     """
-    global exit_requested, back_to_menu
+    global exit_requested
 
     # We'll define how many lines of ASCII art we have
     art_height = len(ASTEROIDS_ASCII_ART)
@@ -365,11 +364,6 @@ def run_game(stdscr, max_y, max_x, high_score):
                 exit_requested = True
                 return score
             
-            # If from the index menu, pressing backspace or delete => return to menu
-            if key in (curses.KEY_BACKSPACE, 8, 127, curses.KEY_DC, 330):
-                back_to_menu = True
-                exit_requested = True
-                return score
 
             if key == curses.KEY_LEFT:
                 ship.rotate_left()
@@ -441,18 +435,14 @@ def run_game(stdscr, max_y, max_x, high_score):
 
     return score
 
-def _asteroids_game_loop(stdscr_param, from_index=False):
+def _asteroids_game_loop(stdscr_param):
     """
     Main Asteroids loop (similar to _snake_game_loop).
     Allows multiple rounds (restart) until user quits.
-    
-    If 'back_to_menu' and from_index is True, return "back_to_menu".
-    Otherwise, return None.
     """
-    global stdscr, exit_requested, back_to_menu
+    global stdscr, exit_requested
     stdscr = stdscr_param
     exit_requested = False
-    back_to_menu = False
 
     signal.signal(signal.SIGINT, handle_exit)
     setup_terminal(stdscr)
@@ -466,24 +456,14 @@ def _asteroids_game_loop(stdscr_param, from_index=False):
 
     while True:
         if exit_requested:
-            # Check if we're returning to the menu or fully exiting
-            if back_to_menu and from_index:
-                cleanup()
-                return "back_to_menu"
-            else:
-                cleanup()
-                return None
+            cleanup()
+            return None
 
         # Play one round
         score = run_game(stdscr, max_y, max_x, high_score)
         if exit_requested:
-            # Possibly returning to menu or exiting
-            if back_to_menu and from_index:
-                cleanup()
-                return "back_to_menu"
-            else:
-                cleanup()
-                return None
+            cleanup()
+            return None
 
         # Update high score
         if score > high_score:
@@ -497,14 +477,12 @@ def _asteroids_game_loop(stdscr_param, from_index=False):
 
     return None
 
-def play_asteroids(from_index=False):
+def play_asteroids():
     """
     Public-facing function to launch Asteroids, similar to snake's play_snake().
-    If 'from_index' is True, backspace/delete will return "back_to_menu" instead of fully exiting.
     """
     try:
-        result = curses.wrapper(lambda stdscr_param: _asteroids_game_loop(stdscr_param, from_index))
-        return result
+        curses.wrapper(_asteroids_game_loop)
     except Exception as e:
         print(f"\n\033[31mError in asteroids game: {e}\033[0m")
     finally:

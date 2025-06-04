@@ -10,7 +10,6 @@ from collections import deque
 
 stdscr = None
 exit_requested = False
-back_to_menu = False  # Flag to track back-to-menu requests
 
 TETROMINOS = [
     [[(0, 0), (0, 1), (0, 2), (0, 3)], [(0, 0), (1, 0), (2, 0), (3, 0)]],
@@ -47,20 +46,15 @@ TETROMINO_COLORS = [
 ]
 
 
-def _tetris_game_loop(stdscr_param, from_index=False):
+def _tetris_game_loop(stdscr_param):
     """Main tetris game function that handles the game loop.
 
     Args:
         stdscr_param: The curses window.
-        from_index: Whether the game was launched from index.py.
-
-    Returns:
-        str: "back_to_menu" if we should return to menu, None otherwise.
     """
-    global stdscr, exit_requested, back_to_menu
+    global stdscr, exit_requested
     stdscr = stdscr_param
     exit_requested = False
-    back_to_menu = False
 
     signal.signal(signal.SIGINT, handle_exit)
     stdscr.clear()
@@ -72,30 +66,18 @@ def _tetris_game_loop(stdscr_param, from_index=False):
 
     while True:
         if exit_requested:
-            # Check if we're returning to menu or exiting completely
-            if back_to_menu and from_index:
-                cleanup()
-                return "back_to_menu"
-            else:
-                cleanup()
-                return None
+            cleanup()
+            return
 
-        score = run_game(stdscr, max_y, max_x, high_score, from_index)
+        score = run_game(stdscr, max_y, max_x, high_score)
 
         if exit_requested:
-            # Check again after game has run
-            if back_to_menu and from_index:
-                cleanup()
-                return "back_to_menu"
-            else:
-                cleanup()
-                return None
+            cleanup()
+            return
 
         high_score = max(high_score, score)
         if show_game_over(stdscr, score, high_score, max_y, max_x):
             break
-
-    return None
 
 
 def setup_terminal(stdscr):
@@ -113,19 +95,18 @@ def setup_terminal(stdscr):
     curses.init_pair(9, curses.COLOR_YELLOW, -1)
 
 
-def run_game(stdscr, max_y, max_x, high_score=0, from_index=False):
+def run_game(stdscr, max_y, max_x, high_score=0):
     """Run the main tetris game loop.
 
     Args:
         stdscr: The curses window.
         max_y, max_x: Maximum y and x coordinates.
         high_score: Current high score.
-        from_index: Whether the game was launched from index.py.
 
     Returns:
         int: The final score.
     """
-    global exit_requested, back_to_menu
+    global exit_requested
 
     board_height = min(20, max_y - 7)
     board_width = min(10, max_x // 2 - 2)
@@ -160,12 +141,6 @@ def run_game(stdscr, max_y, max_x, high_score=0, from_index=False):
 
         # Check for exit key
         if key in (ord("q"), 27):  # q or ESC
-            return score
-
-        # Check for back-to-menu keys (backspace, delete) if launched from index
-        if from_index and key in (curses.KEY_BACKSPACE, 8, 127, curses.KEY_DC, 330):
-            back_to_menu = True
-            exit_requested = True
             return score
 
         if key in [curses.KEY_LEFT, ord("a"), ord("A")]:
@@ -502,25 +477,16 @@ def handle_exit(sig, frame):
     exit_requested = True
 
 
-def play_tetris(from_index=False):
+def play_tetris():
     """Run the tetris game.
 
     This is the main public-facing function for launching the tetris game.
-
-    Args:
-        from_index: Whether the game was launched from index.py.
-
-    Returns:
-        str: "back_to_menu" if we should return to menu, None otherwise.
     """
     try:
         os.system("clear" if os.name == "posix" else "cls")
         print("\033[2J\033[H", end="")
         sys.stdout.flush()
-        result = curses.wrapper(
-            lambda stdscr_param: _tetris_game_loop(stdscr_param, from_index)
-        )
-        return result
+        curses.wrapper(_tetris_game_loop)
     except Exception as e:
         print(f"\n\033[31mError in tetris game: {e}\033[0m")
     finally:

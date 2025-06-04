@@ -24,7 +24,6 @@ from .snake import play_snake
 from .pong import play_pong
 from .tetris import play_tetris
 from .asteroids import play_asteroids
-from .index import show_index
 from .instructions import instructions
 
 
@@ -43,17 +42,17 @@ def play(game_mode="index"):
         play_tetris()
     elif game_mode == "asteroids":
         play_asteroids()
-    elif game_mode in ["index", "games"]:
-        show_index()
     elif game_mode == "instructions":
         import curses
         import os
+
         print("\033[?25l", end="")  # Hide cursor
-        os.environ.setdefault('NCURSES_NO_SETBUF', '1')
+        os.environ.setdefault("NCURSES_NO_SETBUF", "1")
         try:
             curses.wrapper(instructions)
         finally:
             from .instructions import cleanup
+
             cleanup()
     else:
         raise ValueError(f"Unknown game mode: {game_mode}")
@@ -68,7 +67,6 @@ __all__ = [
     "play_pong",
     "play_tetris",
     "play_asteroids",
-    "show_index",
     "instructions",
     "play",
     "terminarcade",

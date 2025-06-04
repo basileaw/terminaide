@@ -7,10 +7,9 @@ import sys
 
 stdscr = None
 exit_requested = False
-back_to_menu = False  # Flag to track back-to-menu requests
 
 
-def _pong_game_loop(stdscr_param, from_index=False):
+def _pong_game_loop(stdscr_param):
     """Main pong game function that handles the game loop.
 
     This function manages the overall game flow, including initial setup,
@@ -18,15 +17,10 @@ def _pong_game_loop(stdscr_param, from_index=False):
 
     Args:
         stdscr_param: The curses window.
-        from_index: Whether the game was launched from index.py.
-
-    Returns:
-        str: "back_to_menu" if we should return to menu, None otherwise.
     """
-    global stdscr, exit_requested, back_to_menu
+    global stdscr, exit_requested
     stdscr = stdscr_param
     exit_requested = False
-    back_to_menu = False
 
     signal.signal(signal.SIGINT, handle_exit)
     setup_terminal(stdscr)
@@ -37,32 +31,20 @@ def _pong_game_loop(stdscr_param, from_index=False):
 
     while True:
         if exit_requested:
-            # Check if we're returning to menu or exiting completely
-            if back_to_menu and from_index:
-                cleanup()
-                return "back_to_menu"
-            else:
-                cleanup()
-                return None
+            cleanup()
+            return
 
-        ls, rs, winner = run_game(stdscr, my, mx, ph, pw, ls, rs, high, from_index)
+        ls, rs, winner = run_game(stdscr, my, mx, ph, pw, ls, rs, high)
 
         if exit_requested:
-            # Check again after game has run
-            if back_to_menu and from_index:
-                cleanup()
-                return "back_to_menu"
-            else:
-                cleanup()
-                return None
+            cleanup()
+            return
 
         cur_score = max(ls, rs)
         high = max(high, cur_score)
 
         if show_game_over(stdscr, ls, rs, high, my, mx, winner):
             break
-
-    return None
 
 
 def setup_terminal(stdscr):
@@ -81,7 +63,7 @@ def setup_terminal(stdscr):
     curses.init_pair(5, curses.COLOR_YELLOW, -1)
 
 
-def run_game(stdscr, my, mx, ph, pw, ls, rs, high, from_index=False):
+def run_game(stdscr, my, mx, ph, pw, ls, rs, high):
     """Run the main pong game loop.
 
     This function handles all the gameplay mechanics including paddle movement,
@@ -93,12 +75,11 @@ def run_game(stdscr, my, mx, ph, pw, ls, rs, high, from_index=False):
         ph, pw: Playable height and width.
         ls, rs: Current left and right scores.
         high: Current high score.
-        from_index: Whether the game was launched from index.py.
 
     Returns:
         tuple: (left score, right score, winner)
     """
-    global exit_requested, back_to_menu
+    global exit_requested
 
     speed = 40  # Even lower value = even faster refresh rate
     inc = 10  # Larger increment = faster speed increases
@@ -136,12 +117,6 @@ def run_game(stdscr, my, mx, ph, pw, ls, rs, high, from_index=False):
         # Check for exit key
         if key in (ord("q"), 27):  # q or ESC
             cleanup()
-            return ls, rs, winner
-
-        # Check for back-to-menu keys (backspace, delete) if launched from index
-        if from_index and key in (curses.KEY_BACKSPACE, 8, 127, curses.KEY_DC, 330):
-            back_to_menu = True
-            exit_requested = True
             return ls, rs, winner
 
         # Handle paddle movement (much faster by moving 4 units)
@@ -344,22 +319,13 @@ def handle_exit(sig, frame):
     exit_requested = True
 
 
-def play_pong(from_index=False):
+def play_pong():
     """Run the pong game.
 
     This is the main public-facing function for launching the pong game.
-
-    Args:
-        from_index: Whether the game was launched from index.py.
-
-    Returns:
-        str: "back_to_menu" if we should return to menu, None otherwise.
     """
     try:
-        result = curses.wrapper(
-            lambda stdscr_param: _pong_game_loop(stdscr_param, from_index)
-        )
-        return result
+        curses.wrapper(_pong_game_loop)
     except Exception as e:
         print(f"\n\033[31mError in pong game: {e}\033[0m")
     finally:

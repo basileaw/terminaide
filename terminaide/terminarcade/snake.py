@@ -8,23 +8,17 @@ from collections import deque
 
 stdscr = None
 exit_requested = False
-back_to_menu = False  # Flag to track if we should return to menu
 
 
-def _snake_game_loop(stdscr_param, from_index=False):
+def _snake_game_loop(stdscr_param):
     """Main snake game function that handles the game loop.
 
     Args:
         stdscr_param: The curses window.
-        from_index: Whether the game was launched from index.py.
-
-    Returns:
-        str: "back_to_menu" if we should return to menu, None otherwise.
     """
-    global stdscr, exit_requested, back_to_menu
+    global stdscr, exit_requested
     stdscr = stdscr_param
     exit_requested = False
-    back_to_menu = False
 
     signal.signal(signal.SIGINT, handle_exit)
     setup_terminal(stdscr)
@@ -34,31 +28,19 @@ def _snake_game_loop(stdscr_param, from_index=False):
 
     while True:
         if exit_requested:
-            # Check if we're returning to menu or exiting completely
-            if back_to_menu and from_index:
-                cleanup()
-                return "back_to_menu"
-            else:
-                cleanup()
-                return None
+            cleanup()
+            return
 
-        score = run_game(stdscr, max_y, max_x, ph, pw, high_score, from_index)
+        score = run_game(stdscr, max_y, max_x, ph, pw, high_score)
 
         if exit_requested:
-            # Check again after game has run
-            if back_to_menu and from_index:
-                cleanup()
-                return "back_to_menu"
-            else:
-                cleanup()
-                return None
+            cleanup()
+            return
 
         high_score = max(high_score, score)
 
         if show_game_over(stdscr, score, high_score, max_y, max_x):
             break
-
-    return None
 
 
 def setup_terminal(stdscr):
@@ -77,7 +59,7 @@ def setup_terminal(stdscr):
     curses.init_pair(5, curses.COLOR_YELLOW, -1)
 
 
-def run_game(stdscr, my, mx, ph, pw, high_score=0, from_index=False):
+def run_game(stdscr, my, mx, ph, pw, high_score=0):
     """Run the main game loop.
 
     Args:
@@ -85,12 +67,11 @@ def run_game(stdscr, my, mx, ph, pw, high_score=0, from_index=False):
         my, mx: Maximum y and x coordinates.
         ph, pw: Playable height and width.
         high_score: Current high score.
-        from_index: Whether the game was launched from index.py.
 
     Returns:
         int: The final score.
     """
-    global exit_requested, back_to_menu
+    global exit_requested
 
     score = 0
     speed = 100
@@ -114,12 +95,6 @@ def run_game(stdscr, my, mx, ph, pw, high_score=0, from_index=False):
         # Check for exit key
         if key in (ord("q"), 27):  # q or ESC
             cleanup()
-            return score
-
-        # Check for back-to-menu keys (backspace, delete) if launched from index
-        if from_index and key in (curses.KEY_BACKSPACE, 8, 127, curses.KEY_DC, 330):
-            back_to_menu = True
-            exit_requested = True
             return score
 
         new_dir = process_input(key, direction)
@@ -323,22 +298,13 @@ def handle_exit(sig, frame):
     exit_requested = True
 
 
-def play_snake(from_index=False):
+def play_snake():
     """Run the snake game from command line.
 
     This is the main public-facing function for launching the snake game.
-
-    Args:
-        from_index: Whether the game was launched from index.py.
-
-    Returns:
-        str: "back_to_menu" if we should return to menu, None otherwise.
     """
     try:
-        result = curses.wrapper(
-            lambda stdscr_param: _snake_game_loop(stdscr_param, from_index)
-        )
-        return result
+        curses.wrapper(_snake_game_loop)
     except Exception as e:
         print(f"\n\033[31mError in snake game: {e}\033[0m")
     finally:
