@@ -1,23 +1,21 @@
 # server.py
 
 """
-Test server for terminaide that demonstrates all three API tiers.
+Test server for terminaide that demonstrates all API modes.
 Usage:
 python demo/server.py                     # Default mode - shows getting started interface
-python demo/server.py --function          # Function mode - demo of serve_function() with Asteroids
-python demo/server.py --script            # Script mode - demo of serve_script()
-python demo/server.py --apps              # Apps mode - HTML page at root, terminal games at routes
-python demo/server.py --container         # Run the apps mode in a Docker container
+python demo/server.py function            # Function mode - demo of serve_function() with Asteroids
+python demo/server.py script              # Script mode - demo of serve_script()
+python demo/server.py apps                # Apps mode - HTML page at root, terminal games at routes
+python demo/server.py container           # Run the apps mode in a Docker container
 """
 
 import os
 import sys
-import json
 import uvicorn
 import argparse
 from pathlib import Path
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI
 
 # Add project root to path to ensure imports work correctly
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -25,25 +23,13 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from terminaide import logger
-from terminaide import serve_function, serve_script, serve_apps, termin_ascii
+from terminaide import serve_function, serve_script, serve_apps
 from terminaide import IndexPage
 from demo.container import build_and_run_container
 
 CURRENT_DIR = Path(__file__).parent
 CLIENT_SCRIPT = CURRENT_DIR / "client.py"
-# Convert project_root to a Path object for path operations
-project_root_path = Path(project_root)
-INSTRUCTIONS_PATH = (
-    project_root_path / "terminaide" / "terminarcade" / "instructions.py"
-)
 
-MODE_HELP = {
-    "default": "Default (getting started interface)",
-    "function": "Serve function mode (Asteroids)",
-    "script": "Serve script mode",
-    "apps": "Apps mode (HTML + routes)",
-    "container": "Docker container mode (same as apps)",
-}
 
 
 def create_index_page() -> IndexPage:
@@ -58,43 +44,20 @@ def create_index_page() -> IndexPage:
                     {"path": "/snake", "title": "Snake"},
                     {"path": "/tetris", "title": "Tetris"},
                     {"path": "/pong", "title": "Pong"},
-                    {"path": "/info", "title": "Server Info"},
                 ],
             }
         ],
     )
 
 
-def create_info_endpoint(app: FastAPI, mode: str, description: str) -> None:
-    @app.get("/info", response_class=HTMLResponse)
-    async def info(request: Request) -> HTMLResponse:
-        info_dict = {
-            "mode": mode,
-            "description": description,
-            "client_script": str(CLIENT_SCRIPT),
-            "modes": MODE_HELP,
-            "usage": "python demo/server.py [--default|--function|--script|--apps|--container]",
-            "notes": [
-                "serve_function: Simplest - just pass a function",
-                "serve_script: Simple - pass a script file",
-                "serve_apps: Advanced - integrate with FastAPI",
-            ],
-        }
-        html_content = f"""<!DOCTYPE html>
-        <html>
-        <head>
-            <title>Terminaide Info</title>
-            <link rel="icon" type="image/x-icon" href="/terminaide-static/favicon.ico">
-        </head>
-        <body><pre>{json.dumps(info_dict, indent=2)}</pre></body>
-        </html>"""
-        return HTMLResponse(content=html_content)
-
-
 def play_asteroids_function() -> None:
-    from terminaide.terminarcade import play_asteroids
+    from terminaide import terminarcade
+    terminarcade("asteroids")
 
-    play_asteroids()
+
+def instructions_function() -> None:
+    from terminaide import terminarcade
+    terminarcade("instructions")
 
 
 def create_app() -> FastAPI:
@@ -104,11 +67,9 @@ def create_app() -> FastAPI:
     """
     mode = os.environ.get("TERMINAIDE_MODE", "default")
     app = FastAPI(title=f"Terminaide - {mode.upper()} Mode")
-    description = ""
 
     # Don't try to use any Docker stuff here - just handle the apps mode
     if mode == "apps":
-        description = "Apps mode - HTML root + separate terminal routes"
         serve_apps(
             app,
             terminal_routes={
@@ -128,7 +89,6 @@ def create_app() -> FastAPI:
             },
             debug=True,
         )
-        create_info_endpoint(app, mode, description)
 
     return app
 
@@ -177,8 +137,8 @@ def main() -> None:
 
     # DEFAULT MODE
     if mode == "default":
-        serve_script(
-            INSTRUCTIONS_PATH,
+        serve_function(
+            instructions_function,
             port=port,
             title="Instructions",
             debug=True,

@@ -4,12 +4,11 @@
 This script demonstrates how to use terminaide's built-in games.
 """
 
-import argparse
 from terminaide import terminarcade
 
 
 def main():
-    terminarcade("instructions")
+    terminarcade("games")
 
 
 if __name__ == "__main__":
