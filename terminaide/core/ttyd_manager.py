@@ -145,8 +145,8 @@ class TTYDManager:
                 f"Script path not set for route {script_config.route_path}"
             )
 
-        # Find the cursor_manager.py path
-        cursor_manager_path = Path(__file__).parent / "cursor_manager.py"
+        # Find the ttyd_cursor.py path
+        cursor_manager_path = Path(__file__).parent / "ttyd_cursor.py"
 
         # Check if cursor management is enabled via environment variable
         cursor_mgmt_enabled = os.environ.get("TERMINAIDE_CURSOR_MGMT", "1").lower() in (

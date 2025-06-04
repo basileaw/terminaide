@@ -18,7 +18,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi import FastAPI, Request, WebSocket
 from typing import Optional, Dict, Union, Tuple, List, Callable, Any
 
-from .proxy import ProxyManager
+from .ttyd_proxy import ProxyManager
 from .ttyd_manager import TTYDManager
 from .exceptions import TemplateError
 from .data_models import (

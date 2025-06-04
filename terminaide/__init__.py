@@ -32,9 +32,9 @@ from .terminarcade import play as terminarcade
 # Get package-level logger (configuration happens when serve_* functions are called)
 logger = logging.getLogger("terminaide")
 
-# Ensure bin directory exists on import
-bin_dir = Path(__file__).parent / "core" / "bin"
-bin_dir.mkdir(exist_ok=True)
+# Ensure ttyd_bin directory exists on import
+ttyd_bin_dir = Path(__file__).parent / "core" / "ttyd_bin"
+ttyd_bin_dir.mkdir(exist_ok=True)
 
 __all__ = [
     # New API

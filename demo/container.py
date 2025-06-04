@@ -4,7 +4,7 @@ Docker container functionality for terminaide demo.
 
 This module can be run directly:
     python demo/container.py [--port 8000]
-    
+
 Or through the main demo server:
     python demo/server.py container
     make serve container
@@ -82,7 +82,7 @@ def generate_requirements_txt(pyproject_path: Path, temp_dir: Union[str, Path]) 
 def build_and_run_container(port: int = 8000) -> None:
     """
     Build and run the application in a Docker container.
-    
+
     Args:
         port: Host port to expose (container always uses 8000 internally)
     """
@@ -108,11 +108,11 @@ def build_and_run_container(port: int = 8000) -> None:
                     src_dir,
                     dst_dir,
                     ignore=lambda src, names: (
-                        ["ttyd"] if os.path.basename(src) == "bin" else []
+                        ["ttyd"] if os.path.basename(src) == "ttyd_bin" else []
                     ),
                 )
                 if directory == "terminaide":
-                    (dst_dir / "core" / "bin").mkdir(exist_ok=True)
+                    (dst_dir / "core" / "ttyd_bin").mkdir(exist_ok=True)
 
         # Generate requirements
         generate_requirements_txt(project_root / "pyproject.toml", temp_path)
@@ -217,7 +217,7 @@ Examples:
 
     # Set up logging
     logger.setLevel("INFO")
-    
+
     logger.info(f"Starting terminaide container on port {args.port}")
     build_and_run_container(args.port)
 
