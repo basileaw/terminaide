@@ -65,6 +65,7 @@ def serve_function(
             - template_override: Custom HTML template path
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
             - preview_image: Custom preview image for social media sharing (default: None)
+            - configure_logging: Whether to configure Terminaide's logging handlers (default: True)
     """
     # Add desktop parameters to kwargs if provided
     if desktop:
@@ -119,6 +120,7 @@ def serve_script(
             - template_override: Custom HTML template path
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
             - preview_image: Custom preview image for social media sharing (default: None)
+            - configure_logging: Whether to configure Terminaide's logging handlers (default: True)
     """
     # Add desktop parameters to kwargs if provided
     if desktop:
@@ -194,6 +196,7 @@ def serve_apps(
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
             - preview_image: Default preview image for social media sharing (default: None)
                             Can also be specified per route in terminal_routes config.
+            - configure_logging: Whether to configure Terminaide's logging handlers (default: True)
 
     Examples:
         ```python
@@ -342,6 +345,7 @@ def meta_serve(
             - template_override: Custom HTML template path
             - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
             - preview_image: Custom preview image for social media sharing (default: None)
+            - configure_logging: Whether to configure Terminaide's logging handlers (default: True)
 
     Examples:
         ```python

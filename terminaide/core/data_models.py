@@ -10,7 +10,6 @@ from typing import Dict, Any, Optional, Union, List, Callable
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .exceptions import ConfigurationError
-from .route_colors import route_color_manager
 
 logger = logging.getLogger("terminaide")
 

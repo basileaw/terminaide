@@ -16,7 +16,7 @@ import argparse
 from fastapi import FastAPI
 from terminaide import logger
 from terminaide import serve_function, serve_script, serve_apps
-from terminaide import IndexPage, terminarcade
+from terminaide import IndexPage
 from terminaide.terminarcade import (
     play_snake,
     play_tetris,
@@ -60,6 +60,39 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     args.actual_mode = args.mode
     return args
+
+
+app = None
+
+
+def create_app() -> FastAPI:
+    """Create the FastAPI app for apps mode."""
+    global app
+    app = FastAPI(title="Terminaide - APPS Mode")
+    serve_apps(
+        app,
+        terminal_routes={
+            "/": create_index_page(),
+            "/snake": {
+                "function": play_snake,
+                "title": "Snake",
+            },
+            "/tetris": {
+                "function": play_tetris,
+                "title": "Tetris",
+            },
+            "/pong": {
+                "function": play_pong,
+                "title": "Pong",
+            },
+            "/asteroids": {
+                "function": play_asteroids,
+                "title": "Asteroids",
+            },
+        },
+        debug=True,
+    )
+    return app
 
 
 def main() -> None:
@@ -117,31 +150,7 @@ def main() -> None:
 
     # APPS MODE
     if mode == "apps":
-        global app
-        app = FastAPI(title="Terminaide - APPS Mode")
-        serve_apps(
-            app,
-            terminal_routes={
-                "/": create_index_page(),
-                "/snake": {
-                    "function": play_snake,
-                    "title": "Snake",
-                },
-                "/tetris": {
-                    "function": play_tetris,
-                    "title": "Tetris",
-                },
-                "/pong": {
-                    "function": play_pong,
-                    "title": "Pong",
-                },
-                "/asteroids": {
-                    "function": play_asteroids,
-                    "title": "Asteroids",
-                },
-            },
-            debug=True,
-        )
+        create_app()
         uvicorn.run(
             "demo.server:app",
             host="0.0.0.0",
@@ -150,6 +159,10 @@ def main() -> None:
             reload_dirs=["."],
         )
 
+
+# When uvicorn imports this module in reload mode, check if we need to create the app
+if os.environ.get("TERMINAIDE_MODE") == "apps" and app is None:
+    create_app()
 
 if __name__ == "__main__":
     main()

@@ -16,7 +16,7 @@ from fastapi.responses import Response, StreamingResponse
 
 from .exceptions import ProxyError, RouteNotFoundError
 from .data_models import TTYDConfig, ScriptConfig, IndexPageConfig
-from .route_colors import route_color_manager
+from .logging import route_color_manager
 
 logger = logging.getLogger("terminaide")
 

@@ -1,9 +1,43 @@
-# terminaide/core/route_colors.py
+# terminaide/core/logging.py
+
+"""Logging configuration and terminal output formatting for Terminaide."""
 
 import sys
+import logging
 import hashlib
 from typing import Dict, Optional
 from pathlib import Path
+
+
+# Enhanced ANSI color codes for logging levels
+LEVEL_COLORS = {
+    "DEBUG": "\033[36m",      # Cyan
+    "INFO": "\033[32m",       # Green
+    "WARNING": "\033[33m",    # Yellow
+    "ERROR": "\033[31m",      # Red
+    "CRITICAL": "\033[41m",   # Red background
+    "RESET": "\033[0m",       # Reset colors
+}
+
+
+class ColorAlignedFormatter(logging.Formatter):
+    """Logging formatter that adds colors and aligns log levels."""
+    
+    def format(self, record):
+        levelname = record.levelname
+        # Ensure the level name + padding + colon takes exactly 10 characters
+        padding_length = max(1, 9 - len(levelname))
+        padding = " " * padding_length
+
+        # Add colors if the system supports it
+        if sys.stdout.isatty():  # Only apply colors if running in a terminal
+            colored_levelname = (
+                f"{LEVEL_COLORS.get(levelname, '')}{levelname}{LEVEL_COLORS['RESET']}"
+            )
+            return f"{colored_levelname}:{padding}{record.getMessage()}"
+        else:
+            return f"{levelname}:{padding}{record.getMessage()}"
+
 
 class RouteColorManager:
     """Manages consistent color assignments and formatting for routes."""
@@ -87,5 +121,38 @@ class RouteColorManager:
         
         return main_line, script_line
 
+
 # Global instance
 route_color_manager = RouteColorManager()
+
+
+# Legacy compatibility functions (used by __init__.py)
+def get_route_color(route_path: str) -> str:
+    """Get a consistent color for a route based on its path."""
+    return route_color_manager.get_route_color(route_path)
+
+
+def colorize_route_title(title: str, route_path: str) -> str:
+    """Colorize a route title with its assigned color."""
+    return route_color_manager.colorize_title(title, route_path)
+
+
+def setup_package_logging(configure=True):
+    """Configure package-level logging for Terminaide.
+    
+    Args:
+        configure: If True, adds handler and sets log level. If False, only returns the logger.
+                  This allows applications to control Terminaide's logging configuration.
+    """
+    logger = logging.getLogger("terminaide")
+    
+    if configure:
+        # Only add handler if none exist (avoid duplicate handlers)
+        if not logger.handlers:
+            handler = logging.StreamHandler()
+            handler.setFormatter(ColorAlignedFormatter())
+            logger.addHandler(handler)
+            logger.setLevel(logging.INFO)
+            logger.propagate = False  # Prevent propagation to root logger
+    
+    return logger

@@ -132,6 +132,7 @@ class TerminaideConfig:
     template_override: Optional[Path] = None
     trust_proxy_headers: bool = True
     mount_path: str = "/"
+    configure_logging: bool = True  # Whether to configure Terminaide's logging handlers
 
     # Preview image configuration
     preview_image: Optional[Path] = None
