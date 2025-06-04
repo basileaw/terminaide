@@ -30,7 +30,7 @@ def bigprint(text, font=None):
     print(render(text, font))
 
 
-_default_font = 'standard.flf'
+_default_font = 'ansi-shadow.flf'
 
 
 def render(text, font=None):
@@ -40,7 +40,7 @@ def render(text, font=None):
     if font is None:
         if _default_font not in _builtin_fonts:
             _get_builtins()
-            font = _builtin_fonts[_default_font]
+        font = _builtin_fonts[_default_font]
 
     return font.render(text)
 

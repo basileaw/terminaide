@@ -8,7 +8,6 @@ ansi-shadow font from the bigfont library.
 """
 
 import logging
-from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger("terminaide")
@@ -43,7 +42,7 @@ def termin_ascii(text: str) -> Optional[str]:
         return None
 
     try:
-        from terminaide.vendor.bigfont.font import font_from_file
+        from terminaide.vendor.bigfont.font import render
     except ImportError:
         logger.warning(
             "bigfont vendor package not found"
@@ -51,19 +50,11 @@ def termin_ascii(text: str) -> Optional[str]:
         return None
 
     try:
-        # Get the font file path
-        misc_dir = Path(__file__).parent / "misc"
-        font_file = misc_dir / "ansi-shadow.flf"
-
-        if not font_file.exists():
-            logger.error(f"Font file not found: {font_file}")
+        # Generate ASCII art using default font (ansi-shadow)
+        big_letter_obj = render(text)
+        if big_letter_obj is None:
+            logger.error("bigfont render returned None")
             return None
-
-        # Load the font
-        font = font_from_file(str(font_file))
-
-        # Generate ASCII art
-        big_letter_obj = font.render(text)
         ascii_text = str(big_letter_obj)
 
         logger.debug(f"Generated ASCII art for text: {text}")
