@@ -4,11 +4,31 @@
 This script demonstrates how to use terminaide's built-in games.
 """
 
-from terminaide import terminarcade
+from terminaide import CursesIndex
 
 
 def main():
-    terminarcade("games")
+    # Create the same menu structure as terminarcade
+    menu = [
+        {
+            "label": "Games",
+            "options": [
+                {"path": "snake", "title": "Snake"},
+                {"path": "tetris", "title": "Tetris"},
+                {"path": "pong", "title": "Pong"},
+            ]
+        }
+    ]
+    
+    # Create and show the menu
+    index = CursesIndex(
+        menu=menu,
+        title="TERMIN-ARCADE",
+        epititle="Press Backspace or Delete in games to return to this menu"
+    )
+    
+    result = index.show()
+    print(f"User selected: {result}")
 
 
 if __name__ == "__main__":
