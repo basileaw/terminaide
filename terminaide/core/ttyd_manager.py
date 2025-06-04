@@ -19,7 +19,7 @@ from fastapi import FastAPI
 from .exceptions import TTYDStartupError, TTYDProcessError, PortAllocationError
 from .ttyd_installer import setup_ttyd
 from .data_models import TTYDConfig, ScriptConfig, IndexPageConfig
-from .logging import route_color_manager
+from .log_config import route_color_manager
 
 logger = logging.getLogger("terminaide")
 

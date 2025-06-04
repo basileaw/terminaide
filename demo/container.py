@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """Docker container functionality for terminaide demo."""
 
@@ -70,14 +69,15 @@ def generate_requirements_txt(pyproject_path: Path, temp_dir: Union[str, Path]) 
 
 def build_and_run_container(port: int = 8000) -> None:
     """Build and run the application in a Docker container.
-    
+
     Args:
         port: Host port to expose (container always uses 8000 internally)
     """
     # Set up logging with terminaide formatter
-    from terminaide.core.logging import setup_package_logging
+    from terminaide.core.log_config import setup_package_logging
+
     setup_package_logging(configure=True)
-    
+
     # Check if docker is installed
     try:
         subprocess.run(["docker", "--version"], check=True, capture_output=True)
