@@ -20,7 +20,7 @@ from typing import Optional, Dict, Any, Union, List, Callable
 
 from .core.app_config import TerminaideConfig, build_config
 from .core.app_factory import ServeWithConfig, AppFactory
-from .core.index_page import IndexPage
+from .core.index_html import HtmlIndex
 
 logger = logging.getLogger("terminaide")
 
@@ -151,7 +151,7 @@ def serve_script(
 def serve_apps(
     app: FastAPI,
     terminal_routes: Dict[
-        str, Union[str, Path, List, Dict[str, Any], Callable, IndexPage]
+        str, Union[str, Path, List, Dict[str, Any], Callable, HtmlIndex]
     ],
     config: Optional[TerminaideConfig] = None,
     desktop: bool = False,
@@ -170,7 +170,7 @@ def serve_apps(
         terminal_routes: Dictionary mapping paths to scripts, functions, or index pages. Each value can be:
             - A string or Path object pointing to a script file
             - A Python callable function object
-            - An IndexPage instance for creating navigable menu pages
+            - An HtmlIndex instance for creating navigable menu pages
             - A list [script_path, arg1, arg2, ...] for scripts with arguments
             - A dictionary with advanced configuration:
                 - For scripts: {"client_script": "path.py", "args": [...], ...}
@@ -201,7 +201,7 @@ def serve_apps(
     Examples:
         ```python
         from fastapi import FastAPI
-        from terminaide import serve_apps, IndexPage
+        from terminaide import serve_apps, HtmlIndex
 
         app = FastAPI()
 
@@ -220,7 +220,7 @@ def serve_apps(
             app,
             terminal_routes={
                 # Simple index page at root (single menu, no cycling)
-                "/": IndexPage(
+                "/": HtmlIndex(
                     title="CLI TOOLS",
                     subtitle="Select a tool to get started.",
                     menu=[
@@ -253,7 +253,7 @@ def serve_apps(
                 },
 
                 # Index page with multiple menus and cycling
-                "/tools": IndexPage(
+                "/tools": HtmlIndex(
                     title="TOOLS",
                     menu={
                         "cycle_key": "shift+g",

@@ -23,7 +23,7 @@ import logging
 from pathlib import Path
 from .termin_api import serve_function, serve_script, serve_apps, meta_serve
 from .core.data_models import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
-from .core.index_page import IndexPage
+from .core.index_html import HtmlIndex
 from .core.utils import termin_ascii
 
 from .terminarcade import play as terminarcade
@@ -43,7 +43,7 @@ __all__ = [
     "serve_apps",
     "meta_serve",
     # Index page support
-    "IndexPage",
+    "HtmlIndex",
     # ASCII banner generation
     "termin_ascii",
     # Configuration objects

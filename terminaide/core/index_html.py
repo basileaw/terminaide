@@ -1,9 +1,9 @@
-# terminaide/core/index_page.py
+# terminaide/core/index_html.py
 
 """
 Index page functionality for Terminaide.
 
-This module provides the IndexPage class which allows developers to create
+This module provides the HtmlIndex class which allows developers to create
 navigable menu pages with ASCII art titles, keyboard navigation, and optional
 grouping for organizing terminal routes.
 """
@@ -62,11 +62,11 @@ class MenuGroup:
         }
 
 
-class IndexPage:
+class HtmlIndex:
     """
     Configuration for an index/menu page.
 
-    IndexPage allows creating navigable menu pages with ASCII art titles,
+    HtmlIndex allows creating navigable menu pages with ASCII art titles,
     keyboard navigation, and optional grouping. It can be used as a route
     type alongside scripts and functions in serve_apps().
     """
@@ -86,7 +86,7 @@ class IndexPage:
         preview_image: Optional[Union[str, Path]] = None,
     ):
         """
-        Initialize an IndexPage.
+        Initialize an HtmlIndex.
 
         Args:
             menu: Either:
@@ -233,6 +233,6 @@ class IndexPage:
         item_count = len(self.get_all_menu_items())
         group_count = len(self.groups)
         return (
-            f"IndexPage(title='{self.title}', "
+            f"HtmlIndex(title='{self.title}', "
             f"items={item_count}, groups={group_count})"
         )

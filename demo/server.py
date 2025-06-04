@@ -16,7 +16,7 @@ import argparse
 from fastapi import FastAPI
 from terminaide import logger
 from terminaide import serve_function, serve_script, serve_apps
-from terminaide import IndexPage
+from terminaide import HtmlIndex
 from terminaide.terminarcade import (
     play_snake,
     play_tetris,
@@ -27,9 +27,9 @@ from terminaide.terminarcade import (
 from demo.container import build_and_run_container
 
 
-def create_index_page() -> IndexPage:
-    """Create IndexPage configuration for the terminal arcade."""
-    return IndexPage(
+def create_index_page() -> HtmlIndex:
+    """Create HtmlIndex configuration for the terminal arcade."""
+    return HtmlIndex(
         title="TERMIN-ARCADE",
         subtitle="This demo shows HTML pages and terminal applications combined in one server, running a separate terminal for each game.",
         menu=[
