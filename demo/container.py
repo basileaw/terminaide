@@ -100,11 +100,11 @@ def build_and_run_container(port: int = 8000) -> None:
                     src_dir,
                     dst_dir,
                     ignore=lambda src, _: (
-                        ["ttyd"] if os.path.basename(src) == "ttyd_bin" else []
+                        ["ttyd"] if os.path.basename(src) == "bin" else []
                     ),
                 )
                 if directory == "terminaide":
-                    (dst_dir / "core" / "ttyd_bin").mkdir(exist_ok=True)
+                    (dst_dir / "bin").mkdir(exist_ok=True)
 
         # Generate requirements
         generate_requirements_txt(project_root / "pyproject.toml", temp_path)

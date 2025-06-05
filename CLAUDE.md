@@ -72,7 +72,7 @@ When modifying the codebase:
 1. The demo application (`demo/server.py`) is the primary test harness
 2. Use `reload=True` for development to enable hot reloading
 3. Desktop mode requires pywebview and is not available in Apps mode
-4. TTYD binaries are stored in `terminaide/core/bin/`
+4. TTYD binaries are stored in `terminaide/bin/`
 
 ### Platform Support
 

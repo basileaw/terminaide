@@ -10,6 +10,5 @@ dist/
 test.py
 .env
 
-terminaide/core/ttyd_bin/*
-!terminaide/core/ttyd_bin/.gitkeep
-.aider*
+terminaide/bin/*
+!terminaide/bin/.gitkeep
