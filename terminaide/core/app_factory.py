@@ -12,14 +12,16 @@ import sys
 import time
 import signal
 import inspect
+import json
 import logging
 import uvicorn
 import tempfile
 import subprocess
 import webview
+import ast
 from pathlib import Path
 from fastapi import FastAPI
-from typing import Callable, Optional
+from typing import Callable, Optional, Dict, Any, Union
 from contextlib import asynccontextmanager
 
 from .app_config import (
@@ -30,6 +32,233 @@ from .app_config import (
 )
 
 logger = logging.getLogger("terminaide")
+
+
+def set_reload_env_vars(config: TerminaideConfig, mode: str, extra_vars: Optional[Dict[str, Any]] = None) -> None:
+    """Set environment variables for reload mode.
+    
+    Args:
+        config: The Terminaide configuration
+        mode: The serving mode (function, script, meta)
+        extra_vars: Additional environment variables to set
+    """
+    os.environ["TERMINAIDE_PORT"] = str(config.port)
+    os.environ["TERMINAIDE_TITLE"] = config.title
+    os.environ["TERMINAIDE_DEBUG"] = "1" if config.debug else "0"
+    os.environ["TERMINAIDE_BANNER"] = json.dumps(config.banner)
+    os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
+    os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
+    os.environ["TERMINAIDE_MODE"] = mode
+    
+    if hasattr(config, "preview_image") and config.preview_image:
+        os.environ["TERMINAIDE_PREVIEW_IMAGE"] = str(config.preview_image)
+    
+    if extra_vars:
+        for key, value in extra_vars.items():
+            os.environ[key] = str(value)
+
+
+def parse_reload_env_vars() -> Dict[str, Any]:
+    """Parse environment variables set for reload mode.
+    
+    Returns:
+        Dictionary with parsed configuration values
+    """
+    config_vars = {
+        "port": int(os.environ["TERMINAIDE_PORT"]),
+        "title": os.environ["TERMINAIDE_TITLE"],
+        "debug": os.environ.get("TERMINAIDE_DEBUG") == "1",
+        "mode": os.environ.get("TERMINAIDE_MODE", "script"),
+    }
+    
+    # Parse banner (JSON to handle both bool and string)
+    banner_str = os.environ.get("TERMINAIDE_BANNER", "true")
+    try:
+        config_vars["banner"] = json.loads(banner_str)
+    except:
+        config_vars["banner"] = True
+    
+    # Parse theme
+    theme_str = os.environ.get("TERMINAIDE_THEME") or "{}"
+    try:
+        config_vars["theme"] = ast.literal_eval(theme_str)
+    except:
+        config_vars["theme"] = {}
+    
+    # Parse forward_env
+    forward_env_str = os.environ.get("TERMINAIDE_FORWARD_ENV", "True")
+    try:
+        config_vars["forward_env"] = ast.literal_eval(forward_env_str)
+    except:
+        config_vars["forward_env"] = True
+    
+    # Parse preview image
+    preview_image_str = os.environ.get("TERMINAIDE_PREVIEW_IMAGE")
+    if preview_image_str:
+        config_vars["preview_image"] = Path(preview_image_str)
+    
+    return config_vars
+
+
+def generate_bootstrap_code(source_dir: Union[str, Path], app_dir: Optional[Union[str, Path]] = None) -> str:
+    """Generate bootstrap code for wrapper scripts.
+    
+    Args:
+        source_dir: The source directory to add to sys.path
+        app_dir: Optional application directory to add to sys.path
+    
+    Returns:
+        Bootstrap code as a string
+    """
+    bootstrap_lines = [
+        "import sys, os",
+    ]
+    
+    if app_dir:
+        bootstrap_lines.extend([
+            "from pathlib import Path",
+            f'app_dir = r"{app_dir}"',
+            "if app_dir not in sys.path:",
+            "    sys.path.insert(0, app_dir)",
+        ])
+    
+    bootstrap_lines.extend([
+        f'sys.path.insert(0, r"{source_dir}")',
+        "sys.path.insert(0, os.getcwd())",
+    ])
+    
+    return "\n".join(bootstrap_lines) + "\n\n"
+
+
+def create_app_with_lifespan(title: str, config: TerminaideConfig, ttyd_config: Any) -> FastAPI:
+    """Create a FastAPI app with common setup and lifespan management.
+    
+    Args:
+        title: The application title
+        config: The Terminaide configuration
+        ttyd_config: The TTYd configuration
+    
+    Returns:
+        Configured FastAPI application
+    """
+    app = FastAPI(title=f"Terminaide - {title}")
+    
+    # Add proxy middleware if needed
+    ServeWithConfig.add_proxy_middleware_if_needed(app, config)
+    
+    # Setup lifespan
+    original_lifespan = app.router.lifespan_context
+    
+    @asynccontextmanager
+    async def merged_lifespan(_app: FastAPI):
+        if original_lifespan is not None:
+            async with original_lifespan(_app):
+                async with terminaide_lifespan(_app, ttyd_config):
+                    yield
+        else:
+            async with terminaide_lifespan(_app, ttyd_config):
+                yield
+    
+    app.router.lifespan_context = merged_lifespan
+    
+    return app
+
+
+def copy_config_attributes(source_config: TerminaideConfig, **overrides) -> TerminaideConfig:
+    """Create a new config copying attributes from source with optional overrides.
+    
+    Args:
+        source_config: The source configuration to copy from
+        **overrides: Attributes to override in the new config
+    
+    Returns:
+        New TerminaideConfig instance
+    """
+    config_attrs = {
+        "port": source_config.port,
+        "title": source_config.title,
+        "theme": source_config.theme,
+        "debug": source_config.debug,
+        "banner": source_config.banner,
+        "forward_env": source_config.forward_env,
+        "ttyd_options": source_config.ttyd_options,
+        "template_override": source_config.template_override,
+        "trust_proxy_headers": source_config.trust_proxy_headers,
+        "mount_path": source_config.mount_path,
+        "ttyd_port": source_config.ttyd_port,
+    }
+    
+    # Apply overrides
+    config_attrs.update(overrides)
+    
+    # Create new config
+    new_config = type(source_config)(**config_attrs)
+    
+    # Copy optional attributes if they exist
+    if hasattr(source_config, "preview_image"):
+        new_config.preview_image = source_config.preview_image
+    
+    if hasattr(source_config, "desktop"):
+        new_config.desktop = source_config.desktop
+        new_config.desktop_width = source_config.desktop_width
+        new_config.desktop_height = source_config.desktop_height
+    
+    return new_config
+
+
+def generate_desktop_server_command(config: TerminaideConfig) -> str:
+    """Generate the server command for desktop mode based on the config mode.
+    
+    Args:
+        config: The Terminaide configuration
+    
+    Returns:
+        Python command string to start the server
+    """
+    base_params = (
+        f"port={config.port}, title='{config.title}', "
+        f"debug={config.debug}, theme={config.theme}, "
+        f"banner={repr(config.banner)}, "
+        f"forward_env={repr(config.forward_env)}"
+    )
+    
+    if config._mode == "function":
+        # For functions, we need to create a wrapper script since we can't serialize the function
+        func = config._target
+        ephemeral_path = generate_function_wrapper(func)
+        return (
+            f"from terminaide import serve_script; "
+            f"serve_script(r'{ephemeral_path}', {base_params})"
+        )
+    
+    elif config._mode == "script":
+        script_path = config._target
+        return (
+            f"from terminaide import serve_script; "
+            f"serve_script(r'{script_path}', {base_params})"
+        )
+    
+    elif config._mode == "meta":
+        target = config._target
+        app_dir = getattr(config, "_app_dir", None)
+        
+        if callable(target):
+            # For meta functions, create wrapper
+            ephemeral_path = generate_meta_server_wrapper(target, app_dir)
+        else:
+            # For meta scripts
+            script_path = Path(target)
+            if not script_path.is_absolute():
+                script_path = Path.cwd() / script_path
+            ephemeral_path = generate_meta_script_wrapper(script_path, app_dir)
+        
+        return (
+            f"from terminaide import serve_script; "
+            f"serve_script(r'{ephemeral_path}', {base_params})"
+        )
+    
+    else:
+        raise ValueError(f"Unsupported mode for desktop serving: {config._mode}")
 
 
 def inline_source_code_wrapper(func: Callable) -> Optional[str]:
@@ -54,8 +283,6 @@ def generate_function_wrapper(func: Callable) -> Path:
     Generate an ephemeral script for the given function. If it's in a real module,
     we do the normal import approach. If it's in __main__ or __mp_main__, inline fallback.
     """
-    import inspect
-
     func_name = func.__name__
     module_name = getattr(func, "__module__", None)
 
@@ -70,12 +297,8 @@ def generate_function_wrapper(func: Callable) -> Path:
     except Exception:
         source_dir = os.getcwd()  # fallback to current dir if all else fails
 
-    # Inject original source dir and cwd into sys.path
-    bootstrap = (
-        "import sys, os\n"
-        f'sys.path.insert(0, r"{source_dir}")\n'
-        "sys.path.insert(0, os.getcwd())\n\n"
-    )
+    # Generate bootstrap code
+    bootstrap = generate_bootstrap_code(source_dir)
 
     # If it's a normal module (not main or mp_main)
     if module_name and module_name not in ("__main__", "__mp_main__"):
@@ -140,7 +363,7 @@ def generate_meta_script_wrapper(
     if isinstance(app_dir, str):
         app_dir = Path(app_dir)
 
-    # Generate the path injection code
+    # Generate the meta-specific bootstrap
     bootstrap = (
         "import sys, os\n"
         "from pathlib import Path\n"
@@ -225,7 +448,7 @@ def generate_meta_server_wrapper(
     if isinstance(app_dir, str):
         app_dir = Path(app_dir)
 
-    # Generate the path injection code - add both current working directory and app directory
+    # Generate the meta-specific bootstrap
     bootstrap = (
         "import sys, os\n"
         "from pathlib import Path\n"
@@ -407,67 +630,8 @@ class ServeWithConfig:
         """Serve the application in a desktop window using pywebview."""
         logger.info(f"Starting desktop application: {config.title}")
 
-        # Create subprocess command to start the terminaide server
-        server_args = [
-            sys.executable,
-            "-c",
-            f"from terminaide import {config._mode}_serve; ",
-        ]
-
         # Build the appropriate server command based on mode
-        if config._mode == "function":
-            # For functions, we need to create a wrapper script since we can't serialize the function
-            func = config._target
-            ephemeral_path = generate_function_wrapper(func)
-
-            server_command = (
-                f"from terminaide import serve_script; "
-                f"serve_script(r'{ephemeral_path}', "
-                f"port={config.port}, title='{config.title}', "
-                f"debug={config.debug}, theme={config.theme}, "
-                f"banner={repr(config.banner)}, "
-                f"forward_env={repr(config.forward_env)})"
-            )
-        elif config._mode == "script":
-            script_path = config._target
-            server_command = (
-                f"from terminaide import serve_script; "
-                f"serve_script(r'{script_path}', "
-                f"port={config.port}, title='{config.title}', "
-                f"debug={config.debug}, theme={config.theme}, "
-                f"banner={repr(config.banner)}, "
-                f"forward_env={repr(config.forward_env)})"
-            )
-        elif config._mode == "meta":
-            target = config._target
-            app_dir = getattr(config, "_app_dir", None)
-
-            if callable(target):
-                # For meta functions, create wrapper
-                ephemeral_path = generate_meta_server_wrapper(target, app_dir)
-                server_command = (
-                    f"from terminaide import serve_script; "
-                    f"serve_script(r'{ephemeral_path}', "
-                    f"port={config.port}, title='{config.title}', "
-                    f"debug={config.debug}, theme={config.theme}, "
-                    f"banner={repr(config.banner)}, "
-                    f"forward_env={repr(config.forward_env)})"
-                )
-            else:
-                # For meta scripts
-                script_path = Path(target)
-                if not script_path.is_absolute():
-                    script_path = Path.cwd() / script_path
-                ephemeral_path = generate_meta_script_wrapper(script_path, app_dir)
-                server_command = (
-                    f"from terminaide import serve_script; "
-                    f"serve_script(r'{ephemeral_path}', "
-                    f"port={config.port}, title='{config.title}', "
-                    f"debug={config.debug}, theme={config.theme}, "
-                    f"banner={repr(config.banner)}, "
-                    f"forward_env={repr(config.forward_env)})"
-                )
-        elif config._mode == "apps":
+        if config._mode == "apps":
             logger.error("Desktop mode for serve_apps is not yet implemented")
             print(
                 "\033[91mError: Desktop mode for serve_apps is not yet implemented.\033[0m"
@@ -476,12 +640,19 @@ class ServeWithConfig:
                 "Desktop mode currently supports serve_function, serve_script, and meta_serve only."
             )
             return
-        else:
-            logger.error(f"Unknown mode for desktop serving: {config._mode}")
+        
+        try:
+            server_command = generate_desktop_server_command(config)
+        except ValueError as e:
+            logger.error(str(e))
             return
-
-        # Update server args with the built command
-        server_args[2] = server_command
+        
+        # Create subprocess command to start the terminaide server
+        server_args = [
+            sys.executable,
+            "-c",
+            server_command,
+        ]
 
         # Start the server subprocess
         logger.debug(f"Starting server subprocess for desktop mode")
@@ -578,21 +749,11 @@ class ServeWithConfig:
         if config.reload:
             # Reload mode - set environment variables and delegate to uvicorn
             func = config._target
-            os.environ["TERMINAIDE_FUNC_NAME"] = func.__name__
-            os.environ["TERMINAIDE_FUNC_MOD"] = (
-                func.__module__ if func.__module__ else ""
-            )
-            os.environ["TERMINAIDE_PORT"] = str(config.port)
-            os.environ["TERMINAIDE_TITLE"] = config.title
-            os.environ["TERMINAIDE_DEBUG"] = "1" if config.debug else "0"
-            # For banner, serialize as JSON to handle both bool and string
-            import json
-            os.environ["TERMINAIDE_BANNER"] = json.dumps(config.banner)
-            os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
-            os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
-
-            if hasattr(config, "preview_image") and config.preview_image:
-                os.environ["TERMINAIDE_PREVIEW_IMAGE"] = str(config.preview_image)
+            extra_vars = {
+                "TERMINAIDE_FUNC_NAME": func.__name__,
+                "TERMINAIDE_FUNC_MOD": func.__module__ if func.__module__ else "",
+            }
+            set_reload_env_vars(config, "function", extra_vars)
 
             uvicorn.run(
                 "terminaide.termin_api:function_app_factory",
@@ -607,22 +768,7 @@ class ServeWithConfig:
             func = config._target
             ephemeral_path = generate_function_wrapper(func)
 
-            script_config = type(config)(
-                port=config.port,
-                title=config.title,
-                theme=config.theme,
-                debug=config.debug,
-                banner=config.banner,
-                forward_env=config.forward_env,
-                ttyd_options=config.ttyd_options,
-                template_override=config.template_override,
-                trust_proxy_headers=config.trust_proxy_headers,
-                mount_path=config.mount_path,
-                ttyd_port=config.ttyd_port,
-            )
-            if hasattr(config, "preview_image"):
-                script_config.preview_image = config.preview_image
-
+            script_config = copy_config_attributes(config)
             script_config._target = ephemeral_path
             script_config._mode = "function"
             script_config._original_function_name = func.__name__
@@ -660,27 +806,8 @@ class ServeWithConfig:
             ephemeral_path = generate_meta_script_wrapper(script_path, app_dir)
 
         # Create a new config for the script serving
-        script_config = type(config)(
-            port=config.port,
-            title=config.title,
-            theme=config.theme,
-            debug=config.debug,
-            desktop=config.desktop,
-            desktop_width=config.desktop_width,
-            desktop_height=config.desktop_height,
-            banner=config.banner,
-            forward_env=config.forward_env,
-            ttyd_options=config.ttyd_options,
-            template_override=config.template_override,
-            trust_proxy_headers=config.trust_proxy_headers,
-            mount_path=config.mount_path,
-            ttyd_port=config.ttyd_port,
-        )
-
-        # Copy preview_image if available
-        if hasattr(config, "preview_image"):
-            script_config.preview_image = config.preview_image
-
+        script_config = copy_config_attributes(config)
+        
         # Set the target to the wrapper script
         script_config._target = ephemeral_path
         script_config._mode = "meta"  # Preserve the meta mode
@@ -710,18 +837,8 @@ class ServeWithConfig:
             return
 
         if config.reload:
-            os.environ["TERMINAIDE_SCRIPT_PATH"] = str(script_path)
-            os.environ["TERMINAIDE_PORT"] = str(config.port)
-            os.environ["TERMINAIDE_TITLE"] = config.title
-            os.environ["TERMINAIDE_DEBUG"] = "1" if config.debug else "0"
-            # For banner, serialize as JSON to handle both bool and string
-            import json
-            os.environ["TERMINAIDE_BANNER"] = json.dumps(config.banner)
-            os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
-            os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
-            os.environ["TERMINAIDE_MODE"] = config._mode
-            if hasattr(config, "preview_image") and config.preview_image:
-                os.environ["TERMINAIDE_PREVIEW_IMAGE"] = str(config.preview_image)
+            extra_vars = {"TERMINAIDE_SCRIPT_PATH": str(script_path)}
+            set_reload_env_vars(config, config._mode, extra_vars)
 
             uvicorn.run(
                 "terminaide.termin_api:script_app_factory",
@@ -733,25 +850,8 @@ class ServeWithConfig:
             )
         else:
             # Direct mode
-            app = FastAPI(title=f"Terminaide - {config.title}")
-            # <-- ADD PROXY MIDDLEWARE FOR SOLO MODES -->
-            cls.add_proxy_middleware_if_needed(app, config)
-
             ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)
-
-            original_lifespan = app.router.lifespan_context
-
-            @asynccontextmanager
-            async def terminaide_merged_lifespan(_app: FastAPI):
-                if original_lifespan is not None:
-                    async with original_lifespan(_app):
-                        async with terminaide_lifespan(_app, ttyd_config):
-                            yield
-                else:
-                    async with terminaide_lifespan(_app, ttyd_config):
-                        yield
-
-            app.router.lifespan_context = terminaide_merged_lifespan
+            app = create_app_with_lifespan(config.title, config, ttyd_config)
 
             def handle_exit(sig, frame):
                 print("\033[93mShutting down...\033[0m")
@@ -844,6 +944,52 @@ class AppFactory:
     """Factory class for creating FastAPI applications based on environment variables."""
 
     @classmethod
+    def _create_app_from_env(cls, mode: str, ephemeral_path_func: Callable) -> FastAPI:
+        """Common app factory logic for both function and script modes.
+        
+        Args:
+            mode: The serving mode ("function" or "script")
+            ephemeral_path_func: Function to generate the ephemeral path
+        
+        Returns:
+            Configured FastAPI application
+        """
+        # Parse environment variables
+        config_vars = parse_reload_env_vars()
+        
+        # Generate ephemeral path using the provided function
+        ephemeral_path = ephemeral_path_func()
+        
+        # Create config
+        config = TerminaideConfig(
+            port=config_vars["port"],
+            title=config_vars["title"],
+            theme=config_vars["theme"],
+            debug=config_vars["debug"],
+            banner=config_vars["banner"],
+            forward_env=config_vars["forward_env"],
+        )
+        
+        # Set preview image if available
+        if "preview_image" in config_vars:
+            preview_path = config_vars["preview_image"]
+            if preview_path.exists():
+                config.preview_image = preview_path
+            else:
+                logger.warning(f"Preview image not found: {preview_path}")
+        
+        config._target = ephemeral_path
+        config._mode = mode
+        
+        # Display banner based on config.banner value
+        if config.banner:
+            ServeWithConfig.display_banner(config._mode, config.banner)
+        
+        # Create app with common setup
+        ttyd_config = convert_terminaide_config_to_ttyd_config(config, ephemeral_path)
+        return create_app_with_lifespan(config.title, config, ttyd_config)
+
+    @classmethod
     def function_app_factory(cls) -> FastAPI:
         """
         Called by uvicorn with factory=True in function mode when reload=True.
@@ -852,105 +998,34 @@ class AppFactory:
         """
         func_name = os.environ.get("TERMINAIDE_FUNC_NAME", "")
         func_mod = os.environ.get("TERMINAIDE_FUNC_MOD", "")
-        port_str = os.environ["TERMINAIDE_PORT"]
-        title = os.environ["TERMINAIDE_TITLE"]
-        debug = os.environ.get("TERMINAIDE_DEBUG") == "1"
-        # Deserialize banner from JSON to handle both bool and string
-        import json
-        banner_str = os.environ.get("TERMINAIDE_BANNER", "true")
-        try:
-            banner = json.loads(banner_str)
-        except:
-            banner = True
-        theme_str = os.environ.get("TERMINAIDE_THEME") or "{}"
-        forward_env_str = os.environ.get("TERMINAIDE_FORWARD_ENV", "True")
-        preview_image_str = os.environ.get("TERMINAIDE_PREVIEW_IMAGE")
+        
+        def ephemeral_path_generator():
+            func = None
+            if func_mod and func_mod not in ("__main__", "__mp_main__"):
+                try:
+                    mod = __import__(func_mod, fromlist=[func_name])
+                    func = getattr(mod, func_name, None)
+                except:
+                    logger.warning(f"Failed to import {func_name} from {func_mod}")
 
-        func = None
-        if func_mod and func_mod not in ("__main__", "__mp_main__"):
-            try:
-                mod = __import__(func_mod, fromlist=[func_name])
-                func = getattr(mod, func_name, None)
-            except:
-                logger.warning(f"Failed to import {func_name} from {func_mod}")
+            if func is None and func_mod in ("__main__", "__mp_main__"):
+                candidate_mod = sys.modules.get(func_mod)
+                if candidate_mod and hasattr(candidate_mod, func_name):
+                    func = getattr(candidate_mod, func_name)
 
-        if func is None and func_mod in ("__main__", "__mp_main__"):
-            candidate_mod = sys.modules.get(func_mod)
-            if candidate_mod and hasattr(candidate_mod, func_name):
-                func = getattr(candidate_mod, func_name)
-
-        ephemeral_path = None
-        if func is not None and callable(func):
-            ephemeral_path = generate_function_wrapper(func)
-        else:
-            temp_dir = Path(tempfile.gettempdir()) / "terminaide_ephemeral"
-            temp_dir.mkdir(exist_ok=True)
-            ephemeral_path = temp_dir / f"{func_name}_cannot_reload.py"
-            ephemeral_path.write_text(
-                f'print("ERROR: cannot reload function {func_name} from module={func_mod}")\n',
-                encoding="utf-8",
-            )
-
-        import ast
-
-        theme = {}
-        try:
-            theme = ast.literal_eval(theme_str)
-        except:
-            pass
-
-        forward_env = True
-        try:
-            forward_env = ast.literal_eval(forward_env_str)
-        except:
-            pass
-
-        app = FastAPI(title=f"Terminaide - {title}")
-
-        # Build config so we can add proxy middleware, etc.
-        config = TerminaideConfig(
-            port=int(port_str),
-            title=title,
-            theme=theme,
-            debug=debug,
-            banner=banner,
-            forward_env=forward_env,
-        )
-
-        if preview_image_str:
-            preview_path = Path(preview_image_str)
-            if preview_path.exists():
-                config.preview_image = preview_path
+            if func is not None and callable(func):
+                return generate_function_wrapper(func)
             else:
-                logger.warning(f"Preview image not found: {preview_image_str}")
-
-        config._target = ephemeral_path
-        config._mode = "function"
-
-        # Display banner based on config.banner value
-        if config.banner:
-            ServeWithConfig.display_banner(config._mode, config.banner)
-
-        # <-- ADD PROXY MIDDLEWARE FOR RELOAD MODE -->
-        ServeWithConfig.add_proxy_middleware_if_needed(app, config)
-
-        ttyd_config = convert_terminaide_config_to_ttyd_config(config, ephemeral_path)
-
-        original_lifespan = app.router.lifespan_context
-
-        @asynccontextmanager
-        async def merged_lifespan(_app: FastAPI):
-            if original_lifespan is not None:
-                async with original_lifespan(_app):
-                    async with terminaide_lifespan(_app, ttyd_config):
-                        yield
-            else:
-                async with terminaide_lifespan(_app, ttyd_config):
-                    yield
-
-        app.router.lifespan_context = merged_lifespan
-
-        return app
+                temp_dir = Path(tempfile.gettempdir()) / "terminaide_ephemeral"
+                temp_dir.mkdir(exist_ok=True)
+                ephemeral_path = temp_dir / f"{func_name}_cannot_reload.py"
+                ephemeral_path.write_text(
+                    f'print("ERROR: cannot reload function {func_name} from module={func_mod}")\n',
+                    encoding="utf-8",
+                )
+                return ephemeral_path
+        
+        return cls._create_app_from_env("function", ephemeral_path_generator)
 
     @classmethod
     def script_app_factory(cls) -> FastAPI:
@@ -959,78 +1034,9 @@ class AppFactory:
         Rebuilds the FastAPI app from environment variables.
         """
         script_path_str = os.environ["TERMINAIDE_SCRIPT_PATH"]
-        port_str = os.environ["TERMINAIDE_PORT"]
-        title = os.environ["TERMINAIDE_TITLE"]
-        debug = os.environ.get("TERMINAIDE_DEBUG") == "1"
-        # Deserialize banner from JSON to handle both bool and string
-        import json
-        banner_str = os.environ.get("TERMINAIDE_BANNER", "true")
-        try:
-            banner = json.loads(banner_str)
-        except:
-            banner = True
-        theme_str = os.environ.get("TERMINAIDE_THEME") or "{}"
-        forward_env_str = os.environ.get("TERMINAIDE_FORWARD_ENV", "True")
         mode = os.environ.get("TERMINAIDE_MODE", "script")
-        preview_image_str = os.environ.get("TERMINAIDE_PREVIEW_IMAGE")
-
-        import ast
-
-        theme = {}
-        try:
-            theme = ast.literal_eval(theme_str)
-        except:
-            pass
-
-        forward_env = True
-        try:
-            forward_env = ast.literal_eval(forward_env_str)
-        except:
-            pass
-
-        script_path = Path(script_path_str)
-        app = FastAPI(title=f"Terminaide - {title}")
-
-        config = TerminaideConfig(
-            port=int(port_str),
-            title=title,
-            theme=theme,
-            debug=debug,
-            banner=banner,
-            forward_env=forward_env,
-        )
-
-        if preview_image_str:
-            preview_path = Path(preview_image_str)
-            if preview_path.exists():
-                config.preview_image = preview_path
-            else:
-                logger.warning(f"Preview image not found: {preview_image_str}")
-
-        config._target = script_path
-        config._mode = mode
-
-        # Display banner based on config.banner value
-        if config.banner:
-            ServeWithConfig.display_banner(config._mode, config.banner)
-
-        # <-- ADD PROXY MIDDLEWARE FOR RELOAD MODE -->
-        ServeWithConfig.add_proxy_middleware_if_needed(app, config)
-
-        ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)
-
-        original_lifespan = app.router.lifespan_context
-
-        @asynccontextmanager
-        async def merged_lifespan(_app: FastAPI):
-            if original_lifespan is not None:
-                async with original_lifespan(_app):
-                    async with terminaide_lifespan(_app, ttyd_config):
-                        yield
-            else:
-                async with terminaide_lifespan(_app, ttyd_config):
-                    yield
-
-        app.router.lifespan_context = merged_lifespan
-
-        return app
+        
+        def ephemeral_path_generator():
+            return Path(script_path_str)
+        
+        return cls._create_app_from_env(mode, ephemeral_path_generator)
