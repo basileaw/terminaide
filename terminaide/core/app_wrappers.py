@@ -87,17 +87,33 @@ def generate_function_wrapper(func: Callable) -> Path:
     # Generate bootstrap code
     bootstrap = generate_bootstrap_code(source_dir)
 
-    # If it's a normal module (not main or mp_main)
+    # If it's a normal module (not main or mp_main), we need to check if importing it 
+    # would cause side effects (like serve_apps being called again)
     if module_name and module_name not in ("__main__", "__mp_main__"):
-        wrapper_code = (
-            f"# Ephemeral script for function {func_name} from module {module_name}\n"
-            f"{bootstrap}"
-            f"from {module_name} import {func_name}\n"
-            f'if __name__ == "__main__":\n'
-            f"    {func_name}()"
-        )
-        script_path.write_text(wrapper_code, encoding="utf-8")
-        return script_path
+        # For now, try to get the source and inline it to avoid import side effects
+        try:
+            source_code = inspect.getsource(func)
+            wrapper_code = (
+                f"# Ephemeral script for function {func_name} from module {module_name}\n"
+                f"# Using inline approach to avoid re-importing module with side effects\n"
+                f"{bootstrap}"
+                f"{source_code}\n"
+                f'if __name__ == "__main__":\n'
+                f"    {func_name}()"
+            )
+            script_path.write_text(wrapper_code, encoding="utf-8")
+            return script_path
+        except Exception:
+            # If we can't get source, fall back to import (but this may cause issues)
+            wrapper_code = (
+                f"# Ephemeral script for function {func_name} from module {module_name}\n"
+                f"{bootstrap}"
+                f"from {module_name} import {func_name}\n"
+                f'if __name__ == "__main__":\n'
+                f"    {func_name}()"
+            )
+            script_path.write_text(wrapper_code, encoding="utf-8")
+            return script_path
 
     # Inline fallback (if __main__ or dynamically defined)
     try:

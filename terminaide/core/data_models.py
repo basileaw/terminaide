@@ -556,9 +556,38 @@ def create_route_configs(
             route_configs.append(ScriptConfig(**cfg_data))
             continue
 
-        # Handle script path in dictionary
+        # Handle script path or function in dictionary
         if isinstance(route_spec, dict) and "client_script" in route_spec:
             script_value = route_spec["client_script"]
+            
+            # Check if client_script is actually a function
+            if callable(script_value):
+                func = script_value
+                func_name = getattr(func, "__name__", "function")
+                
+                cfg_data = {
+                    "route_path": route_path,
+                    "function_object": func,
+                    "client_script": None,
+                    "args": [],
+                }
+                
+                # Use provided title or auto-generate
+                if "title" in route_spec:
+                    cfg_data["title"] = route_spec["title"]
+                else:
+                    cfg_data["title"] = f"{func_name}()"
+                
+                if "port" in route_spec:
+                    cfg_data["port"] = route_spec["port"]
+                
+                if "preview_image" in route_spec:
+                    cfg_data["preview_image"] = route_spec["preview_image"]
+                
+                route_configs.append(ScriptConfig(**cfg_data))
+                continue
+            
+            # Handle script path (existing logic)
             if isinstance(script_value, list) and len(script_value) > 0:
                 script_path = script_value[0]
                 args = script_value[1:]
