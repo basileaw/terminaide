@@ -12,3 +12,6 @@ test.py
 
 terminaide/bin/*
 !terminaide/bin/.gitkeep
+
+CLAUDE.md
+.claude/

@@ -147,12 +147,12 @@ def get_binary_dir() -> Path:
     Get the directory where the ttyd binary should be installed.
 
     Returns:
-        Path to the bin directory within the terminaide package
+        Path to the vendor directory within the terminaide package
     """
     package_dir = Path(__file__).parent.parent  # Go up from core to terminaide
-    bin_dir = package_dir / "bin"
-    bin_dir.mkdir(parents=True, exist_ok=True)
-    return bin_dir
+    vendor_dir = package_dir / "vendor"
+    vendor_dir.mkdir(parents=True, exist_ok=True)
+    return vendor_dir
 
 
 def download_binary(url: str, target_path: Path) -> None:
