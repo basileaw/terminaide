@@ -347,11 +347,11 @@ def configure_app(app: FastAPI, config: TTYDConfig):
     mode = "apps-server" if config.is_multi_script else "solo-server"
     entry_mode = getattr(config, "_mode", "script")
 
-    # Simplified configuration logging
+    # Debug-level configuration logging to avoid duplication
     if entry_mode == "meta":
-        logger.info(f"Configuring meta-server with {config.mount_path} mounting")
+        logger.debug(f"Configuring meta-server with {config.mount_path} mounting")
     else:
-        logger.info(
+        logger.debug(
             f"Configuring {mode} with {config.mount_path} mounting ({entry_mode} API)"
         )
 
@@ -389,14 +389,12 @@ async def terminaide_lifespan(app: FastAPI, config: TTYDConfig):
     mode = "apps-server" if config.is_multi_script else "solo-server"
     entry_mode = getattr(config, "_mode", "script")
 
-    # Update startup log message to include meta mode
-    if entry_mode == "meta":
-        logger.info(f"Starting ttyd service in meta-server mode")
-    else:
-        logger.info(
-            f"Starting ttyd service (mounting: "
-            f"{'root' if config.is_root_mounted else 'non-root'}, mode: {mode}, API: {entry_mode})"
-        )
+    # Consolidated startup log message
+    mode_desc = "meta-server" if entry_mode == "meta" else f"{mode} ({entry_mode} API)"
+    logger.info(
+        f"Starting ttyd service in {mode_desc} mode "
+        f"(mounting: {'root' if config.is_root_mounted else 'non-root'})"
+    )
 
     ttyd_manager.start()
     try:

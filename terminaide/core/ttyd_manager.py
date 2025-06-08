@@ -231,7 +231,7 @@ class TTYDManager:
             else f"({script_count} script)"
         )
 
-        logger.info(f"Starting {script_count} ttyd processes {type_info}")
+        logger.debug(f"Starting {script_count} ttyd processes {type_info}")
 
         success_count = 0
         for script_config in self.terminal_configs:
@@ -297,7 +297,7 @@ class TTYDManager:
                     main_line, script_line = route_color_manager.format_route_info(
                         route_path, title, script_config, port=port, pid=process.pid
                     )
-                    logger.info(f"Started ttyd: {main_line}")
+                    logger.info(main_line)
                     logger.info(script_line)
                     return
 
@@ -323,12 +323,12 @@ class TTYDManager:
             logger.debug("No ttyd processes to stop")
             return
 
-        logger.info(f"Stopping {process_count} ttyd processes")
+        logger.debug(f"Stopping {process_count} ttyd processes")
 
         for route_path in list(self.processes.keys()):
             self.stop_process(route_path, log_individual=False)
 
-        logger.info("All ttyd processes stopped")
+        logger.debug("All ttyd processes stopped")
 
     def stop_process(self, route_path: str, log_individual: bool = True) -> None:
         """

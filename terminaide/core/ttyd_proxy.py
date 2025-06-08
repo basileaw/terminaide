@@ -40,9 +40,9 @@ class ProxyManager:
             cfg for cfg in config.route_configs if isinstance(cfg, ScriptConfig)
         ]
 
-        # Simplified logging - just count and mode info
+        # Debug-level logging for proxy configuration
         entry_mode = getattr(self.config, "_mode", "script")
-        logger.info(
+        logger.debug(
             f"Proxy configured for {len(self.targets)} terminal routes "
             f"({entry_mode} API, {'apps-server' if self.config.is_multi_script else 'solo-server'} mode)"
         )
