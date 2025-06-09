@@ -99,12 +99,10 @@ def build_and_run_container(port: int = 8000) -> None:
                 shutil.copytree(
                     src_dir,
                     dst_dir,
-                    ignore=lambda src, _: (
-                        ["ttyd"] if os.path.basename(src) == "bin" else []
+                    ignore=lambda src, names: (
+                        ["ttyd"] if os.path.basename(src) == "vendor" else []
                     ),
                 )
-                if directory == "terminaide":
-                    (dst_dir / "bin").mkdir(exist_ok=True)
 
         # Generate requirements
         generate_requirements_txt(project_root / "pyproject.toml", temp_path)
