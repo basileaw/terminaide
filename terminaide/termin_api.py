@@ -16,14 +16,66 @@ from fastapi import FastAPI
 from typing import Optional, Dict, Any, Union, List, Callable
 
 from .core.app_config import TerminaideConfig, build_config
-from .core.app_factory import ServeWithConfig, AppFactory
+from .core.app_factory import ServeWithConfig
 from .core.index_html import HtmlIndex
 
 logger = logging.getLogger("terminaide")
 
-# Make the factory functions accessible from the original paths for backward compatibility
-function_app_factory = AppFactory.function_app_factory
-script_app_factory = AppFactory.script_app_factory
+
+# Common configuration parameters documentation
+COMMON_KWARGS_DOC = """
+    - port: Web server port (default: 8000)
+    - title: Terminal window title (default: auto-generated)
+    - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
+    - debug: Enable debug mode (default: True)
+    - reload: Enable auto-reload on code changes (default: False)
+    - forward_env: Control environment variable forwarding (default: True)
+    - ttyd_options: Options for the ttyd process
+    - template_override: Custom HTML template path
+    - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
+    - preview_image: Custom preview image for social media sharing (default: None)
+    - configure_logging: Whether to configure Terminaide's logging handlers (default: True)
+"""
+
+################################################################################
+# Helper Functions
+################################################################################
+
+def _prepare_config(
+    config: Optional[TerminaideConfig],
+    desktop: bool,
+    desktop_width: int,
+    desktop_height: int,
+    banner: Union[bool, str],
+    **kwargs
+) -> TerminaideConfig:
+    """Prepare configuration with common parameters."""
+    # Add desktop parameters to kwargs if provided
+    if desktop:
+        kwargs["desktop"] = desktop
+    if "desktop_width" not in kwargs:
+        kwargs["desktop_width"] = desktop_width
+    if "desktop_height" not in kwargs:
+        kwargs["desktop_height"] = desktop_height
+    # Add banner parameter to kwargs
+    kwargs["banner"] = banner
+    
+    return build_config(config, kwargs)
+
+
+def _auto_generate_title(cfg: TerminaideConfig, mode: str, target: Any, kwargs: Dict) -> None:
+    """Auto-generate title if not specified by user."""
+    if "title" in kwargs or (cfg.title != "Terminal"):
+        return
+    
+    if mode == "function":
+        cfg.title = f"{target.__name__}()"
+    elif mode == "script":
+        # Check if we're coming from serve_function with a default title
+        if hasattr(cfg, "_original_function_name"):
+            cfg.title = f"{cfg._original_function_name}()"
+        else:
+            cfg.title = Path(target).name
 
 ################################################################################
 # Public API
@@ -39,7 +91,7 @@ def serve_function(
     banner: Union[bool, str] = True,
     **kwargs,
 ) -> None:
-    """Serve a Python function in a browser terminal or desktop window.
+    f"""Serve a Python function in a browser terminal or desktop window.
 
     This function creates a web-accessible terminal that runs the provided Python function.
 
@@ -52,36 +104,13 @@ def serve_function(
         banner: Controls banner display. True shows Rich panel, False disables banner,
                string value prints the string directly (default: True)
         **kwargs: Additional configuration overrides:
-            - port: Web server port (default: 8000)
-            - title: Terminal window title (default: "{func_name}()")
-            - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
-            - debug: Enable debug mode (default: True)
-            - reload: Enable auto-reload on code changes (default: False)
-            - forward_env: Control environment variable forwarding (default: True)
-            - ttyd_options: Options for the ttyd process
-            - template_override: Custom HTML template path
-            - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
-            - preview_image: Custom preview image for social media sharing (default: None)
-            - configure_logging: Whether to configure Terminaide's logging handlers (default: True)
+{COMMON_KWARGS_DOC}
     """
-    # Add desktop parameters to kwargs if provided
-    if desktop:
-        kwargs["desktop"] = desktop
-    if "desktop_width" not in kwargs:
-        kwargs["desktop_width"] = desktop_width
-    if "desktop_height" not in kwargs:
-        kwargs["desktop_height"] = desktop_height
-    # Add banner parameter to kwargs
-    kwargs["banner"] = banner
-
-    cfg = build_config(config, kwargs)
+    cfg = _prepare_config(config, desktop, desktop_width, desktop_height, banner, **kwargs)
     cfg._target = func
     cfg._mode = "function"
-
-    # Auto-generate title if not specified
-    if "title" not in kwargs and (config is None or config.title == "Terminal"):
-        cfg.title = f"{func.__name__}()"
-
+    
+    _auto_generate_title(cfg, "function", func, kwargs)
     ServeWithConfig.serve(cfg)
 
 
@@ -94,7 +123,7 @@ def serve_script(
     banner: Union[bool, str] = True,
     **kwargs,
 ) -> None:
-    """Serve a Python script in a browser terminal or desktop window.
+    f"""Serve a Python script in a browser terminal or desktop window.
 
     This function creates a web-accessible terminal that runs the provided Python script.
 
@@ -107,41 +136,13 @@ def serve_script(
         banner: Controls banner display. True shows Rich panel, False disables banner,
                string value prints the string directly (default: True)
         **kwargs: Additional configuration overrides:
-            - port: Web server port (default: 8000)
-            - title: Terminal window title (default: "Script Name")
-            - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
-            - debug: Enable debug mode (default: True)
-            - reload: Enable auto-reload on code changes (default: False)
-            - forward_env: Control environment variable forwarding (default: True)
-            - ttyd_options: Options for the ttyd process
-            - template_override: Custom HTML template path
-            - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
-            - preview_image: Custom preview image for social media sharing (default: None)
-            - configure_logging: Whether to configure Terminaide's logging handlers (default: True)
+{COMMON_KWARGS_DOC}
     """
-    # Add desktop parameters to kwargs if provided
-    if desktop:
-        kwargs["desktop"] = desktop
-    if "desktop_width" not in kwargs:
-        kwargs["desktop_width"] = desktop_width
-    if "desktop_height" not in kwargs:
-        kwargs["desktop_height"] = desktop_height
-    # Add banner parameter to kwargs
-    kwargs["banner"] = banner
-
-    cfg = build_config(config, kwargs)
+    cfg = _prepare_config(config, desktop, desktop_width, desktop_height, banner, **kwargs)
     cfg._target = Path(script_path)
     cfg._mode = "script"
-
-    # Auto-generate title if not specified
-    if "title" not in kwargs and (config is None or config.title == "Terminal"):
-        # Check if we're coming from serve_function with a default title
-        if hasattr(cfg, "_original_function_name"):
-            cfg.title = f"{cfg._original_function_name}()"
-        else:
-            script_name = Path(script_path).name
-            cfg.title = f"{script_name}"
-
+    
+    _auto_generate_title(cfg, "script", cfg._target, kwargs)
     ServeWithConfig.serve(cfg)
 
 
@@ -181,19 +182,12 @@ def serve_apps(
         banner: Controls banner display. True shows Rich panel, False disables banner,
                string value prints the string directly (default: True)
         **kwargs: Additional configuration overrides:
-            - port: Web server port (default: 8000)
-            - title: Default terminal window title (default: auto-generated)
-            - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
-            - debug: Enable debug mode (default: True)
+{COMMON_KWARGS_DOC}
+            Additional serve_apps specific options:
             - ttyd_port: Base port for ttyd processes (default: 7681)
             - mount_path: Base path for terminal mounting (default: "/")
-            - forward_env: Control environment variable forwarding (default: True)
-            - ttyd_options: Options for the ttyd processes
-            - template_override: Custom HTML template path
-            - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
             - preview_image: Default preview image for social media sharing (default: None)
                             Can also be specified per route in terminal_routes config.
-            - configure_logging: Whether to configure Terminaide's logging handlers (default: True)
 
     Examples:
         ```python
@@ -279,7 +273,7 @@ def serve_apps(
 
     Note:
         Desktop mode for serve_apps is not yet implemented. Desktop mode currently
-        supports serve_function, serve_script, and meta_serve only.
+        supports serve_function and serve_script only.
     """
     if not terminal_routes:
         logger.warning(
@@ -287,17 +281,7 @@ def serve_apps(
         )
         return
 
-    # Add desktop parameters to kwargs if provided
-    if desktop:
-        kwargs["desktop"] = desktop
-    if "desktop_width" not in kwargs:
-        kwargs["desktop_width"] = desktop_width
-    if "desktop_height" not in kwargs:
-        kwargs["desktop_height"] = desktop_height
-    # Add banner parameter to kwargs
-    kwargs["banner"] = banner
-
-    cfg = build_config(config, kwargs)
+    cfg = _prepare_config(config, desktop, desktop_width, desktop_height, banner, **kwargs)
     cfg._target = terminal_routes
     cfg._app = app
     cfg._mode = "apps"
