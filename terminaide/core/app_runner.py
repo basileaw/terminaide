@@ -301,42 +301,22 @@ class ServeWithConfig:
     @classmethod
     def serve_function(cls, config) -> None:
         """Implementation for serving a function."""
-        if config.reload:
-            # Reload mode - set environment variables and delegate to uvicorn
-            func = config._target
-            # Import from app_factory to avoid circular dependency
-            from .app_factory import set_reload_env_vars
-            extra_vars = {
-                "TERMINAIDE_FUNC_NAME": func.__name__,
-                "TERMINAIDE_FUNC_MOD": func.__module__ if func.__module__ else "",
-            }
-            set_reload_env_vars(config, "function", extra_vars)
+        # Direct mode - use local generate_function_wrapper
+        func = config._target
+        ephemeral_path = generate_function_wrapper(func)
 
-            uvicorn.run(
-                "terminaide.termin_api:function_app_factory",
-                factory=True,
-                host="0.0.0.0",
-                port=config.port,
-                reload=True,
-                log_level="info" if config.debug else "warning",
-            )
-        else:
-            # Direct mode - use local generate_function_wrapper
-            func = config._target
-            ephemeral_path = generate_function_wrapper(func)
+        # Import from app_factory to avoid circular dependency
+        from .app_factory import copy_config_attributes
+        script_config = copy_config_attributes(config)
+        script_config._target = ephemeral_path
+        script_config._mode = "function"
+        script_config._original_function_name = func.__name__
 
-            # Import from app_factory to avoid circular dependency
-            from .app_factory import copy_config_attributes
-            script_config = copy_config_attributes(config)
-            script_config._target = ephemeral_path
-            script_config._mode = "function"
-            script_config._original_function_name = func.__name__
+        logger.debug(
+            f"Using title: {script_config.title} for function {func.__name__}"
+        )
 
-            logger.debug(
-                f"Using title: {script_config.title} for function {func.__name__}"
-            )
-
-            cls.serve_script(script_config)
+        cls.serve_script(script_config)
 
     @classmethod
     def serve_script(cls, config) -> None:
@@ -350,40 +330,25 @@ class ServeWithConfig:
             print(f"\033[91mError: Script not found: {script_path}\033[0m")
             return
 
-        if config.reload:
-            # Import from app_factory to avoid circular dependency
-            from .app_factory import set_reload_env_vars
-            extra_vars = {"TERMINAIDE_SCRIPT_PATH": str(script_path)}
-            set_reload_env_vars(config, config._mode, extra_vars)
+        # Direct mode
+        ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)
+        # Import from app_factory to avoid circular dependency
+        from .app_factory import create_app_with_lifespan
+        app = create_app_with_lifespan(config.title, config, ttyd_config)
 
-            uvicorn.run(
-                "terminaide.termin_api:script_app_factory",
-                factory=True,
-                host="0.0.0.0",
-                port=config.port,
-                reload=True,
-                log_level="info" if config.debug else "warning",
-            )
-        else:
-            # Direct mode
-            ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)
-            # Import from app_factory to avoid circular dependency
-            from .app_factory import create_app_with_lifespan
-            app = create_app_with_lifespan(config.title, config, ttyd_config)
+        def handle_exit(sig, frame):
+            print("\033[93mShutting down...\033[0m")
+            sys.exit(0)
 
-            def handle_exit(sig, frame):
-                print("\033[93mShutting down...\033[0m")
-                sys.exit(0)
+        signal.signal(signal.SIGINT, handle_exit)
+        signal.signal(signal.SIGTERM, handle_exit)
 
-            signal.signal(signal.SIGINT, handle_exit)
-            signal.signal(signal.SIGTERM, handle_exit)
-
-            uvicorn.run(
-                app,
-                host="0.0.0.0",
-                port=config.port,
-                log_level="info" if config.debug else "warning",
-            )
+        uvicorn.run(
+            app,
+            host="0.0.0.0",
+            port=config.port,
+            log_level="info" if config.debug else "warning",
+        )
 
     @classmethod
     def serve_apps(cls, config) -> None:

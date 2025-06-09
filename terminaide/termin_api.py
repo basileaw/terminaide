@@ -39,7 +39,6 @@ COMMON_KWARGS_DOC = """
     - title: Terminal window title (default: auto-generated)
     - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
     - debug: Enable debug mode (default: True)
-    - reload: Enable auto-reload on code changes (default: False)
     - forward_env: Control environment variable forwarding (default: True)
     - ttyd_options: Options for the ttyd process
     - template_override: Custom HTML template path

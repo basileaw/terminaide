@@ -120,7 +120,6 @@ class TerminaideConfig:
         default_factory=lambda: {"background": "black", "foreground": "white"}
     )
     debug: bool = True
-    reload: bool = False
     desktop: bool = False
     desktop_width: int = 1200
     desktop_height: int = 800

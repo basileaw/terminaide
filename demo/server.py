@@ -133,7 +133,6 @@ def main() -> None:
             port=port,
             title="Function Mode",
             debug=True,
-            reload=True,
         )
         return
 
