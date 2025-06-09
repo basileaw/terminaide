@@ -298,7 +298,7 @@ def handle_exit(sig, frame):
     exit_requested = True
 
 
-def play_snake():
+def snake():
     """Run the snake game from command line.
 
     This is the main public-facing function for launching the snake game.
@@ -314,6 +314,6 @@ def play_snake():
 if __name__ == "__main__":
     print("\033[?25l\033[2J\033[H", end="")
     try:
-        play_snake()
+        snake()
     finally:
         cleanup()

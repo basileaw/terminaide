@@ -28,7 +28,6 @@ from .core.app_factory import ServeWithConfig
 from .core.index_html import HtmlIndex
 from .core.index_curses import CursesIndex
 from .core.utils import termin_ascii
-from .terminarcade import play as terminarcade
 
 logger = logging.getLogger("terminaide")
 
@@ -310,5 +309,4 @@ __all__ = [
     "CursesIndex",
     # Utilities
     "termin_ascii",
-    "terminarcade",
 ]

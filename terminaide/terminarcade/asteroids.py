@@ -477,7 +477,7 @@ def _asteroids_game_loop(stdscr_param):
 
     return None
 
-def play_asteroids():
+def asteroids():
     """
     Public-facing function to launch Asteroids, similar to snake's play_snake().
     """
@@ -492,6 +492,6 @@ def play_asteroids():
 if __name__ == "__main__":
     print("\033[?25l\033[2J\033[H", end="")
     try:
-        play_asteroids()
+        asteroids()
     finally:
         cleanup()

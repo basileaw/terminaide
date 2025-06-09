@@ -18,10 +18,10 @@ from terminaide import logger
 from terminaide import serve_function, serve_script, serve_apps
 from terminaide import HtmlIndex
 from terminaide.terminarcade import (
-    play_snake,
-    play_tetris,
-    play_pong,
-    play_asteroids,
+    snake,
+    tetris,
+    pong,
+    asteroids,
     instructions,
 )
 from demo.container import build_and_run_container
@@ -74,19 +74,19 @@ def create_app() -> FastAPI:
         terminal_routes={
             "/": create_index_page(),
             "/snake": {
-                "function": play_snake,
+                "function": snake,
                 "title": "Snake",
             },
             "/tetris": {
-                "function": play_tetris,
+                "function": tetris,
                 "title": "Tetris",
             },
             "/pong": {
-                "function": play_pong,
+                "function": pong,
                 "title": "Pong",
             },
             "/asteroids": {
-                "function": play_asteroids,
+                "function": asteroids,
                 "title": "Asteroids",
             },
         },
@@ -129,7 +129,7 @@ def main() -> None:
     # FUNCTION MODE
     if mode == "function":
         serve_function(
-            play_asteroids,
+            asteroids,
             port=port,
             title="Function Mode",
             debug=True,

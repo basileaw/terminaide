@@ -98,7 +98,7 @@ def generate_function_wrapper(func: Callable) -> Path:
 
     # If it's a normal module (not main or mp_main), we need to check if importing it 
     # would cause side effects (like serve_apps being called again)
-    if module_name and module_name not in ("__main__", "__mp_main__"):
+    if module_name and module_name not in ("__main__", "__mp_main__", "main"):
         # Try import approach first for normal modules to avoid missing dependencies
         if requires_curses:
             call_line = f"    import curses; curses.wrapper({func_name})"

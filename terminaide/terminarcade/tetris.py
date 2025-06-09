@@ -477,7 +477,7 @@ def handle_exit(sig, frame):
     exit_requested = True
 
 
-def play_tetris():
+def tetris():
     """Run the tetris game.
 
     This is the main public-facing function for launching the tetris game.
@@ -498,6 +498,6 @@ if __name__ == "__main__":
     sys.stdout.flush()
     os.system("clear" if os.name == "posix" else "cls")
     try:
-        play_tetris()
+        tetris()
     finally:
         cleanup()

@@ -319,7 +319,7 @@ def handle_exit(sig, frame):
     exit_requested = True
 
 
-def play_pong():
+def pong():
     """Run the pong game.
 
     This is the main public-facing function for launching the pong game.
@@ -335,6 +335,6 @@ def play_pong():
 if __name__ == "__main__":
     print("\033[?25l\033[2J\033[H", end="")
     try:
-        play_pong()
+        pong()
     finally:
         cleanup()
