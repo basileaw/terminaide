@@ -7,12 +7,11 @@ This package provides tools to easily serve Python CLI applications through
 a browser-based terminal using ttyd. It handles binary installation and
 management automatically across supported platforms.
 
-The package offers four entry points with increasing complexity:
+The package offers three entry points with increasing complexity:
 1. serve_function: The simplest way to serve a Python function in a browser terminal
 2. serve_script: Simple path to serve a Python script file in a terminal
 3. serve_apps: Advanced path to integrate multiple terminals (both functions and scripts)
               and index pages into a FastAPI application
-4. meta_serve: Advanced path to run a server that serves terminal instances in a browser terminal
 
 Supported Platforms:
 - Linux x86_64 (Docker containers)
@@ -21,7 +20,7 @@ Supported Platforms:
 
 import logging
 from pathlib import Path
-from .termin_api import serve_function, serve_script, serve_apps, meta_serve
+from .termin_api import serve_function, serve_script, serve_apps
 from .core.data_models import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
 from .core.index_html import HtmlIndex
 from .core.index_curses import CursesIndex
@@ -42,7 +41,6 @@ __all__ = [
     "serve_function",
     "serve_script",
     "serve_apps",
-    "meta_serve",
     # Index page support
     "HtmlIndex",
     "CursesIndex",

@@ -203,27 +203,6 @@ def generate_desktop_server_command(config: TerminaideConfig) -> str:
             f"serve_script(r'{script_path}', {base_params})"
         )
     
-    elif config._mode == "meta":
-        target = config._target
-        app_dir = getattr(config, "_app_dir", None)
-        
-        if callable(target):
-            # For meta functions, create wrapper
-            from .app_wrappers import generate_meta_server_wrapper
-            ephemeral_path = generate_meta_server_wrapper(target, app_dir)
-        else:
-            # For meta scripts
-            from .app_wrappers import generate_meta_script_wrapper
-            script_path = Path(target)
-            if not script_path.is_absolute():
-                script_path = Path.cwd() / script_path
-            ephemeral_path = generate_meta_script_wrapper(script_path, app_dir)
-        
-        return (
-            f"from terminaide import serve_script; "
-            f"serve_script(r'{ephemeral_path}', {base_params})"
-        )
-    
     else:
         raise ValueError(f"Unsupported mode for desktop serving: {config._mode}")
 

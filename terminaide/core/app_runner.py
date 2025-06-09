@@ -4,7 +4,7 @@
 Application runner implementation for Terminaide.
 
 This module contains the ServeWithConfig class that handles running applications
-in different Terminaide modes (function, script, apps, meta).
+in different Terminaide modes (function, script, apps).
 """
 
 import os
@@ -29,8 +29,6 @@ from .app_config import (
 )
 from .app_wrappers import (
     generate_function_wrapper,
-    generate_meta_server_wrapper,
-    generate_meta_script_wrapper,
 )
 
 logger = logging.getLogger("terminaide")
@@ -68,7 +66,7 @@ class ServeWithConfig:
         """Display a banner based on the banner parameter value.
         
         Args:
-            mode: The serving mode (function, script, apps, meta)
+            mode: The serving mode (function, script, apps)
             banner_value: True for Rich panel, False for no banner, or a string to print directly
         """
         if os.environ.get("TERMINAIDE_BANNER_SHOWN") == "1":
@@ -95,7 +93,6 @@ class ServeWithConfig:
                 "function": "dark_orange",
                 "script": "blue",
                 "apps": "magenta",
-                "meta": "bright_green",
             }
             color = mode_colors.get(mode, "yellow")
             mode_upper = mode.upper()
@@ -166,7 +163,7 @@ class ServeWithConfig:
                 "\033[91mError: Desktop mode for serve_apps is not yet implemented.\033[0m"
             )
             print(
-                "Desktop mode currently supports serve_function, serve_script, and meta_serve only."
+                "Desktop mode currently supports serve_function and serve_script only."
             )
             return
         
@@ -269,8 +266,6 @@ class ServeWithConfig:
             cls.serve_script(config)
         elif config._mode == "apps":
             cls.serve_apps(config)
-        elif config._mode == "meta":
-            cls.serve_meta(config)
         else:
             raise ValueError(f"Unknown serving mode: {config._mode}")
 
@@ -313,53 +308,6 @@ class ServeWithConfig:
             )
 
             cls.serve_script(script_config)
-
-    @classmethod
-    def serve_meta(cls, config) -> None:
-        """Implementation for serving a meta-server (a server that serves terminal instances)."""
-        target = config._target
-        app_dir = getattr(config, "_app_dir", None)
-
-        if callable(target):
-            # Handle function target
-            logger.info(f"Creating meta-server wrapper for function: {target.__name__}")
-            ephemeral_path = generate_meta_server_wrapper(target, app_dir)
-        else:
-            # Handle script target
-            script_path = Path(target)
-            if not script_path.is_absolute():
-                script_path = Path.cwd() / script_path
-
-            if not script_path.exists():
-                logger.error(f"Meta-server script not found: {script_path}")
-                print(
-                    f"\033[91mError: Meta-server script not found: {script_path}\033[0m"
-                )
-                return
-
-            logger.info(f"Creating meta-server wrapper for script: {script_path}")
-            ephemeral_path = generate_meta_script_wrapper(script_path, app_dir)
-
-        # Create a new config for the script serving
-        # Import from app_factory to avoid circular dependency
-        from .app_factory import copy_config_attributes
-        script_config = copy_config_attributes(config)
-        
-        # Set the target to the wrapper script
-        script_config._target = ephemeral_path
-        script_config._mode = "meta"  # Preserve the meta mode
-
-        if callable(target):
-            script_config._original_function_name = target.__name__
-        else:
-            script_config._original_script_name = script_path.name
-
-        logger.info("Meta-server wrapper script created at:")
-        logger.info(f"{ephemeral_path}")
-        logger.debug(f"Using title: {script_config.title} for meta-server")
-
-        # Leverage the existing script serving functionality
-        cls.serve_script(script_config)
 
     @classmethod
     def serve_script(cls, config) -> None:

@@ -38,7 +38,7 @@ Terminaide offers two primary approaches: Solo Mode for quickly serving individu
 
 ### Solo Mode 
 
-The Solo Server provides the fastest way to web-enable a Python function, script, or server. It creates a standalone web server with a single terminal and handles all the configuration details for you. Choose between Function, Script, or Meta Server based on your use case.
+The Solo Server provides the fastest way to web-enable a Python function or script. It creates a standalone web server with a single terminal and handles all the configuration details for you. Choose between Function or Script Server based on your use case.
 
 **Desktop Mode**: Solo Mode supports desktop mode via the `desktop=True` parameter, which opens the terminal in a native desktop window instead of a browser.
 
@@ -76,45 +76,9 @@ if __name__ == "__main__":
     serve_script("my_script.py", desktop=True)
 ```
 
-#### Meta Server
-
-The Meta Server enables running a server that itself serves terminal instances. This creates a "meta-server" where both the server process and the terminals it manages are accessible, with proper directory context preservation.
-
-```python
-from fastapi import FastAPI
-from terminaide import serve_apps, meta_serve
-
-# Example 1: Meta-serve a function
-def run_my_server():
-    """This function starts a server with multiple terminals"""
-    app = FastAPI()
-    
-    @app.get("/")
-    async def root():
-        return {"message": "Welcome to my terminal app"}
-    
-    serve_apps(
-        app,
-        terminal_routes={
-            "/cli": "my_script.py",
-            "/admin": admin_function
-        }
-    )
-
-if __name__ == "__main__":
-    # Browser mode (default)
-    meta_serve(run_my_server)
-    
-    # Desktop mode with custom window size
-    meta_serve(run_my_server, desktop=True, desktop_width=1400, desktop_height=900)
-
-# Example 2: Meta-serve a script
-meta_serve("server_script.py", desktop=True)
-```
-
 #### Solo Mode Configuration Options
 
-All Solo Mode functions (`serve_function`, `serve_script`, `meta_serve`) accept these configuration options:
+All Solo Mode functions (`serve_function`, `serve_script`) accept these configuration options:
 
 ```python
 kwargs = {
