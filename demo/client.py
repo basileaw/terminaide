@@ -5,17 +5,18 @@ This script demonstrates how to use terminaide's built-in games.
 """
 
 from terminaide import CursesIndex
+from terminaide.terminarcade import play_snake, play_tetris, play_pong
 
 
 def main():
-    # Create the same menu structure as terminarcade
+    # Create the menu structure with actual function references
     menu = [
         {
             "label": "←/→: navigate, Enter: select, Q: quit",
             "options": [
-                {"path": "snake", "title": "Snake"},
-                {"path": "tetris", "title": "Tetris"},
-                {"path": "pong", "title": "Pong"},
+                {"function": play_snake, "title": "Snake"},
+                {"function": play_tetris, "title": "Tetris"},
+                {"function": play_pong, "title": "Pong"},
             ],
         }
     ]

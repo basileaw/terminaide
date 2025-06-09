@@ -109,14 +109,9 @@ class CursesMenuItem(MenuItem):
                 return True
                 
         elif self.path and not self.is_external():
-            # Try to treat path as a module/function reference
+            # Try to dynamically resolve and launch the path
             try:
-                # For terminarcade games, we have special handling
-                if self.path in ["snake", "tetris", "pong"]:
-                    return self._launch_terminarcade_game(self.path)
-                else:
-                    logger.warning(f"Don't know how to launch path: {self.path}")
-                    return True
+                return self._launch_from_path(self.path)
             except Exception as e:
                 logger.error(f"Error launching path {self.path}: {e}")
                 return True
@@ -124,31 +119,75 @@ class CursesMenuItem(MenuItem):
             logger.warning(f"No launch method defined for {self.title}")
             return True
     
-    def _launch_terminarcade_game(self, game_name: str) -> bool:
-        """Launch a terminarcade game with proper module reloading."""
+    def _launch_from_path(self, path: str) -> bool:
+        """
+        Dynamically resolve and launch a function or module from a path string.
+        
+        Supports various path formats:
+        - "module.function" - imports module and calls function
+        - "package.module.function" - imports from package and calls function
+        - "function_name" - looks for function in current scope or common modules
+        
+        Args:
+            path: String path to the function or module to launch
+            
+        Returns:
+            bool: True to return to menu (always true now)
+        """
         try:
-            # Import and reload the game module to ensure fresh state
-            module_name = f"terminaide.terminarcade.{game_name}"
-            
-            if module_name in sys.modules:
-                game_module = importlib.reload(sys.modules[module_name])
+            # Handle dot-separated paths like "terminaide.terminarcade.snake.play_snake"
+            if "." in path:
+                parts = path.split(".")
+                function_name = parts[-1]
+                module_path = ".".join(parts[:-1])
+                
+                # Import the module
+                if module_path in sys.modules:
+                    module = importlib.reload(sys.modules[module_path])
+                else:
+                    module = importlib.import_module(module_path)
+                
+                # Reset module-level state if present (for games)
+                if hasattr(module, 'exit_requested'):
+                    module.exit_requested = False
+                if hasattr(module, 'stdscr'):
+                    module.stdscr = None
+                
+                # Get and call the function
+                if hasattr(module, function_name):
+                    function = getattr(module, function_name)
+                    function()
+                    return True
+                else:
+                    logger.error(f"Function {function_name} not found in module {module_path}")
+                    return True
             else:
-                game_module = importlib.import_module(module_name)
-            
-            # Reset module-level state
-            if hasattr(game_module, 'exit_requested'):
-                game_module.exit_requested = False
-            if hasattr(game_module, 'stdscr'):
-                game_module.stdscr = None
-            
-            # Call the appropriate play function
-            play_function = getattr(game_module, f"play_{game_name}")
-            play_function()
-            
-            return True  # Always return to menu
-            
+                # Single name - try common patterns
+                # For backwards compatibility with terminarcade games
+                if path in ["snake", "tetris", "pong", "asteroids"]:
+                    module_path = f"terminaide.terminarcade.{path}"
+                    function_name = f"play_{path}"
+                    
+                    if module_path in sys.modules:
+                        module = importlib.reload(sys.modules[module_path])
+                    else:
+                        module = importlib.import_module(module_path)
+                    
+                    # Reset module-level state
+                    if hasattr(module, 'exit_requested'):
+                        module.exit_requested = False
+                    if hasattr(module, 'stdscr'):
+                        module.stdscr = None
+                    
+                    function = getattr(module, function_name)
+                    function()
+                    return True
+                else:
+                    logger.warning(f"Don't know how to launch path: {path}")
+                    return True
+                    
         except Exception as e:
-            logger.error(f"Error launching terminarcade game {game_name}: {e}")
+            logger.error(f"Error launching from path {path}: {e}")
             return True
 
 
