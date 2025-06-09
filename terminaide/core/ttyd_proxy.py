@@ -52,7 +52,7 @@ class ProxyManager:
         Get the protocol (http/https) for the current request.
 
         This looks at the request.url.scheme, which will be correctly set to 'https'
-        by the ProxyHeaderMiddleware if the request came via HTTPS.
+        by the proxy header middleware if the request came via HTTPS.
         """
         if request and request.url.scheme == "https":
             return "https"

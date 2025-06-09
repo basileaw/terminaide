@@ -20,6 +20,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from typing import Dict, Any, Union
 from contextlib import asynccontextmanager
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .app_config import (
     TerminaideConfig,
@@ -32,6 +33,38 @@ from .app_wrappers import (
 )
 
 logger = logging.getLogger("terminaide")
+
+
+class _ProxyHeaderMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware that detects and respects common proxy headers for HTTPS, enabling
+    terminaide to work correctly behind load balancers and proxies.
+    """
+
+    async def dispatch(self, request, call_next):
+        # Check X-Forwarded-Proto (most common)
+        forwarded_proto = request.headers.get("x-forwarded-proto")
+        if forwarded_proto == "https":
+            original_scheme = request.scope.get("scheme", "unknown")
+            request.scope["scheme"] = "https"
+
+            # Log this detection once per deployment to help with debugging
+            logger.debug(
+                f"HTTPS detected via X-Forwarded-Proto header "
+                f"(original scheme: {original_scheme})"
+            )
+
+        # Check Forwarded header (RFC 7239)
+        forwarded = request.headers.get("forwarded")
+        if forwarded and "proto=https" in forwarded.lower():
+            request.scope["scheme"] = "https"
+
+        # AWS Elastic Load Balancer sometimes uses this
+        elb_proto = request.headers.get("x-forwarded-protocol")
+        if elb_proto == "https":
+            request.scope["scheme"] = "https"
+
+        return await call_next(request)
 
 
 class ServeWithConfig:
@@ -47,15 +80,11 @@ class ServeWithConfig:
 
         if config.trust_proxy_headers:
             try:
-                from .middleware import (
-                    ProxyHeaderMiddleware,
-                )
-
                 if not any(
-                    m.cls.__name__ == "ProxyHeaderMiddleware"
+                    m.cls.__name__ == "_ProxyHeaderMiddleware"
                     for m in getattr(app, "user_middleware", [])
                 ):
-                    app.add_middleware(ProxyHeaderMiddleware)
+                    app.add_middleware(_ProxyHeaderMiddleware)
                     logger.info("Added proxy header middleware for HTTPS detection")
 
             except Exception as e:
@@ -384,17 +413,13 @@ class ServeWithConfig:
                     )
 
         # Add middleware silently, we'll log during startup
-        middleware_added = False
         if config.trust_proxy_headers:
             try:
-                from .middleware import ProxyHeaderMiddleware
-
                 if not any(
-                    m.cls.__name__ == "ProxyHeaderMiddleware"
+                    m.cls.__name__ == "_ProxyHeaderMiddleware"
                     for m in getattr(app, "user_middleware", [])
                 ):
-                    app.add_middleware(ProxyHeaderMiddleware)
-                    middleware_added = True
+                    app.add_middleware(_ProxyHeaderMiddleware)
                     # Store the flag for logging during lifespan startup
                     app.state.terminaide_middleware_added = True
 
