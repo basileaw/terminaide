@@ -5,7 +5,7 @@ import time
 import signal
 import sys
 import os
-from terminaide import termin_ascii
+from ..core.utils import termin_ascii
 
 _stdscr = None
 _exit_requested = False  # Set by the SIGINT handler when Ctrl+C is pressed.

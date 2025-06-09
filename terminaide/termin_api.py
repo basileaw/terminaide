@@ -1,13 +1,21 @@
 # termin-api.py
 
-"""Main implementation for configuring and serving ttyd through FastAPI.
+"""Complete public API for terminaide: Serve Python CLI applications in the browser using ttyd.
 
-This module provides the core functionality for setting up a ttyd-based terminal
-service within a FastAPI application, with three distinct API paths:
+This module serves as the single source of truth for all public API components:
 
-1. serve_function: simplest entry point - run a function in a terminal
-2. serve_script: simple path - run a Python script in a terminal
-3. serve_apps: advanced path - integrate multiple terminals and index pages into a FastAPI application
+Core Functions:
+- serve_function: Serve a Python function in a browser terminal
+- serve_script: Serve a Python script file in a terminal  
+- serve_apps: Integrate multiple terminals into a FastAPI application
+
+UI Components:
+- HtmlIndex: Create navigable web index pages
+- CursesIndex: Create terminal-based index pages
+
+Utilities:
+- termin_ascii: Generate ASCII banners
+- terminarcade: Collection of terminal games
 """
 
 import logging
@@ -18,6 +26,9 @@ from typing import Optional, Dict, Any, Union, List, Callable
 from .core.app_config import TerminaideConfig, build_config
 from .core.app_factory import ServeWithConfig
 from .core.index_html import HtmlIndex
+from .core.index_curses import CursesIndex
+from .core.utils import termin_ascii
+from .terminarcade import play as terminarcade
 
 logger = logging.getLogger("terminaide")
 
@@ -287,3 +298,18 @@ def serve_apps(
     cfg._mode = "apps"
 
     ServeWithConfig.serve(cfg)
+
+
+# Export all public API components
+__all__ = [
+    # Core API
+    "serve_function",
+    "serve_script", 
+    "serve_apps",
+    # UI components
+    "HtmlIndex",
+    "CursesIndex",
+    # Utilities
+    "termin_ascii",
+    "terminarcade",
+]

@@ -7,11 +7,13 @@ This package provides tools to easily serve Python CLI applications through
 a browser-based terminal using ttyd. It handles binary installation and
 management automatically across supported platforms.
 
-The package offers three entry points with increasing complexity:
-1. serve_function: The simplest way to serve a Python function in a browser terminal
-2. serve_script: Simple path to serve a Python script file in a terminal
-3. serve_apps: Advanced path to integrate multiple terminals (both functions and scripts)
-              and index pages into a FastAPI application
+Public API:
+- serve_function(): Serve a Python function in a browser terminal
+- serve_script(): Serve a Python script file in a terminal  
+- serve_apps(): Integrate multiple terminals into a FastAPI application
+- HtmlIndex/CursesIndex: Create navigable index pages
+- termin_ascii(): Generate ASCII banners
+- terminarcade: Collection of terminal games
 
 Supported Platforms:
 - Linux x86_64 (Docker containers)
@@ -19,38 +21,9 @@ Supported Platforms:
 """
 
 import logging
-from pathlib import Path
-from .termin_api import serve_function, serve_script, serve_apps
-from .core.data_models import TTYDConfig, ScriptConfig, ThemeConfig, TTYDOptions
-from .core.index_html import HtmlIndex
-from .core.index_curses import CursesIndex
-from .core.utils import termin_ascii
 
-from .terminarcade import play as terminarcade
-
+# Import complete public API from single source of truth
+from .termin_api import *
 
 # Get package-level logger (configuration happens when serve_* functions are called)
 logger = logging.getLogger("terminaide")
-
-# Ensure bin directory exists on import
-bin_dir = Path(__file__).parent / "bin"
-bin_dir.mkdir(exist_ok=True)
-
-__all__ = [
-    # New API
-    "serve_function",
-    "serve_script",
-    "serve_apps",
-    # Index page support
-    "HtmlIndex",
-    "CursesIndex",
-    # ASCII banner generation
-    "termin_ascii",
-    # Configuration objects
-    "TTYDConfig",
-    "ScriptConfig",
-    "ThemeConfig",
-    "TTYDOptions",
-    # Games
-    "terminarcade",
-]

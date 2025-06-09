@@ -6,7 +6,7 @@ import random
 import time
 import signal
 import sys
-from terminaide import termin_ascii
+from ..core.utils import termin_ascii
 
 # Globals to mirror snake.py
 stdscr = None
