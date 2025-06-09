@@ -140,11 +140,10 @@ def main() -> None:
     # SCRIPT MODE
     if mode == "script":
         serve_script(
-            "client.py",
+            "demo/client.py",
             port=port,
             title="Script Mode",
             debug=True,
-            reload=True,
         )
         return
 
