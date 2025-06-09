@@ -84,46 +84,51 @@ def generate_function_wrapper(func: Callable) -> Path:
     except Exception:
         source_dir = os.getcwd()  # fallback to current dir if all else fails
 
+    # Check if function requires curses (has stdscr parameter)
+    requires_curses = False
+    try:
+        sig = inspect.signature(func)
+        if 'stdscr' in sig.parameters:
+            requires_curses = True
+    except Exception:
+        pass
+
     # Generate bootstrap code
     bootstrap = generate_bootstrap_code(source_dir)
 
     # If it's a normal module (not main or mp_main), we need to check if importing it 
     # would cause side effects (like serve_apps being called again)
     if module_name and module_name not in ("__main__", "__mp_main__"):
-        # For now, try to get the source and inline it to avoid import side effects
-        try:
-            source_code = inspect.getsource(func)
-            wrapper_code = (
-                f"# Ephemeral script for function {func_name} from module {module_name}\n"
-                f"# Using inline approach to avoid re-importing module with side effects\n"
-                f"{bootstrap}"
-                f"{source_code}\n"
-                f'if __name__ == "__main__":\n'
-                f"    {func_name}()"
-            )
-            script_path.write_text(wrapper_code, encoding="utf-8")
-            return script_path
-        except Exception:
-            # If we can't get source, fall back to import (but this may cause issues)
-            wrapper_code = (
-                f"# Ephemeral script for function {func_name} from module {module_name}\n"
-                f"{bootstrap}"
-                f"from {module_name} import {func_name}\n"
-                f'if __name__ == "__main__":\n'
-                f"    {func_name}()"
-            )
-            script_path.write_text(wrapper_code, encoding="utf-8")
-            return script_path
+        # Try import approach first for normal modules to avoid missing dependencies
+        if requires_curses:
+            call_line = f"    import curses; curses.wrapper({func_name})"
+        else:
+            call_line = f"    {func_name}()"
+            
+        wrapper_code = (
+            f"# Ephemeral script for function {func_name} from module {module_name}\n"
+            f"{bootstrap}"
+            f"from {module_name} import {func_name}\n"
+            f'if __name__ == "__main__":\n'
+            f"{call_line}"
+        )
+        script_path.write_text(wrapper_code, encoding="utf-8")
+        return script_path
 
     # Inline fallback (if __main__ or dynamically defined)
     try:
         source_code = inspect.getsource(func)
+        if requires_curses:
+            call_line = f"    import curses; curses.wrapper({func_name})"
+        else:
+            call_line = f"    {func_name}()"
+            
         wrapper_code = (
             f"# Inline wrapper for {func_name} (from __main__ or dynamic)\n"
             f"{bootstrap}"
             f"{source_code}\n"
             f'if __name__ == "__main__":\n'
-            f"    {func_name}()"
+            f"{call_line}"
         )
         script_path.write_text(wrapper_code, encoding="utf-8")
         return script_path
