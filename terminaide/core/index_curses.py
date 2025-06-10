@@ -384,7 +384,7 @@ class CursesIndex:
         curses.init_pair(5, curses.COLOR_BLACK, curses.COLOR_WHITE)   # Selected
         curses.init_pair(6, curses.COLOR_GREEN, -1)   # Menu labels (green)
         curses.init_pair(7, curses.COLOR_WHITE, -1)   # Epititle (using white for gray effect)
-        curses.init_pair(8, curses.COLOR_BLACK, -1)   # Epititle dim (black = gray on black bg)
+        curses.init_pair(8, curses.COLOR_WHITE, -1)   # Epititle dim (white with dim = gray)
 
         curses.curs_set(0)  # Hide cursor
 
@@ -512,35 +512,15 @@ class CursesIndex:
         # Initial menu draw
         menu_end_y = draw_menu()
 
-        # Draw epititle if provided
+        # Draw epititle at bottom if provided
         if self.epititle:
             safe_addstr(
                 stdscr,
-                menu_end_y,
+                my - 2,  # Near bottom of window
                 (mx - len(self.epititle)) // 2,
                 self.epititle,
-                curses.color_pair(8) | curses.A_DIM,  # Gray/dim for epititle
+                curses.color_pair(8) | curses.A_DIM | curses.A_ITALIC,  # Gray/dim with italic
             )
-
-        # Draw instructions
-        if len(self.groups) > 1:
-            # Parse cycle key for display
-            try:
-                modifier, key = self.cycle_key.lower().split("+")
-                cycle_display = f"{modifier.capitalize()}+{key.upper()}"
-            except:
-                cycle_display = self.cycle_key
-            instr = f"←/→: navigate, Enter: select, {cycle_display}: change group, Q: quit"
-        else:
-            instr = "←/→: navigate, Enter: select, Q: quit"
-        
-        safe_addstr(
-            stdscr, 
-            my - 2, 
-            (mx - len(instr)) // 2, 
-            instr, 
-            curses.color_pair(2)
-        )
 
         # Main menu loop
         while True:
