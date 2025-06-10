@@ -1,0 +1,2 @@
+# This file ensures the bin directory is tracked by git
+# The ttyd binary will be installed here at runtime

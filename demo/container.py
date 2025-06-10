@@ -100,7 +100,7 @@ def build_and_run_container(port: int = 8000) -> None:
                     src_dir,
                     dst_dir,
                     ignore=lambda src, names: (
-                        ["ttyd"] if os.path.basename(src) == "vendor" else []
+                        ["ttyd"] if os.path.basename(src) == "bin" else []
                     ),
                 )
 
