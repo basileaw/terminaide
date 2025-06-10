@@ -42,7 +42,7 @@ def termin_ascii(text: str) -> Optional[str]:
         return None
 
     try:
-        from terminaide.vendor.bigfont_slim import render
+        from terminaide.core.vendor.bigfont_slim import render
     except ImportError:
         logger.warning(
             "bigfont vendor package not found"
