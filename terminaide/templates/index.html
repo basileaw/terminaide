@@ -105,7 +105,7 @@
             color: #a9c4e4;
             line-height: 1.2;
             white-space: pre;
-            text-align: center;
+            text-align: left;
             margin-bottom: 0;
             font-size: 19px;
             transform-origin: center;
@@ -400,7 +400,7 @@
             {% if title_ascii %}
             <!-- Generated ASCII banner from title -->
             <div class="ascii-wrapper">
-                <pre class="title">{{ title_ascii }}</pre>
+                <pre class="title">{{ title_ascii | safe }}</pre>
             </div>
             {% elif not ascii_art and title %}
             <!-- Fallback when pyfiglet is not available -->

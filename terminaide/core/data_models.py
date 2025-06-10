@@ -503,7 +503,7 @@ def create_route_configs(
                     route_path=route_path,
                     index_page=route_spec,
                     preview_image=route_spec.preview_image,
-                    title=route_spec.page_title,
+                    title=route_spec.title,
                 )
             )
             continue
