@@ -363,10 +363,8 @@
 <body>
     <div class="container">
         <div class="title-container">
-            {% if supertitle %}
-            <!-- Supertitle above ASCII art -->
-            <div class="supertitle">{{ supertitle }}</div>
-            {% endif %}
+            <!-- Supertitle above ASCII art (always present for consistent positioning) -->
+            <div class="supertitle">{{ supertitle or '' }}</div>
 
             {% if ascii_art %}
             <!-- Custom ASCII art (if provided) -->
