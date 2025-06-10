@@ -27,7 +27,7 @@ from .core.app_config import TerminaideConfig, build_config
 from .core.app_factory import ServeWithConfig
 from .core.index_html import HtmlIndex
 from .core.index_curses import CursesIndex
-from .core.utils import termin_ascii
+from .core.termin_ascii import termin_ascii
 
 logger = logging.getLogger("terminaide")
 

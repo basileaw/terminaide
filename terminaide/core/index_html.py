@@ -12,7 +12,7 @@ import logging
 from typing import Optional, List, Dict, Any, Union
 from pathlib import Path
 
-from .utils import termin_ascii
+from .termin_ascii import termin_ascii
 
 logger = logging.getLogger("terminaide")
 

@@ -16,7 +16,7 @@ from typing import Optional, List, Dict, Any, Union
 from pathlib import Path
 
 from .index_html import MenuItem, MenuGroup
-from .utils import termin_ascii
+from .termin_ascii import termin_ascii
 import subprocess
 import importlib
 
