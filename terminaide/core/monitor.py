@@ -1,0 +1,803 @@
+# monitor.py
+
+import os
+import sys
+import subprocess
+import threading
+import tempfile
+import signal
+import json
+
+
+class Monitor:
+    """
+    A reusable, object-oriented monitor for logging and displaying process output.
+    """
+
+    def __init__(self, output_file=None, title=None, supertitle=None, subtitle=None):
+        """
+        Initialize Monitor instance.
+
+        Args:
+            output_file: Path to the log file (optional, defaults to temp directory)
+            title: Main title for monitor display (triggers auto-write if provided)
+            supertitle: Top-level title/company name (triggers auto-write if provided)
+            subtitle: Subtitle for header (triggers auto-write if provided)
+        """
+        self.output_file = output_file or os.path.join(
+            tempfile.gettempdir(), "toolbox_monitor.log"
+        )
+
+        # If any display config provided, automatically start monitoring
+        if title is not None or supertitle is not None or subtitle is not None:
+            self.write(
+                title=title or "MONITOR", supertitle=supertitle, subtitle=subtitle
+            )
+
+    def write(self, title="MONITOR", supertitle=None, subtitle=None):
+        """Set up monitoring and restart if needed"""
+        _monitor_write(self.output_file, title, supertitle, subtitle)
+
+
+def monitor_read_standalone(output_file=None, use_curses=True):
+    """
+    Completely self-contained monitor reader function for terminaide extraction.
+    This function includes all necessary imports and logic inline, making it
+    perfect for ephemeral scripts without any external dependencies.
+
+    Args:
+        output_file: Path to the log file (optional, defaults to temp directory)
+        use_curses: Whether to use curses interface for reading (default: True)
+    """
+    # All imports needed for this function
+    import os
+    import sys
+    import threading
+    import time
+    import tempfile
+    import curses
+    import re
+    import locale
+    import json
+    from collections import deque
+    import queue
+
+    # Set default output file
+    if output_file is None:
+        output_file = os.path.join(tempfile.gettempdir(), "toolbox_monitor.log")
+
+    # Extract config from log file, fallback to defaults
+    title = "MONITOR"
+    supertitle = None
+    subtitle = None
+
+    try:
+        with open(output_file, "r") as f:
+            first_line = f.readline()
+            if first_line.startswith("MONITOR_CONFIG: "):
+                config_json = first_line[
+                    16:
+                ].strip()  # Remove "MONITOR_CONFIG: " prefix
+                config = json.loads(config_json)
+                title = config.get("title", title)
+                supertitle = config.get("supertitle", supertitle)
+                subtitle = config.get("subtitle", subtitle)
+    except (FileNotFoundError, json.JSONDecodeError, Exception):
+        # Use defaults if config extraction fails
+        pass
+
+    def should_display_line(line):
+        """Filter out config header lines from display"""
+        if line.startswith("MONITOR_CONFIG: "):
+            return False
+        if line.strip() == "--- LOG START ---":
+            return False
+        return True
+
+    def strip_ansi(text):
+        """Remove ANSI escape sequences from text"""
+        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+        return ansi_escape.sub("", text)
+
+    def parse_ansi_colors(text):
+        """Parse ANSI color codes and return segments with color info"""
+        ansi_pattern = re.compile(r"\x1B\[([0-9;]*)m")
+
+        segments = []
+        last_end = 0
+        current_fg = curses.COLOR_WHITE
+        current_bg = -1  # Default background
+        bold = False
+
+        for match in ansi_pattern.finditer(text):
+            # Add text before this color code
+            if match.start() > last_end:
+                segments.append(
+                    {
+                        "text": text[last_end : match.start()],
+                        "fg": current_fg,
+                        "bg": current_bg,
+                        "bold": bold,
+                    }
+                )
+
+            # Parse color codes
+            codes = match.group(1).split(";") if match.group(1) else ["0"]
+            for code in codes:
+                if code == "" or code == "0":  # Reset
+                    current_fg = curses.COLOR_WHITE
+                    current_bg = -1
+                    bold = False
+                elif code == "1":  # Bold
+                    bold = True
+                elif code == "22":  # Normal intensity
+                    bold = False
+                elif code in [
+                    "30",
+                    "31",
+                    "32",
+                    "33",
+                    "34",
+                    "35",
+                    "36",
+                    "37",
+                ]:  # Foreground colors
+                    color_map = {
+                        "30": curses.COLOR_BLACK,
+                        "31": curses.COLOR_RED,
+                        "32": curses.COLOR_GREEN,
+                        "33": curses.COLOR_YELLOW,
+                        "34": curses.COLOR_BLUE,
+                        "35": curses.COLOR_MAGENTA,
+                        "36": curses.COLOR_CYAN,
+                        "37": curses.COLOR_WHITE,
+                    }
+                    current_fg = color_map[code]
+                elif code in [
+                    "40",
+                    "41",
+                    "42",
+                    "43",
+                    "44",
+                    "45",
+                    "46",
+                    "47",
+                ]:  # Background colors
+                    color_map = {
+                        "40": curses.COLOR_BLACK,
+                        "41": curses.COLOR_RED,
+                        "42": curses.COLOR_GREEN,
+                        "43": curses.COLOR_YELLOW,
+                        "44": curses.COLOR_BLUE,
+                        "45": curses.COLOR_MAGENTA,
+                        "46": curses.COLOR_CYAN,
+                        "47": curses.COLOR_WHITE,
+                    }
+                    current_bg = color_map[code]
+
+            last_end = match.end()
+
+        # Add remaining text
+        if last_end < len(text):
+            segments.append(
+                {
+                    "text": text[last_end:],
+                    "fg": current_fg,
+                    "bg": current_bg,
+                    "bold": bold,
+                }
+            )
+
+        return segments
+
+    def get_color_pair(fg, bg, bold, color_pairs):
+        """Get or create a color pair for the given colors"""
+        # Create a key for this color combination
+        key = (fg, bg, bold)
+
+        if key not in color_pairs:
+            pair_id = len(color_pairs) + 3  # Start after our reserved pairs (1, 2)
+            if pair_id < curses.COLOR_PAIRS:
+                try:
+                    curses.init_pair(pair_id, fg, bg)
+                    color_pairs[key] = pair_id
+                except curses.error:
+                    # Fallback to default colors if we can't create the pair
+                    color_pairs[key] = 0
+            else:
+                color_pairs[key] = 0
+
+        return color_pairs[key]
+
+    def _generate_banner(width, title, supertitle, subtitle, output_file=None):
+        """Generate banner lines for display"""
+        try:
+            from rich.console import Console
+            from rich.panel import Panel
+            from rich.align import Align
+            from terminaide import termin_ascii
+
+            console = Console(width=width, legacy_windows=False)
+            server_banner = termin_ascii(title)
+            centered_banner = Align.center(server_banner)
+
+            # Build panel kwargs dynamically
+            panel_kwargs = {
+                "border_style": "blue",
+                "expand": True,
+                "padding": [1, 1],
+            }
+            if supertitle is not None:
+                panel_kwargs["title"] = f"[bold green]{supertitle}[/bold green]"
+                panel_kwargs["title_align"] = "left"
+            if subtitle is not None:
+                panel_kwargs["subtitle"] = f"[bold green]{subtitle}[/bold green]"
+                panel_kwargs["subtitle_align"] = "right"
+
+            panel = Panel(centered_banner, **panel_kwargs)
+
+            with console.capture() as capture:
+                console.print(panel)
+
+            banner_text = capture.get()
+            banner_lines = banner_text.split("\n")
+
+            # Remove empty trailing lines
+            while banner_lines and not banner_lines[-1].strip():
+                banner_lines.pop()
+
+            return banner_lines
+
+        except Exception:
+            # Fallback to simple banner
+            # Build header line dynamically
+            header_parts = []
+            if supertitle is not None:
+                header_parts.append(supertitle)
+            if subtitle is not None:
+                header_parts.append(subtitle)
+            if not header_parts:  # If both are None, use title
+                header_parts.append(title)
+
+            return [
+                "=" * min(50, width),
+                " ".join(header_parts),
+                f"File: {os.path.basename(output_file)}",
+                "=" * min(50, width),
+            ]
+
+    def simple_monitor_read():
+        """Simple file reader without curses"""
+        try:
+            with open(output_file, "rb") as file:
+                # First, print existing content (filtered)
+                contents = file.read()
+                if contents:
+                    lines = contents.decode("utf-8", errors="replace").splitlines(
+                        keepends=True
+                    )
+                    for line in lines:
+                        if should_display_line(line.rstrip("\n\r")):
+                            sys.stdout.write(line)
+                    sys.stdout.flush()
+
+                # Track file size for truncation detection
+                last_size = file.tell()
+
+                # Follow the file
+                while True:
+                    # Check current file size
+                    file.seek(0, os.SEEK_END)
+                    current_size = file.tell()
+
+                    # If file was truncated (e.g., overwritten), start from beginning
+                    if current_size < last_size:
+                        file.seek(0)
+                        last_size = 0
+                    else:
+                        # Go back to where we were
+                        file.seek(last_size)
+
+                    # Read new data (filtered)
+                    new_data = file.read()
+                    if new_data:
+                        lines = new_data.decode("utf-8", errors="replace").splitlines(
+                            keepends=True
+                        )
+                        for line in lines:
+                            if should_display_line(line.rstrip("\n\r")):
+                                sys.stdout.write(line)
+                        sys.stdout.flush()
+                        last_size = file.tell()
+                    else:
+                        # No new data, sleep briefly
+                        time.sleep(0.1)
+
+        except FileNotFoundError:
+            print(f"Error: The file '{output_file}' was not found.")
+        except KeyboardInterrupt:
+            print("\n\nStopped following log file.")
+        except Exception as e:
+            print(f"Error reading file: {e}")
+
+    def curses_monitor_read():
+        """Curses-based file reader with rich interface"""
+        # Enable wide-character support for UTF-8 box-drawing characters
+        locale.setlocale(locale.LC_ALL, "")
+
+        def curses_main(stdscr):
+            # Setup curses
+            curses.curs_set(0)  # Hide cursor
+            stdscr.nodelay(True)  # Non-blocking getch()
+            stdscr.timeout(200)  # Refresh every 200ms to reduce flicker
+
+            # Initialize colors if available
+            if curses.has_colors():
+                curses.start_color()
+                curses.use_default_colors()
+                # Define color pairs for header
+                curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
+                curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLUE)
+
+            # Get initial dimensions
+            height, width = stdscr.getmaxyx()
+
+            # Generate banner
+            banner_lines = _generate_banner(
+                width, title, supertitle, subtitle, output_file
+            )
+
+            footer_height = 1
+            header_height = len(banner_lines) + 1  # +1 for spacing
+            content_height = height - header_height - footer_height
+
+            # Create persistent windows with proper dimensions
+            content_win = curses.newwin(content_height, width, header_height, 0)
+            footer_win = curses.newwin(footer_height, width, height - footer_height, 0)
+
+            # Content buffer and display parameters
+            content_buffer = deque(maxlen=10000)  # Keep last 10k lines
+            display_offset = 0  # For scrolling
+            file_queue = queue.Queue()
+            stop_event = threading.Event()
+            color_pairs = {}  # Cache for color pairs
+
+            def file_reader():
+                """Read file in background thread"""
+                try:
+                    with open(output_file, "rb") as file:
+                        # Read existing content
+                        contents = file.read()
+                        if contents:
+                            lines = contents.decode(
+                                "utf-8", errors="replace"
+                            ).splitlines()
+                            for line in lines:
+                                if should_display_line(line):
+                                    file_queue.put(("line", line))
+
+                        last_size = file.tell()
+
+                        while not stop_event.is_set():
+                            file.seek(0, os.SEEK_END)
+                            current_size = file.tell()
+
+                            if current_size < last_size:
+                                # File truncated, restart from beginning
+                                file.seek(0)
+                                last_size = 0
+                                file_queue.put(("clear", None))
+                            else:
+                                file.seek(last_size)
+
+                            new_data = file.read()
+                            if new_data:
+                                lines = new_data.decode(
+                                    "utf-8", errors="replace"
+                                ).splitlines()
+                                for line in lines:
+                                    if should_display_line(line):
+                                        file_queue.put(("line", line))
+                                last_size = file.tell()
+
+                            time.sleep(0.1)
+                except Exception as e:
+                    file_queue.put(("error", str(e)))
+
+            # Start file reader thread
+            reader_thread = threading.Thread(target=file_reader, daemon=True)
+            reader_thread.start()
+
+            # Draw banner directly to main screen with colors
+            for i, line in enumerate(banner_lines):
+                if i < header_height - 1:  # Leave space for content
+                    if curses.has_colors():
+                        # Parse ANSI colors and display with colors
+                        segments = parse_ansi_colors(line)
+                        col = 0
+                        for segment in segments:
+                            if segment["text"] and col < width:
+                                text = segment["text"][: width - col]
+                                if text:
+                                    try:
+                                        pair_id = get_color_pair(
+                                            segment["fg"],
+                                            segment["bg"],
+                                            segment["bold"],
+                                            color_pairs,
+                                        )
+                                        attrs = curses.color_pair(pair_id)
+                                        if segment["bold"]:
+                                            attrs |= curses.A_BOLD
+                                        stdscr.addstr(i, col, text, attrs)
+                                        col += len(text)
+                                    except curses.error:
+                                        break
+                    else:
+                        # Fallback to plain text
+                        clean_line = strip_ansi(line)
+                        try:
+                            stdscr.addstr(i, 0, clean_line[:width])
+                        except curses.error:
+                            pass
+            stdscr.noutrefresh()
+
+            # Draw initial footer
+            if curses.has_colors():
+                footer_win.bkgd(" ", curses.color_pair(2))
+            controls = " [q]uit [↑↓]scroll [Home/End]jump "
+            scroll_pos = " Lines: 0 "
+            footer_text = (
+                controls
+                + " " * (width - len(controls) - len(scroll_pos) - 1)
+                + scroll_pos
+            )
+            try:
+                footer_win.addnstr(0, 0, footer_text, width - 1)
+            except curses.error:
+                pass
+            footer_win.noutrefresh()
+
+            # Draw initial empty content area
+            content_win.clear()
+            content_win.noutrefresh()
+
+            # Initial atomic update
+            curses.doupdate()
+
+            # Main display loop
+            while True:
+                # Check for terminal resize
+                new_height, new_width = stdscr.getmaxyx()
+                if new_height != height or new_width != width:
+                    height, width = new_height, new_width
+                    content_height = height - header_height - footer_height
+
+                    # Recreate windows with new dimensions
+                    content_win = curses.newwin(content_height, width, header_height, 0)
+                    footer_win = curses.newwin(
+                        footer_height, width, height - footer_height, 0
+                    )
+                    content_win.scrollok(True)
+                    content_win.idlok(True)
+
+                    # Regenerate and redraw banner for new width
+                    banner_lines = _generate_banner(
+                        width, title, supertitle, subtitle, output_file
+                    )
+                    header_height = len(banner_lines) + 1
+
+                    # Clear and redraw banner
+                    for i in range(header_height):
+                        try:
+                            stdscr.addstr(i, 0, " " * width)  # Clear line
+                        except curses.error:
+                            pass
+
+                    # Redraw banner with colors
+                    for i, line in enumerate(banner_lines):
+                        if i < header_height - 1:
+                            if curses.has_colors():
+                                # Parse ANSI colors and display with colors
+                                segments = parse_ansi_colors(line)
+                                col = 0
+                                for segment in segments:
+                                    if segment["text"] and col < width:
+                                        text = segment["text"][: width - col]
+                                        if text:
+                                            try:
+                                                pair_id = get_color_pair(
+                                                    segment["fg"],
+                                                    segment["bg"],
+                                                    segment["bold"],
+                                                    color_pairs,
+                                                )
+                                                attrs = curses.color_pair(pair_id)
+                                                if segment["bold"]:
+                                                    attrs |= curses.A_BOLD
+                                                stdscr.addstr(i, col, text, attrs)
+                                                col += len(text)
+                                            except curses.error:
+                                                break
+                            else:
+                                # Fallback to plain text
+                                clean_line = strip_ansi(line)
+                                try:
+                                    stdscr.addstr(i, 0, clean_line[:width])
+                                except curses.error:
+                                    pass
+                    stdscr.noutrefresh()
+                    curses.doupdate()
+
+                # Process new lines from queue
+                content_changed = False
+                while True:
+                    try:
+                        msg_type, data = file_queue.get_nowait()
+                        if msg_type == "line":
+                            content_buffer.append(data)
+                            content_changed = True
+                        elif msg_type == "clear":
+                            content_buffer.clear()
+                            display_offset = 0
+                            content_changed = True
+                        elif msg_type == "error":
+                            content_buffer.append(f"ERROR: {data}")
+                            content_changed = True
+                    except queue.Empty:
+                        break
+
+                # Calculate visible lines
+                total_lines = len(content_buffer)
+                max_offset = max(0, total_lines - content_height)
+                display_offset = min(display_offset, max_offset)
+
+                # Handle keyboard input first
+                scroll_changed = False
+                try:
+                    key = stdscr.getch()
+                    if key == ord("q") or key == ord("Q"):
+                        break
+                    elif key == curses.KEY_UP:
+                        new_offset = min(display_offset + 1, max_offset)
+                        if new_offset != display_offset:
+                            display_offset = new_offset
+                            scroll_changed = True
+                    elif key == curses.KEY_DOWN:
+                        new_offset = max(display_offset - 1, 0)
+                        if new_offset != display_offset:
+                            display_offset = new_offset
+                            scroll_changed = True
+                    elif key == curses.KEY_PPAGE:  # Page Up
+                        new_offset = min(display_offset + content_height, max_offset)
+                        if new_offset != display_offset:
+                            display_offset = new_offset
+                            scroll_changed = True
+                    elif key == curses.KEY_NPAGE:  # Page Down
+                        new_offset = max(display_offset - content_height, 0)
+                        if new_offset != display_offset:
+                            display_offset = new_offset
+                            scroll_changed = True
+                    elif key == curses.KEY_HOME:
+                        new_offset = max_offset
+                        if new_offset != display_offset:
+                            display_offset = new_offset
+                            scroll_changed = True
+                    elif key == curses.KEY_END:
+                        new_offset = 0
+                        if new_offset != display_offset:
+                            display_offset = new_offset
+                            scroll_changed = True
+                except:
+                    pass
+
+                # Redraw content when content or scroll changes
+                if content_changed or scroll_changed:
+                    content_win.clear()
+
+                    # Simple display logic: show most recent lines, always from top of screen
+                    if total_lines == 0:
+                        pass  # Nothing to display
+                    else:
+                        # Calculate which lines to show
+                        start_idx = max(
+                            0, total_lines - content_height - display_offset
+                        )
+                        end_idx = min(total_lines, start_idx + content_height)
+
+                        # Display lines starting from row 0 with color support
+                        row = 0
+                        for line_idx in range(start_idx, end_idx):
+                            line = content_buffer[line_idx]
+
+                            if curses.has_colors():
+                                # Parse ANSI colors and display with colors
+                                segments = parse_ansi_colors(line)
+                                col = 0
+                                for segment in segments:
+                                    if segment["text"] and col < width - 1:
+                                        text = segment["text"][: width - 1 - col]
+                                        if text:
+                                            try:
+                                                pair_id = get_color_pair(
+                                                    segment["fg"],
+                                                    segment["bg"],
+                                                    segment["bold"],
+                                                    color_pairs,
+                                                )
+                                                attrs = curses.color_pair(pair_id)
+                                                if segment["bold"]:
+                                                    attrs |= curses.A_BOLD
+                                                content_win.addstr(
+                                                    row, col, text, attrs
+                                                )
+                                                col += len(text)
+                                            except curses.error:
+                                                break
+                            else:
+                                # Fallback to plain text
+                                clean_line = strip_ansi(line)
+                                try:
+                                    content_win.addnstr(row, 0, clean_line, width - 1)
+                                except curses.error:
+                                    pass
+
+                            row += 1
+
+                    content_win.noutrefresh()
+
+                    # Update footer when content or scroll changes
+                    footer_win.clear()
+                    if curses.has_colors():
+                        footer_win.bkgd(" ", curses.color_pair(2))
+
+                    # Status info
+                    if total_lines > content_height:
+                        scroll_pos = f" Lines: {total_lines} | Scroll: {display_offset}/{max_offset} "
+                    else:
+                        scroll_pos = f" Lines: {total_lines} "
+
+                    footer_text = (
+                        controls
+                        + " " * (width - len(controls) - len(scroll_pos) - 1)
+                        + scroll_pos
+                    )
+                    try:
+                        footer_win.addnstr(0, 0, footer_text, width - 1)
+                    except curses.error:
+                        pass
+                    footer_win.noutrefresh()
+
+                    # Single atomic update to eliminate flicker
+                    curses.doupdate()
+
+            # Cleanup
+            stop_event.set()
+            reader_thread.join(timeout=1)
+
+        try:
+            curses.wrapper(curses_main)
+        except KeyboardInterrupt:
+            print("\n\nStopped monitoring.")
+        except FileNotFoundError:
+            print(f"Error: The file '{output_file}' was not found.")
+        except Exception as e:
+            print(f"Error: {e}")
+
+    # Main execution logic
+    if use_curses:
+        curses_monitor_read()
+    else:
+        simple_monitor_read()
+
+
+def _monitor_write(output_file=None, title="MONITOR", supertitle=None, subtitle=None):
+    """Set up monitoring and restart if needed"""
+    # Check if we're already in a monitored subprocess
+    if os.environ.get("MONITORED_PROCESS"):
+        # Just return - monitoring is already active
+        return
+
+    # Set default output file to temp directory
+    if output_file is None:
+        output_file = os.path.join(tempfile.gettempdir(), "toolbox_monitor.log")
+
+    # Write config header to log file
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    config = {"title": title}
+    if supertitle is not None:
+        config["supertitle"] = supertitle
+    if subtitle is not None:
+        config["subtitle"] = subtitle
+    config_header = f"MONITOR_CONFIG: {json.dumps(config)}\n--- LOG START ---\n"
+
+    # Initialize log file with config
+    with open(output_file, "w") as f:
+        f.write(config_header)
+
+    # Otherwise, restart this script with monitoring
+    import pty
+
+    master_fd, slave_fd = pty.openpty()
+
+    def forward_output():
+        with open(output_file, "ab") as log:
+            while True:
+                try:
+                    data = os.read(master_fd, 1024)
+                    if not data:
+                        break
+                    sys.stdout.buffer.write(data)
+                    sys.stdout.flush()
+                    log.write(data)
+                    log.flush()
+                except OSError:
+                    break
+
+    thread = threading.Thread(target=forward_output, daemon=True)
+    thread.start()
+
+    # Run this same script again with monitoring env var set
+    env = os.environ.copy()
+    env["MONITORED_PROCESS"] = "1"
+
+    process = subprocess.Popen(
+        [sys.executable] + sys.argv,
+        stdout=slave_fd,
+        stderr=slave_fd,
+        stdin=sys.stdin,
+        env=env,
+        preexec_fn=os.setsid,  # Create new process group
+    )
+
+    os.close(slave_fd)
+
+    # Set up signal handlers to forward to child process group
+    def signal_handler(signum, frame):
+        if process.poll() is None:
+            try:
+                # Send signal to entire process group (includes uvicorn reloader)
+                os.killpg(process.pid, signum)
+                process.wait(timeout=1)
+            except (ProcessLookupError, subprocess.TimeoutExpired, PermissionError):
+                # Process group may already be gone, try direct kill
+                try:
+                    process.kill()
+                except ProcessLookupError:
+                    pass
+                try:
+                    process.wait(timeout=0.5)
+                except subprocess.TimeoutExpired:
+                    pass
+
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
+    try:
+        process.wait()
+    except KeyboardInterrupt:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+            process.wait(timeout=1)
+        except (ProcessLookupError, subprocess.TimeoutExpired, PermissionError):
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+            try:
+                process.wait(timeout=0.5)
+            except subprocess.TimeoutExpired:
+                pass
+    finally:
+        os.close(master_fd)
+
+    sys.exit(process.returncode if process.returncode is not None else 0)
+
+
+# Assign the standalone function to the Monitor class
+Monitor.read = monitor_read_standalone
+
+
+if __name__ == "__main__":
+    # Default to read mode when run directly
+    Monitor.read()

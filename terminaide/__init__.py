@@ -13,6 +13,7 @@ Public API:
 - serve_apps(): Integrate multiple terminals into a FastAPI application
 - HtmlIndex/CursesIndex: Create navigable index pages
 - termin_ascii(): Generate ASCII banners
+- Monitor: Process output monitoring with rich terminal interface
 - terminarcade: Collection of terminal games
 
 Supported Platforms:

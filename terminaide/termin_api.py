@@ -15,6 +15,7 @@ UI Components:
 
 Utilities:
 - termin_ascii: Generate ASCII banners
+- Monitor: Process output monitoring with rich terminal interface
 - terminarcade: Collection of terminal games
 """
 
@@ -28,6 +29,7 @@ from .core.app_factory import ServeWithConfig
 from .core.index_html import HtmlIndex
 from .core.index_curses import CursesIndex
 from .core.termin_ascii import termin_ascii
+from .core.monitor import Monitor
 
 logger = logging.getLogger("terminaide")
 
@@ -309,4 +311,5 @@ __all__ = [
     "CursesIndex",
     # Utilities
     "termin_ascii",
+    "Monitor",
 ]

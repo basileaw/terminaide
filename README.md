@@ -36,13 +36,11 @@ This approach ensures a consistent experience across environments and simplifies
 
 Terminaide offers two primary approaches: Solo Mode for quickly serving individual functions, scripts, or servers, and Apps Mode for integrating multiple terminals into a FastAPI application. Start with Solo Mode for simplicity, then graduate to Apps Mode when you need multiple terminals in one application.
 
-### Solo Mode 
+### Solo Server
 
 The Solo Server provides the fastest way to web-enable a Python function or script. It creates a standalone web server with a single terminal and handles all the configuration details for you. Choose between Function or Script Server based on your use case.
 
-**Desktop Mode**: Solo Mode supports desktop mode via the `desktop=True` parameter, which opens the terminal in a native desktop window instead of a browser.
-
-#### Function Server
+#### Functions
 
 Serve a Python function directly from a single entry point. Just pass any Python function to `serve_function()` and it's instantly accessible: 
 
@@ -61,7 +59,7 @@ if __name__ == "__main__":
     serve_function(hello, desktop=True, desktop_width=800, desktop_height=600)
 ```
 
-#### Script Server
+#### Scripts
 
 The absolute simplest way to use Terminaide is to serve an existing Python script that you don't want to modify:
 
@@ -130,13 +128,7 @@ kwargs = {
     # }
 }
 
-# Meta Server additional options
-meta_serve(
-    target,                   # Function or script that starts your server
-    app_dir="/path/to/app",   # Application directory (auto-detected if not specified)
-    # ... plus all options above
-)
-```
+**Desktop Mode**: Solo Mode supports desktop mode via the `desktop=True` parameter, which opens the terminal in a native desktop window instead of a browser.
 
 ### Apps Mode
 
