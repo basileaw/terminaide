@@ -120,9 +120,6 @@ class TerminaideConfig:
         default_factory=lambda: {"background": "black", "foreground": "white"}
     )
     debug: bool = True
-    desktop: bool = False
-    desktop_width: int = 1200
-    desktop_height: int = 800
     banner: Union[bool, str] = True
     forward_env: Union[bool, List[str], Dict[str, Optional[str]]] = True
 

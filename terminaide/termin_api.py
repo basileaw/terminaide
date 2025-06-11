@@ -48,20 +48,10 @@ COMMON_KWARGS_DOC = """
 
 def _prepare_config(
     config: Optional[TerminaideConfig],
-    desktop: bool,
-    desktop_width: int,
-    desktop_height: int,
     banner: Union[bool, str],
     **kwargs
 ) -> TerminaideConfig:
     """Prepare configuration with common parameters."""
-    # Add desktop parameters to kwargs if provided
-    if desktop:
-        kwargs["desktop"] = desktop
-    if "desktop_width" not in kwargs:
-        kwargs["desktop_width"] = desktop_width
-    if "desktop_height" not in kwargs:
-        kwargs["desktop_height"] = desktop_height
     # Add banner parameter to kwargs
     kwargs["banner"] = banner
     
@@ -90,25 +80,19 @@ def _auto_generate_title(cfg: TerminaideConfig, mode: str, target: Any, kwargs: 
 def serve_function(
     func: Callable,
     config: Optional[TerminaideConfig] = None,
-    desktop: bool = False,
-    desktop_width: int = 1200,
-    desktop_height: int = 800,
     banner: Union[bool, str] = True,
     port: int = 8000,
     title: Optional[str] = None,
     theme: Optional[Dict[str, str]] = None,
     debug: bool = True,
 ) -> None:
-    f"""Serve a Python function in a browser terminal or desktop window.
+    f"""Serve a Python function in a browser terminal.
 
     This function creates a web-accessible terminal that runs the provided Python function.
 
     Args:
         func: The function to serve in the terminal
         config: Full configuration object for advanced users (optional)
-        desktop: If True, open in a desktop window instead of browser (default: False)
-        desktop_width: Width of desktop window in pixels (default: 1200)
-        desktop_height: Height of desktop window in pixels (default: 800)
         banner: Controls banner display. True shows Rich panel, False disables banner,
                string value prints the string directly (default: True)
         port: Web server port (default: 8000)
@@ -123,9 +107,6 @@ def serve_function(
         
         # Custom port and title
         serve_function(my_function, port=8080, title="My CLI Tool")
-        
-        # Desktop mode
-        serve_function(my_function, desktop=True)
         
         # Custom theme
         serve_function(my_function, theme={{"background": "navy", "foreground": "white"}})
@@ -146,7 +127,7 @@ def serve_function(
     if debug != True:
         kwargs["debug"] = debug
     
-    cfg = _prepare_config(config, desktop, desktop_width, desktop_height, banner, **kwargs)
+    cfg = _prepare_config(config, banner, **kwargs)
     cfg._target = func
     cfg._mode = "function"
     
@@ -157,25 +138,19 @@ def serve_function(
 def serve_script(
     script_path: Union[str, Path],
     config: Optional[TerminaideConfig] = None,
-    desktop: bool = False,
-    desktop_width: int = 1200,
-    desktop_height: int = 800,
     banner: Union[bool, str] = True,
     port: int = 8000,
     title: Optional[str] = None,
     theme: Optional[Dict[str, str]] = None,
     debug: bool = True,
 ) -> None:
-    f"""Serve a Python script in a browser terminal or desktop window.
+    f"""Serve a Python script in a browser terminal.
 
     This function creates a web-accessible terminal that runs the provided Python script.
 
     Args:
         script_path: Path to the script file to serve
         config: Full configuration object for advanced users (optional)
-        desktop: If True, open in a desktop window instead of browser (default: False)
-        desktop_width: Width of desktop window in pixels (default: 1200)
-        desktop_height: Height of desktop window in pixels (default: 800)
         banner: Controls banner display. True shows Rich panel, False disables banner,
                string value prints the string directly (default: True)
         port: Web server port (default: 8000)
@@ -191,8 +166,8 @@ def serve_script(
         # Custom port and title
         serve_script("my_script.py", port=8080, title="My Script")
         
-        # Desktop mode
-        serve_script("my_script.py", desktop=True)
+        # Custom theme
+        serve_script("my_script.py", theme={"background": "navy"})
         ```
     """
     # Build kwargs dictionary from explicit parameters
@@ -206,7 +181,7 @@ def serve_script(
     if debug != True:
         kwargs["debug"] = debug
     
-    cfg = _prepare_config(config, desktop, desktop_width, desktop_height, banner, **kwargs)
+    cfg = _prepare_config(config, banner, **kwargs)
     cfg._target = Path(script_path)
     cfg._mode = "script"
     
@@ -220,9 +195,6 @@ def serve_apps(
         str, Union[str, Path, List, Dict[str, Any], Callable, HtmlIndex]
     ],
     config: Optional[TerminaideConfig] = None,
-    desktop: bool = False,
-    desktop_width: int = 1200,
-    desktop_height: int = 800,
     banner: Union[bool, str] = True,
     **kwargs,
 ) -> None:
@@ -243,10 +215,6 @@ def serve_apps(
                 - For functions: {"function": callable_func, ...}
                 - Other options: "title", "port", "preview_image", etc.
         config: Configuration options for the terminals
-        desktop: If True, open in a desktop window instead of browser (default: False)
-                Note: Desktop mode for serve_apps is not yet implemented
-        desktop_width: Width of desktop window in pixels (default: 1200)
-        desktop_height: Height of desktop window in pixels (default: 800)
         banner: Controls banner display. True shows Rich panel, False disables banner,
                string value prints the string directly (default: True)
         **kwargs: Additional configuration overrides:
@@ -340,8 +308,8 @@ def serve_apps(
         ```
 
     Note:
-        Desktop mode for serve_apps is not yet implemented. Desktop mode currently
-        supports serve_function and serve_script only.
+        This function integrates with existing FastAPI applications for complex use cases.
+        For simple single-terminal applications, consider using serve_function or serve_script.
     """
     if not terminal_routes:
         logger.warning(
@@ -349,7 +317,7 @@ def serve_apps(
         )
         return
 
-    cfg = _prepare_config(config, desktop, desktop_width, desktop_height, banner, **kwargs)
+    cfg = _prepare_config(config, banner, **kwargs)
     cfg._target = terminal_routes
     cfg._app = app
     cfg._mode = "apps"

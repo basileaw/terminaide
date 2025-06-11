@@ -14,8 +14,6 @@ import signal
 import logging
 import uvicorn
 import tempfile
-import subprocess
-import webview
 from pathlib import Path
 from fastapi import FastAPI
 from typing import Dict, Any, Union
@@ -141,137 +139,7 @@ class ServeWithConfig:
 
         logger.debug(f"Starting Terminaide in {mode.upper()} mode")
 
-    @classmethod
-    def _wait_for_server(cls, url: str, timeout: int = 15) -> bool:
-        """Wait for the server to be ready by checking health endpoint."""
-        try:
-            import requests
-        except ImportError:
-            logger.error(
-                "requests library required for desktop mode. Install with: pip install requests"
-            )
-            return False
 
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            try:
-                # Try health endpoint first
-                try:
-                    response = requests.get(f"{url}/health", timeout=2)
-                    if response.status_code == 200:
-                        logger.debug(f"Server ready at {url}")
-                        return True
-                except requests.exceptions.RequestException:
-                    pass
-
-                # Fallback: try root endpoint
-                try:
-                    response = requests.get(url, timeout=2)
-                    if response.status_code == 200:
-                        logger.debug(f"Server ready at {url} (via root endpoint)")
-                        return True
-                except requests.exceptions.RequestException:
-                    pass
-
-            except Exception:
-                pass
-            time.sleep(0.5)
-
-        logger.error(f"Server at {url} did not become ready within {timeout} seconds")
-        return False
-
-    @classmethod
-    def serve_desktop(cls, config: TerminaideConfig) -> None:
-        """Serve the application in a desktop window using pywebview."""
-        logger.info(f"Starting desktop application: {config.title}")
-
-        # Build the appropriate server command based on mode
-        if config._mode == "apps":
-            logger.error("Desktop mode for serve_apps is not yet implemented")
-            print(
-                "\033[91mError: Desktop mode for serve_apps is not yet implemented.\033[0m"
-            )
-            print(
-                "Desktop mode currently supports serve_function and serve_script only."
-            )
-            return
-        
-        try:
-            # Import generate_desktop_server_command here to avoid circular dependency
-            from .app_factory import generate_desktop_server_command
-            server_command = generate_desktop_server_command(config)
-        except ValueError as e:
-            logger.error(str(e))
-            return
-        
-        # Create subprocess command to start the terminaide server
-        server_args = [
-            sys.executable,
-            "-c",
-            server_command,
-        ]
-
-        # Start the server subprocess
-        logger.debug(f"Starting server subprocess for desktop mode")
-        server_process = subprocess.Popen(
-            server_args, cwd=Path.cwd(), stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-
-        try:
-            # Wait for server to be ready
-            server_url = f"http://localhost:{config.port}"
-
-            # Check if subprocess is still running before health check
-            if server_process.poll() is not None:
-                stdout, stderr = server_process.communicate()
-                logger.error(
-                    f"Server subprocess exited early with code: {server_process.returncode}"
-                )
-                if stderr:
-                    logger.error(f"Server error: {stderr.decode()}")
-                print("\033[91mError: Server failed to start\033[0m")
-                return
-
-            if not cls._wait_for_server(server_url, timeout=15):
-                server_process.terminate()
-                stdout, stderr = server_process.communicate(timeout=5)
-                logger.error("Server failed to start")
-                if stderr:
-                    logger.error(f"Server stderr: {stderr.decode()}")
-                print("\033[91mError: Server failed to start within timeout\033[0m")
-                return
-
-            logger.info(f"Server ready at {server_url}")
-
-            # Create and show the desktop window
-            logger.info(f"Opening desktop window: {config.title}")
-            webview.create_window(
-                title=config.title,
-                url=server_url,
-                width=config.desktop_width,
-                height=config.desktop_height,
-            )
-
-            # This blocks until the window is closed
-            webview.start()
-
-            logger.info("Desktop window closed")
-
-        except Exception as e:
-            logger.error(f"Desktop application error: {e}")
-            print(f"\033[91mDesktop application error: {e}\033[0m")
-        finally:
-            # Clean up: kill the server process when window closes
-            logger.debug("Terminating server subprocess")
-            server_process.terminate()
-            try:
-                server_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                logger.warning("Server process did not terminate gracefully, killing")
-                server_process.kill()
-                server_process.wait()
-
-            logger.info("Desktop application cleanup complete")
 
     @classmethod
     def serve(cls, config) -> None:
@@ -283,11 +151,6 @@ class ServeWithConfig:
         # Display banner based on config.banner value
         if config.banner:
             cls.display_banner(config._mode, config.banner)
-
-        # Check if desktop mode is requested
-        if config.desktop:
-            cls.serve_desktop(config)
-            return
 
         if config._mode == "function":
             cls.serve_function(config)

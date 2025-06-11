@@ -163,48 +163,10 @@ def copy_config_attributes(source_config: TerminaideConfig, **overrides) -> Term
     if hasattr(source_config, "preview_image"):
         new_config.preview_image = source_config.preview_image
     
-    if hasattr(source_config, "desktop"):
-        new_config.desktop = source_config.desktop
-        new_config.desktop_width = source_config.desktop_width
-        new_config.desktop_height = source_config.desktop_height
     
     return new_config
 
 
-def generate_desktop_server_command(config: TerminaideConfig) -> str:
-    """Generate the server command for desktop mode based on the config mode.
-    
-    Args:
-        config: The Terminaide configuration
-    
-    Returns:
-        Python command string to start the server
-    """
-    base_params = (
-        f"port={config.port}, title='{config.title}', "
-        f"debug={config.debug}, theme={config.theme}, "
-        f"banner={repr(config.banner)}, "
-        f"forward_env={repr(config.forward_env)}"
-    )
-    
-    if config._mode == "function":
-        # For functions, we need to create a wrapper script since we can't serialize the function
-        func = config._target
-        ephemeral_path = generate_function_wrapper(func)
-        return (
-            f"from terminaide import serve_script; "
-            f"serve_script(r'{ephemeral_path}', {base_params})"
-        )
-    
-    elif config._mode == "script":
-        script_path = config._target
-        return (
-            f"from terminaide import serve_script; "
-            f"serve_script(r'{script_path}', {base_params})"
-        )
-    
-    else:
-        raise ValueError(f"Unsupported mode for desktop serving: {config._mode}")
 
 
 class AppFactory:
