@@ -329,7 +329,7 @@ def monitor_read_standalone(output_file=None, use_curses=True):
             # Setup curses
             curses.curs_set(0)  # Hide cursor
             stdscr.nodelay(True)  # Non-blocking getch()
-            stdscr.timeout(200)  # Refresh every 200ms to reduce flicker
+            stdscr.timeout(50)  # Faster timeout for smoother scrolling
 
             # Initialize colors if available
             if curses.has_colors():
@@ -361,6 +361,11 @@ def monitor_read_standalone(output_file=None, use_curses=True):
             file_queue = queue.Queue()
             stop_event = threading.Event()
             color_pairs = {}  # Cache for color pairs
+            
+            # Track what's currently displayed to minimize redraws
+            displayed_lines = {}  # row -> (start_idx, line_content)
+            last_footer_text = ""  # Track footer to avoid unnecessary updates
+            last_total_lines = 0
 
             def file_reader():
                 """Read file in background thread"""
@@ -443,26 +448,13 @@ def monitor_read_standalone(output_file=None, use_curses=True):
             stdscr.noutrefresh()
 
             # Draw initial footer
+            controls = " [q]uit [↑↓]scroll [Home/End]jump "
+            
+            # Initial atomic update with empty content
             if curses.has_colors():
                 footer_win.bkgd(" ", curses.color_pair(2))
-            controls = " [q]uit [↑↓]scroll [Home/End]jump "
-            scroll_pos = " Lines: 0 "
-            footer_text = (
-                controls
-                + " " * (width - len(controls) - len(scroll_pos) - 1)
-                + scroll_pos
-            )
-            try:
-                footer_win.addnstr(0, 0, footer_text, width - 1)
-            except curses.error:
-                pass
             footer_win.noutrefresh()
-
-            # Draw initial empty content area
-            content_win.clear()
             content_win.noutrefresh()
-
-            # Initial atomic update
             curses.doupdate()
 
             # Main display loop
@@ -478,8 +470,11 @@ def monitor_read_standalone(output_file=None, use_curses=True):
                     footer_win = curses.newwin(
                         footer_height, width, height - footer_height, 0
                     )
-                    content_win.scrollok(True)
-                    content_win.idlok(True)
+                    
+                    # Reset display tracking for new window
+                    displayed_lines.clear()
+                    last_footer_text = ""
+                    content_changed = True  # Force redraw after resize
 
                     # Regenerate and redraw banner for new width
                     banner_lines = _generate_banner(
@@ -531,19 +526,26 @@ def monitor_read_standalone(output_file=None, use_curses=True):
 
                 # Process new lines from queue
                 content_changed = False
-                while True:
+                lines_processed = 0
+                max_lines_per_update = 100  # Process up to 100 lines per update cycle
+                
+                while lines_processed < max_lines_per_update:
                     try:
                         msg_type, data = file_queue.get_nowait()
                         if msg_type == "line":
                             content_buffer.append(data)
                             content_changed = True
+                            lines_processed += 1
                         elif msg_type == "clear":
                             content_buffer.clear()
                             display_offset = 0
                             content_changed = True
+                            displayed_lines.clear()  # Clear display tracking
+                            break  # Process clear immediately
                         elif msg_type == "error":
                             content_buffer.append(f"ERROR: {data}")
                             content_changed = True
+                            lines_processed += 1
                     except queue.Empty:
                         break
 
@@ -593,23 +595,47 @@ def monitor_read_standalone(output_file=None, use_curses=True):
 
                 # Redraw content when content or scroll changes
                 if content_changed or scroll_changed:
-                    content_win.clear()
+                    # Calculate which lines to show
+                    start_idx = max(
+                        0, total_lines - content_height - display_offset
+                    )
+                    end_idx = min(total_lines, start_idx + content_height)
 
-                    # Simple display logic: show most recent lines, always from top of screen
-                    if total_lines == 0:
-                        pass  # Nothing to display
-                    else:
-                        # Calculate which lines to show
-                        start_idx = max(
-                            0, total_lines - content_height - display_offset
-                        )
-                        end_idx = min(total_lines, start_idx + content_height)
-
-                        # Display lines starting from row 0 with color support
-                        row = 0
-                        for line_idx in range(start_idx, end_idx):
+                    # Track which rows need updating
+                    rows_to_update = set()
+                    
+                    # Check which lines have changed or need to be drawn
+                    for row in range(content_height):
+                        line_idx = start_idx + row if start_idx + row < end_idx else -1
+                        current_display = displayed_lines.get(row, (-1, ""))
+                        
+                        if line_idx == -1:
+                            # This row should be empty
+                            if current_display[0] != -1:
+                                rows_to_update.add(row)
+                        elif (current_display[0] != line_idx or 
+                              (line_idx < len(content_buffer) and 
+                               current_display[1] != content_buffer[line_idx])):
+                            # Line has changed
+                            rows_to_update.add(row)
+                    
+                    # Update only the rows that changed
+                    for row in rows_to_update:
+                        line_idx = start_idx + row if start_idx + row < end_idx else -1
+                        
+                        if line_idx == -1 or line_idx >= len(content_buffer):
+                            # Clear this row
+                            content_win.move(row, 0)
+                            content_win.clrtoeol()
+                            displayed_lines[row] = (-1, "")
+                        else:
+                            # Draw the line
                             line = content_buffer[line_idx]
-
+                            
+                            # Clear the row first (more efficient than overwriting)
+                            content_win.move(row, 0)
+                            content_win.clrtoeol()
+                            
                             if curses.has_colors():
                                 # Parse ANSI colors and display with colors
                                 segments = parse_ansi_colors(line)
@@ -641,17 +667,12 @@ def monitor_read_standalone(output_file=None, use_curses=True):
                                     content_win.addnstr(row, 0, clean_line, width - 1)
                                 except curses.error:
                                     pass
-
-                            row += 1
-
+                            
+                            displayed_lines[row] = (line_idx, line)
+                    
                     content_win.noutrefresh()
 
-                    # Update footer when content or scroll changes
-                    footer_win.clear()
-                    if curses.has_colors():
-                        footer_win.bkgd(" ", curses.color_pair(2))
-
-                    # Status info
+                    # Update footer only if it changed
                     if total_lines > content_height:
                         scroll_pos = f" Lines: {total_lines} | Scroll: {display_offset}/{max_offset} "
                     else:
@@ -662,11 +683,22 @@ def monitor_read_standalone(output_file=None, use_curses=True):
                         + " " * (width - len(controls) - len(scroll_pos) - 1)
                         + scroll_pos
                     )
-                    try:
-                        footer_win.addnstr(0, 0, footer_text, width - 1)
-                    except curses.error:
-                        pass
-                    footer_win.noutrefresh()
+                    
+                    if footer_text != last_footer_text or total_lines != last_total_lines:
+                        # Footer has changed, update it
+                        if curses.has_colors() and last_footer_text == "":
+                            # Set background only once
+                            footer_win.bkgd(" ", curses.color_pair(2))
+                        
+                        footer_win.move(0, 0)
+                        footer_win.clrtoeol()
+                        try:
+                            footer_win.addnstr(0, 0, footer_text, width - 1)
+                        except curses.error:
+                            pass
+                        footer_win.noutrefresh()
+                        last_footer_text = footer_text
+                        last_total_lines = total_lines
 
                     # Single atomic update to eliminate flicker
                     curses.doupdate()
