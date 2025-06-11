@@ -122,7 +122,6 @@ def main() -> None:
             port=port,
             title="Instructions",
             debug=True,
-            reload=True,
         )
         return
 

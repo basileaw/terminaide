@@ -37,15 +37,9 @@ logger = logging.getLogger("terminaide")
 # Common configuration parameters documentation
 COMMON_KWARGS_DOC = """
     - port: Web server port (default: 8000)
-    - title: Terminal window title (default: auto-generated)
+    - title: Terminal window title (default: auto-generated from function/script name)
     - theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
-    - debug: Enable debug mode (default: True)
-    - forward_env: Control environment variable forwarding (default: True)
-    - ttyd_options: Options for the ttyd process
-    - template_override: Custom HTML template path
-    - trust_proxy_headers: Trust X-Forwarded-Proto headers (default: True)
-    - preview_image: Custom preview image for social media sharing (default: None)
-    - configure_logging: Whether to configure Terminaide's logging handlers (default: True)
+    - debug: Enable debug mode with verbose output (default: True)
 """
 
 ################################################################################
@@ -100,7 +94,10 @@ def serve_function(
     desktop_width: int = 1200,
     desktop_height: int = 800,
     banner: Union[bool, str] = True,
-    **kwargs,
+    port: int = 8000,
+    title: Optional[str] = None,
+    theme: Optional[Dict[str, str]] = None,
+    debug: bool = True,
 ) -> None:
     f"""Serve a Python function in a browser terminal or desktop window.
 
@@ -108,15 +105,47 @@ def serve_function(
 
     Args:
         func: The function to serve in the terminal
-        config: Configuration options for the terminal
+        config: Full configuration object for advanced users (optional)
         desktop: If True, open in a desktop window instead of browser (default: False)
         desktop_width: Width of desktop window in pixels (default: 1200)
         desktop_height: Height of desktop window in pixels (default: 800)
         banner: Controls banner display. True shows Rich panel, False disables banner,
                string value prints the string directly (default: True)
-        **kwargs: Additional configuration overrides:
-{COMMON_KWARGS_DOC}
+        port: Web server port (default: 8000)
+        title: Terminal window title (default: auto-generated from function name)
+        theme: Terminal theme colors (default: {{"background": "black", "foreground": "white"}})
+        debug: Enable debug mode with verbose output (default: True)
+
+    Examples:
+        ```python
+        # Simple usage
+        serve_function(my_function)
+        
+        # Custom port and title
+        serve_function(my_function, port=8080, title="My CLI Tool")
+        
+        # Desktop mode
+        serve_function(my_function, desktop=True)
+        
+        # Custom theme
+        serve_function(my_function, theme={{"background": "navy", "foreground": "white"}})
+        ```
+
+    Note:
+        For advanced configuration options like environment variables, proxy settings,
+        or custom templates, use the `config` parameter with a TerminaideConfig object.
     """
+    # Build kwargs dict with explicit parameters
+    kwargs = {}
+    if port != 8000:
+        kwargs["port"] = port
+    if title is not None:
+        kwargs["title"] = title
+    if theme is not None:
+        kwargs["theme"] = theme
+    if debug != True:
+        kwargs["debug"] = debug
+    
     cfg = _prepare_config(config, desktop, desktop_width, desktop_height, banner, **kwargs)
     cfg._target = func
     cfg._mode = "function"
@@ -132,7 +161,10 @@ def serve_script(
     desktop_width: int = 1200,
     desktop_height: int = 800,
     banner: Union[bool, str] = True,
-    **kwargs,
+    port: int = 8000,
+    title: Optional[str] = None,
+    theme: Optional[Dict[str, str]] = None,
+    debug: bool = True,
 ) -> None:
     f"""Serve a Python script in a browser terminal or desktop window.
 
@@ -140,15 +172,40 @@ def serve_script(
 
     Args:
         script_path: Path to the script file to serve
-        config: Configuration options for the terminal
+        config: Full configuration object for advanced users (optional)
         desktop: If True, open in a desktop window instead of browser (default: False)
         desktop_width: Width of desktop window in pixels (default: 1200)
         desktop_height: Height of desktop window in pixels (default: 800)
         banner: Controls banner display. True shows Rich panel, False disables banner,
                string value prints the string directly (default: True)
-        **kwargs: Additional configuration overrides:
-{COMMON_KWARGS_DOC}
+        port: Web server port (default: 8000)
+        title: Terminal window title (default: auto-generated from script name)
+        theme: Terminal theme colors (default: {{"background": "black", "foreground": "white"}})
+        debug: Enable debug mode with verbose output (default: True)
+    
+    Examples:
+        ```python
+        # Simple usage
+        serve_script("my_script.py")
+        
+        # Custom port and title
+        serve_script("my_script.py", port=8080, title="My Script")
+        
+        # Desktop mode
+        serve_script("my_script.py", desktop=True)
+        ```
     """
+    # Build kwargs dictionary from explicit parameters
+    kwargs = {}
+    if port != 8000:
+        kwargs["port"] = port
+    if title is not None:
+        kwargs["title"] = title
+    if theme is not None:
+        kwargs["theme"] = theme
+    if debug != True:
+        kwargs["debug"] = debug
+    
     cfg = _prepare_config(config, desktop, desktop_width, desktop_height, banner, **kwargs)
     cfg._target = Path(script_path)
     cfg._mode = "script"
