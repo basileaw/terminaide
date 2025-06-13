@@ -451,8 +451,8 @@ def convert_terminaide_config_to_ttyd_config(
             break
 
     ttyd_config = TTYDConfig(
-        client_script=(
-            first_script_config.client_script
+        script=(
+            first_script_config.script
             if first_script_config and not first_script_config.is_function_based
             else None
         ),

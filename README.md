@@ -1,7 +1,7 @@
 # Terminaide
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/terminaide) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![PyPI - Version](https://img.shields.io/pypi/v/terminaide) 
 
-A handy Python library for serving CLI applications in a browser or desktop window. Terminaide allows developers to instantly web-enable terminal-based Python applications without packaging or distribution overhead, making it ideal for prototypes, demos, and applications with small user bases.
+A handy Python library for serving CLI applications in a browser. Terminaide allows developers to instantly web-enable terminal-based Python applications without packaging or distribution overhead, making it ideal for prototypes, demos, and applications with small user bases.
 
 ## How It Works
 
@@ -12,8 +12,6 @@ Terminaide builds on four core technical elements:
 2. **Single-Port Proxying**: Routes all HTTP and WebSocket traffic through a single port, simplifying deployments in containers and cloud environments while maintaining cross-origin security.
 
 3. **FastAPI Integration**: Seamlessly integrates with FastAPI applications, allowing terminals to coexist with traditional web pages and REST endpoints via flexible route prioritization.
-
-4. **Desktop Mode**: Native desktop application support, allowing terminals to run in dedicated desktop windows instead of browsers for focused local development.
 
 ## Installation
 
@@ -40,6 +38,18 @@ Terminaide offers two primary approaches: Solo Mode for quickly serving individu
 
 The Solo Server provides the fastest way to web-enable a Python function or script. It creates a standalone web server with a single terminal and handles all the configuration details for you. Choose between Function or Script Server based on your use case.
 
+#### Scripts
+
+The absolute simplest way to use Terminaide is to serve an existing Python script that you don't want to modify:
+
+```python
+from terminaide import serve_script
+
+if __name__ == "__main__":
+    serve_script("my_script.py")
+
+```
+
 #### Functions
 
 Serve a Python function directly from a single entry point. Just pass any Python function to `serve_function()` and it's instantly accessible: 
@@ -52,26 +62,8 @@ def hello():
     print(f"Hello, {name}!")
 
 if __name__ == "__main__":
-    # Browser mode (default)
     serve_function(hello)
-    
-    # Desktop mode with custom window size
-    serve_function(hello, desktop=True, desktop_width=800, desktop_height=600)
-```
 
-#### Scripts
-
-The absolute simplest way to use Terminaide is to serve an existing Python script that you don't want to modify:
-
-```python
-from terminaide import serve_script
-
-if __name__ == "__main__":
-    # Browser mode (default)
-    serve_script("my_script.py")
-    
-    # Desktop mode
-    serve_script("my_script.py", desktop=True)
 ```
 
 #### Solo Mode Configuration Options
@@ -88,11 +80,6 @@ kwargs = {
     "trust_proxy_headers": True, # Trust X-Forwarded-Proto headers
     "template_override": None,   # Custom HTML template path
     "preview_image": None,       # Custom preview image for social media sharing
-    
-    # Desktop mode options (Solo Mode only)
-    "desktop": False,            # Open in desktop window instead of browser
-    "desktop_width": 1200,       # Desktop window width in pixels
-    "desktop_height": 800,       # Desktop window height in pixels
     
     # Terminal appearance
     "theme": {
@@ -128,13 +115,9 @@ kwargs = {
     # }
 }
 
-**Desktop Mode**: Solo Mode supports desktop mode via the `desktop=True` parameter, which opens the terminal in a native desktop window instead of a browser.
-
 ### Apps Mode
 
 The Apps Server extends terminaide's capabilities to integrate multiple terminals into an existing FastAPI application. This approach gives you more control over routing, allows multiple terminals to coexist with regular web endpoints, and provides additional configuration options.
-
-**Note**: Desktop mode is not yet supported for Apps Mode. Apps Mode currently supports browser mode only.
 
 You can use both functions and scripts in your terminal routes:
 
@@ -164,7 +147,7 @@ serve_apps(
         "/cli1": "script1.py",
         "/cli2": ["script2.py", "--arg1", "value"],
         "/cli3": {
-            "client_script": "script3.py",
+            "script": "script3.py",
             "title": "Advanced CLI"
         },
         
@@ -184,7 +167,7 @@ if __name__ == "__main__":
 
 #### Apps Mode Configuration
 
-The Apps Server includes all the configuration options from Solo Mode (except desktop options), plus these additional options:
+The Apps Server includes all the configuration options from Solo Mode, plus these additional options:
 
 ```python
 serve_apps(
@@ -195,7 +178,7 @@ serve_apps(
         "/path1": "script1.py",
         "/path2": ["script2.py", "--arg1", "value"],
         "/path3": {
-            "client_script": "script3.py",
+            "script": "script3.py",
             "args": ["--mode", "advanced"],
             "title": "Custom Title",
             "port": 7682,      # Specific port for this terminal
@@ -217,7 +200,7 @@ serve_apps(
     ttyd_port=7681,           # Base port for ttyd processes
     preview_image="default_preview.png",  # Default preview image for all routes
     
-    # Plus all options from Solo Mode (except desktop options)
+    # Plus all options from Solo Mode
     port=8000,
     title=None,
     debug=True,

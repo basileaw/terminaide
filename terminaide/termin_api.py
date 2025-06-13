@@ -211,7 +211,7 @@ def serve_apps(
             - An HtmlIndex instance for creating navigable menu pages
             - A list [script_path, arg1, arg2, ...] for scripts with arguments
             - A dictionary with advanced configuration:
-                - For scripts: {"client_script": "path.py", "args": [...], ...}
+                - For scripts: {"script": "path.py", "args": [...], ...}
                 - For functions: {"function": callable_func, ...}
                 - Other options: "title", "port", "preview_image", etc.
         config: Configuration options for the terminals
@@ -267,7 +267,7 @@ def serve_apps(
                 "/deploy": "scripts/deploy.py",
                 "/monitor": ["scripts/monitor.py", "--verbose"],
                 "/logs": {
-                    "client_script": "scripts/logs.py",
+                    "script": "scripts/logs.py",
                     "title": "System Logs"
                 },
 

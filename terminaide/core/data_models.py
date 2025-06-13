@@ -141,13 +141,13 @@ class RouteConfigBase(BaseModel):
 class ScriptConfig(RouteConfigBase):
     """Configuration for a single terminal route, including the script path, port assignment, and optional custom title."""
 
-    client_script: Optional[Path] = None
+    script: Optional[Path] = None
     args: List[str] = Field(default_factory=list)
     port: Optional[int] = None
     function_object: Optional[Callable] = None
     _function_wrapper_path: Optional[Path] = None
 
-    @field_validator("client_script")
+    @field_validator("script")
     @classmethod
     def validate_script_path(cls, v: Optional[Union[str, Path]]) -> Optional[Path]:
         """
@@ -204,10 +204,10 @@ class ScriptConfig(RouteConfigBase):
 
     @model_validator(mode="after")
     def validate_script_or_function(self) -> "ScriptConfig":
-        """Ensure either client_script or function_object is provided."""
-        if self.client_script is None and self.function_object is None:
+        """Ensure either script or function_object is provided."""
+        if self.script is None and self.function_object is None:
             raise ConfigurationError(
-                "Either client_script or function_object must be provided for route "
+                "Either script or function_object must be provided for route "
                 + f"'{self.route_path}'"
             )
         return self
@@ -226,7 +226,7 @@ class ScriptConfig(RouteConfigBase):
         """Returns the script path to use (either direct script or generated function wrapper)."""
         if self.is_function_based and self._function_wrapper_path is not None:
             return self._function_wrapper_path
-        return self.client_script
+        return self.script
 
     def is_terminal_route(self) -> bool:
         """ScriptConfig routes always require a terminal."""
@@ -254,7 +254,7 @@ class IndexPageConfig(RouteConfigBase):
 class TTYDConfig(BaseModel):
     """Main configuration for terminaide, handling root vs. non-root mounting, multiple scripts, and other settings like theme and debug mode."""
 
-    client_script: Optional[Path] = None
+    script: Optional[Path] = None
     mount_path: str = "/"
     port: int = Field(default=7681, gt=1024, lt=65535)
     theme: ThemeConfig = Field(default_factory=ThemeConfig)
@@ -275,7 +275,7 @@ class TTYDConfig(BaseModel):
         """Backward compatibility: return only ScriptConfig instances."""
         return [cfg for cfg in self.route_configs if isinstance(cfg, ScriptConfig)]
 
-    @field_validator("client_script", "template_override")
+    @field_validator("script", "template_override")
     @classmethod
     def validate_paths(cls, v: Optional[Union[str, Path]]) -> Optional[Path]:
         """Ensure given path exists, if provided."""
@@ -325,11 +325,11 @@ class TTYDConfig(BaseModel):
             seen_routes.add(config.route_path)
 
         # Add a default script config if needed (backward compatibility)
-        if not self.route_configs and self.client_script:
+        if not self.route_configs and self.script:
             self.route_configs.append(
                 ScriptConfig(
                     route_path="/",
-                    client_script=self.client_script,
+                    script=self.script,
                     args=[],
                     port=self.port,
                     title=self.title,
@@ -517,7 +517,7 @@ def create_route_configs(
                 ScriptConfig(
                     route_path=route_path,
                     function_object=func,
-                    client_script=None,
+                    script=None,
                     args=[],
                     title=f"{func_name}()",
                 )
@@ -557,10 +557,12 @@ def create_route_configs(
             continue
 
         # Handle script path or function in dictionary
-        if isinstance(route_spec, dict) and "client_script" in route_spec:
-            script_value = route_spec["client_script"]
+        # Support both "script" (new) and "client_script" (backward compatibility)
+        if isinstance(route_spec, dict) and ("script" in route_spec or "client_script" in route_spec):
+            # Use "script" if present, otherwise fall back to "client_script"
+            script_value = route_spec.get("script") or route_spec.get("client_script")
             
-            # Check if client_script is actually a function
+            # Check if script is actually a function
             if callable(script_value):
                 func = script_value
                 func_name = getattr(func, "__name__", "function")
@@ -568,7 +570,7 @@ def create_route_configs(
                 cfg_data = {
                     "route_path": route_path,
                     "function_object": func,
-                    "client_script": None,
+                    "script": None,
                     "args": [],
                 }
                 
@@ -600,7 +602,7 @@ def create_route_configs(
 
             cfg_data = {
                 "route_path": route_path,
-                "client_script": script_path,
+                "script": script_path,
                 "args": args,
             }
 
@@ -633,7 +635,7 @@ def create_route_configs(
             route_configs.append(
                 ScriptConfig(
                     route_path=route_path,
-                    client_script=script_path,
+                    script=script_path,
                     args=args,
                     title=f"{script_name}",
                 )
@@ -649,7 +651,7 @@ def create_route_configs(
         route_configs.append(
             ScriptConfig(
                 route_path=route_path,
-                client_script=script_path,
+                script=script_path,
                 args=[],
                 title=f"{script_name}",
             )
