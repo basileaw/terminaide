@@ -167,7 +167,7 @@
             font-size: 16px;
             font-style: italic;
             position: fixed;
-            bottom: 50px;
+            bottom: 40px;
             left: 0;
             right: 0;
         }
@@ -315,7 +315,7 @@
             animation-delay: 0.45s;
         }
 
-        /* Media query for smaller screens */
+        /* Media query for tablets */
         @media (max-width: 768px) {
             .menu {
                 width: 95%;
@@ -338,6 +338,63 @@
             .menu {
                 grid-template-columns: repeat(auto-fit, 150px);
                 max-width: 320px;
+            }
+        }
+
+        /* Media query for small mobile screens */
+        @media (max-width: 480px) {
+            .menu {
+                width: 100%;
+                max-width: 100%;
+                padding: 0 20px;
+                grid-template-columns: 1fr !important;
+                gap: 8px;
+            }
+
+            .menu-item {
+                width: 100%;
+                max-width: 280px;
+                margin: 0 auto;
+                padding: 12px 20px;
+                font-size: 14px;
+            }
+
+            .menu-label {
+                font-size: 14px;
+                margin-bottom: 20px;
+            }
+
+            .subtitle {
+                font-size: 14px;
+                width: 95%;
+                padding: 0 10px;
+            }
+
+            .supertitle {
+                font-size: 14px;
+            }
+
+            .container {
+                padding: 15px 0;
+            }
+
+            .epititle {
+                font-size: 14px;
+                bottom: 30px;
+                padding: 0 20px;
+            }
+        }
+
+        /* Media query for very small mobile screens */
+        @media (max-width: 360px) {
+            .menu-item {
+                max-width: 240px;
+                font-size: 13px;
+                padding: 10px 15px;
+            }
+
+            .subtitle {
+                font-size: 13px;
             }
         }
 
