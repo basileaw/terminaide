@@ -92,13 +92,15 @@
 
         .ascii-art {
             color: #fff;
-            line-height: 1.2;
+            line-height: 1.0;
             white-space: pre;
             text-align: center;
             margin-bottom: 0;
-            font-size: 19px;
+            font-size: 14px;
+            font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
             transform-origin: center;
             transform: scale(1);
+            overflow-x: auto;
         }
 
         .title {
@@ -156,6 +158,7 @@
             max-width: 800px;
             margin-top: 0;
             justify-content: center;
+            justify-items: center;
             align-items: center;
             position: relative;
         }
@@ -198,12 +201,27 @@
             grid-template-columns: repeat(2, 200px);
         }
 
+        /* Center the third item when there are exactly 3 items */
+        .menu[data-items="3"] .menu-item:nth-child(3) {
+            grid-column: 1 / -1;
+        }
+
         .menu[data-items="5"],
         .menu[data-items="6"],
         .menu[data-items="7"],
         .menu[data-items="8"],
         .menu[data-items="9"] {
             grid-template-columns: repeat(3, 200px);
+        }
+
+        /* Center the 5th item when there are exactly 5 items */
+        .menu[data-items="5"] .menu-item:nth-child(5) {
+            grid-column: 2;
+        }
+
+        /* Center the 7th item when there are exactly 7 items */
+        .menu[data-items="7"] .menu-item:nth-child(7) {
+            grid-column: 2;
         }
 
         .menu[data-items="10"],
@@ -443,6 +461,47 @@
                 /* 48px * 0.5 */
             }
         }
+
+        /* Plain text title display (when ascii_render=False) */
+        .display-title {
+            color: #a9c4e4;
+            font-size: 32px;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+            transform-origin: center;
+        }
+
+        /* Responsive scaling for display title */
+        @media (max-width: 1200px) {
+            .display-title {
+                font-size: 29px;
+            }
+        }
+
+        @media (max-width: 1000px) {
+            .display-title {
+                font-size: 26px;
+            }
+        }
+
+        @media (max-width: 800px) {
+            .display-title {
+                font-size: 23px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .display-title {
+                font-size: 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .display-title {
+                font-size: 18px;
+            }
+        }
     </style>
 </head>
 
@@ -467,6 +526,11 @@
             {% elif not ascii_art and title %}
             <!-- Fallback when pyfiglet is not available -->
             <div class="title-fallback">{{ title }}</div>
+            {% endif %}
+
+            {% if display_title %}
+            <!-- Plain text title display -->
+            <div class="display-title">{{ display_title }}</div>
             {% endif %}
         </div>
 

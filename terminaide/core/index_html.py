@@ -90,9 +90,7 @@ class HtmlIndex:
         menu: Union[List[Dict[str, Any]], Dict[str, Any]],
         subtitle: Optional[str] = None,
         epititle: Optional[str] = None,
-        # ASCII art (visual header - can be regular text or ASCII art)
-        ascii: Optional[str] = None,
-        # Page title (browser tab title)
+        # Page title (browser tab title AND ASCII banner)
         title: Optional[str] = None,
         supertitle: Optional[str] = None,
         # Assets
@@ -108,8 +106,7 @@ class HtmlIndex:
                   Example: {"cycle_key": "shift+g", "groups": [{"label": "...", "options": [...]}]}
             subtitle: Text paragraph below the title
             epititle: Optional text shown below the menu items. Supports newlines for multi-line display. URLs are automatically made clickable.
-            ascii: Visual ASCII art text - if multi-line, treated as ASCII art; if single-line, converted to ASCII art
-            title: Browser tab title (defaults to 'Index')
+            title: Browser tab title AND ASCII banner text (defaults to 'Index')
             supertitle: Regular text above ASCII art
             preview_image: Path to preview image for social media
 
@@ -165,7 +162,6 @@ class HtmlIndex:
         # Store epititle as string (supports newlines)
         self.epititle = epititle
             
-        self.ascii = ascii
         self.title = title or "Index"
         self.supertitle = supertitle
 
@@ -215,24 +211,12 @@ class HtmlIndex:
         Returns:
             Dictionary with all data needed for Jinja2 template
         """
-        # Handle ascii/title logic - detect ASCII art or generate it
-        ascii_art = None
+        # Simple logic: title gets converted to ASCII art
         title_ascii = None
         
-        if self.ascii:
-            # Case 2: Both title + ascii provided
-            # title = page title, ascii = visual ASCII art
-            if is_ascii_art(self.ascii):
-                # ASCII is already ASCII art - use it as title_ascii
-                title_ascii = self.ascii
-            else:
-                # Generate ASCII art from regular ascii text
-                title_ascii = termin_ascii(self.ascii)
-        elif self.title and self.title != "Index":
-            # Case 1: Only title provided (and it's not the default)
-            # title serves as both page title AND gets converted to ASCII banner
+        if self.title and self.title != "Index":
             if is_ascii_art(self.title):
-                # Title is already ASCII art - use it as title_ascii
+                # Title is already ASCII art - use it directly
                 title_ascii = self.title
             else:
                 # Generate ASCII art from title text
@@ -247,7 +231,6 @@ class HtmlIndex:
 
         return {
             "page_title": self.title,
-            "ascii_art": ascii_art,
             "title_ascii": title_ascii,
             "supertitle": self.supertitle,
             "subtitle": self.subtitle,
@@ -256,8 +239,7 @@ class HtmlIndex:
             "groups_json": groups_data,
             "cycle_key": self.cycle_key,
             "total_items": total_items,
-            # Pass the original ascii for fallback display
-            "title": self.ascii,
+            "title": self.title,
         }
 
     def __repr__(self) -> str:
@@ -265,6 +247,6 @@ class HtmlIndex:
         item_count = len(self.get_all_menu_items())
         group_count = len(self.groups)
         return (
-            f"HtmlIndex(title='{self.title}', ascii='{self.ascii}', "
+            f"HtmlIndex(title='{self.title}', "
             f"epititle='{self.epititle}', items={item_count}, groups={group_count})"
         )
