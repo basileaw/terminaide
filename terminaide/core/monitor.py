@@ -14,29 +14,25 @@ class Monitor:
     A reusable, object-oriented monitor for logging and displaying process output.
     """
 
-    def __init__(self, output_file=None, title=None, supertitle=None, subtitle=None):
+    def __init__(self, output_file=None, title=None):
         """
         Initialize Monitor instance.
 
         Args:
             output_file: Path to the log file (optional, defaults to temp directory)
             title: Main title for monitor display (triggers auto-write if provided)
-            supertitle: Top-level title/company name (triggers auto-write if provided)
-            subtitle: Subtitle for header (triggers auto-write if provided)
         """
         self.output_file = output_file or os.path.join(
             tempfile.gettempdir(), "toolbox_monitor.log"
         )
 
-        # If any display config provided, automatically start monitoring
-        if title is not None or supertitle is not None or subtitle is not None:
-            self.write(
-                title=title or "MONITOR", supertitle=supertitle, subtitle=subtitle
-            )
+        # If title provided, automatically start monitoring
+        if title is not None:
+            self.write(title=title)
 
-    def write(self, title="MONITOR", supertitle=None, subtitle=None):
+    def write(self, title="MONITOR"):
         """Set up monitoring and restart if needed"""
-        _monitor_write(self.output_file, title, supertitle, subtitle)
+        _monitor_write(self.output_file, title)
 
 
 def monitor_read_standalone(output_file=None, use_curses=True):
@@ -68,8 +64,8 @@ def monitor_read_standalone(output_file=None, use_curses=True):
 
     # Extract config from log file, fallback to defaults
     title = "MONITOR"
-    supertitle = None
-    subtitle = None
+    supertitle = "SERVER"
+    subtitle = "MONITOR"
 
     try:
         with open(output_file, "r") as f:
@@ -227,12 +223,10 @@ def monitor_read_standalone(output_file=None, use_curses=True):
                 "expand": True,
                 "padding": [1, 1],
             }
-            if supertitle is not None:
-                panel_kwargs["title"] = f"[bold green]{supertitle}[/bold green]"
-                panel_kwargs["title_align"] = "left"
-            if subtitle is not None:
-                panel_kwargs["subtitle"] = f"[bold green]{subtitle}[/bold green]"
-                panel_kwargs["subtitle_align"] = "right"
+            panel_kwargs["title"] = f"[bold green]{supertitle}[/bold green]"
+            panel_kwargs["title_align"] = "left"
+            panel_kwargs["subtitle"] = f"[bold green]{subtitle}[/bold green]"
+            panel_kwargs["subtitle_align"] = "right"
 
             panel = Panel(centered_banner, **panel_kwargs)
 
@@ -250,14 +244,8 @@ def monitor_read_standalone(output_file=None, use_curses=True):
 
         except Exception:
             # Fallback to simple banner
-            # Build header line dynamically
-            header_parts = []
-            if supertitle is not None:
-                header_parts.append(supertitle)
-            if subtitle is not None:
-                header_parts.append(subtitle)
-            if not header_parts:  # If both are None, use title
-                header_parts.append(title)
+            # Build header line
+            header_parts = [supertitle, subtitle]
 
             return [
                 "=" * min(50, width),
@@ -723,7 +711,7 @@ def monitor_read_standalone(output_file=None, use_curses=True):
         simple_monitor_read()
 
 
-def _monitor_write(output_file=None, title="MONITOR", supertitle=None, subtitle=None):
+def _monitor_write(output_file=None, title="MONITOR"):
     """Set up monitoring and restart if needed"""
     # Check if we're already in a monitored subprocess
     if os.environ.get("MONITORED_PROCESS"):
@@ -736,11 +724,7 @@ def _monitor_write(output_file=None, title="MONITOR", supertitle=None, subtitle=
 
     # Write config header to log file
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    config = {"title": title}
-    if supertitle is not None:
-        config["supertitle"] = supertitle
-    if subtitle is not None:
-        config["subtitle"] = subtitle
+    config = {"title": title, "supertitle": "SERVER", "subtitle": "MONITOR"}
     config_header = f"MONITOR_CONFIG: {json.dumps(config)}\n--- LOG START ---\n"
 
     # Initialize log file with config
