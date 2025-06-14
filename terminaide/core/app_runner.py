@@ -91,7 +91,7 @@ class ServeWithConfig:
     @classmethod
     def display_banner(cls, mode, banner_value):
         """Display a banner based on the banner parameter value.
-        
+
         Args:
             mode: The serving mode (function, script, apps)
             banner_value: True for Rich panel, False for no banner, or a string to print directly
@@ -99,16 +99,18 @@ class ServeWithConfig:
         if os.environ.get("TERMINAIDE_BANNER_SHOWN") == "1":
             return
         os.environ["TERMINAIDE_BANNER_SHOWN"] = "1"
-        
+
         # Handle string banner - print it directly
         if isinstance(banner_value, str):
             print(banner_value)
             logger.debug(f"Starting Terminaide in {mode.upper()} mode")
             return
-        
+
         # Handle boolean False - no banner
         if banner_value is False:
-            logger.debug(f"Starting Terminaide in {mode.upper()} mode (banner disabled)")
+            logger.debug(
+                f"Starting Terminaide in {mode.upper()} mode (banner disabled)"
+            )
             return
 
         # Handle boolean True - show Rich panel
@@ -139,15 +141,14 @@ class ServeWithConfig:
 
         logger.debug(f"Starting Terminaide in {mode.upper()} mode")
 
-
-
     @classmethod
     def serve(cls, config) -> None:
         """Serves the application based on the configuration mode."""
         # Configure logging based on config
         from .log_config import setup_package_logging
+
         setup_package_logging(configure=config.configure_logging)
-        
+
         # Display banner based on config.banner value
         if config.banner:
             cls.display_banner(config._mode, config.banner)
@@ -170,14 +171,13 @@ class ServeWithConfig:
 
         # Import from app_factory to avoid circular dependency
         from .app_factory import copy_config_attributes
+
         script_config = copy_config_attributes(config)
         script_config._target = ephemeral_path
         script_config._mode = "function"
         script_config._original_function_name = func.__name__
 
-        logger.debug(
-            f"Using title: {script_config.title} for function {func.__name__}"
-        )
+        logger.debug(f"Using title: {script_config.title} for function {func.__name__}")
 
         cls.serve_script(script_config)
 
@@ -197,6 +197,7 @@ class ServeWithConfig:
         ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)
         # Import from app_factory to avoid circular dependency
         from .app_factory import create_app_with_lifespan
+
         app = create_app_with_lifespan(config.title, config, ttyd_config)
 
         def handle_exit(sig, frame):
