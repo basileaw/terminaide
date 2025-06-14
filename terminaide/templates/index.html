@@ -164,10 +164,10 @@
             color: #888;
             width: 100%;
             text-align: center;
-            font-size: 14px;
+            font-size: 16px;
             font-style: italic;
             position: fixed;
-            bottom: 20px;
+            bottom: 50px;
             left: 0;
             right: 0;
         }
@@ -354,31 +354,36 @@
         /* Responsive scaling for fallback title to match ASCII art scaling */
         @media (max-width: 1200px) {
             .title-fallback {
-                font-size: 43px; /* 48px * 0.9 */
+                font-size: 43px;
+                /* 48px * 0.9 */
             }
         }
 
         @media (max-width: 1000px) {
             .title-fallback {
-                font-size: 38px; /* 48px * 0.8 */
+                font-size: 38px;
+                /* 48px * 0.8 */
             }
         }
 
         @media (max-width: 800px) {
             .title-fallback {
-                font-size: 34px; /* 48px * 0.7 */
+                font-size: 34px;
+                /* 48px * 0.7 */
             }
         }
 
         @media (max-width: 600px) {
             .title-fallback {
-                font-size: 29px; /* 48px * 0.6 */
+                font-size: 29px;
+                /* 48px * 0.6 */
             }
         }
 
         @media (max-width: 480px) {
             .title-fallback {
-                font-size: 24px; /* 48px * 0.5 */
+                font-size: 24px;
+                /* 48px * 0.5 */
             }
         }
     </style>
@@ -460,36 +465,36 @@
 
         function scaleAsciiArt() {
             const asciiElements = document.querySelectorAll('.ascii-art, .title');
-            
+
             asciiElements.forEach(element => {
                 const wrapper = element.parentElement;
                 if (!wrapper || !wrapper.classList.contains('ascii-wrapper')) return;
-                
+
                 // Reset scale to measure natural size
                 element.style.transform = 'scale(1)';
                 element.classList.add('auto-scale');
-                
+
                 // Get natural width and available width
                 const elementWidth = element.scrollWidth;
                 const wrapperWidth = wrapper.clientWidth;
-                
+
                 // Reserve margin space (subtract from available width)
                 const marginSpace = Math.min(80, wrapperWidth * 0.1); // 10% margin or 80px max
                 const targetWidth = wrapperWidth - marginSpace;
-                
+
                 // Calculate scale factor to fit within target width
                 let scale = 1;
                 if (elementWidth > targetWidth) {
                     scale = Math.max(0.3, targetWidth / elementWidth);
                 }
-                
+
                 // Apply scale
                 element.style.transform = `scale(${scale})`;
             });
         }
 
         // Handle page show events (including back/forward navigation)
-        window.addEventListener('pageshow', function(event) {
+        window.addEventListener('pageshow', function (event) {
             if (event.persisted) {
                 // Page was loaded from bfcache, restart fade animation
                 document.body.style.animation = 'none';
@@ -511,25 +516,25 @@
         document.addEventListener('DOMContentLoaded', function () {
             // Scale ASCII art to fit container
             scaleAsciiArt();
-            
+
             // Make URLs clickable in subtitle and epititle
             const subtitle = document.querySelector('.subtitle');
             const epititle = document.querySelector('.epititle');
-            
+
             if (subtitle) {
                 makeUrlsClickable(subtitle);
             }
-            
+
             if (epititle && !epititle.querySelector('a')) {
                 // Only make URLs clickable if there isn't already a link
                 makeUrlsClickable(epititle);
             }
-            
+
             // Initialize with first group
             renderMenuForGroup(0);
 
             // Handle window resize
-            window.addEventListener('resize', function() {
+            window.addEventListener('resize', function () {
                 scaleAsciiArt();
             });
 
