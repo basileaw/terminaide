@@ -130,7 +130,7 @@ class ServeWithConfig:
             panel = Panel(
                 f"TERMINAIDE {mode_upper} SERVER",
                 border_style=color,
-                expand=False,
+                expand=True,
                 padding=(0, 1),
             )
             console.print(panel)
