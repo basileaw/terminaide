@@ -254,7 +254,7 @@ class CursesIndex:
         # Content
         menu: Union[List[Dict[str, Any]], Dict[str, Any]],
         subtitle: Optional[str] = None,
-        epititle: Optional[Union[str, Dict[str, str]]] = None,
+        epititle: Optional[str] = None,
         # Title/ASCII options
         title: Optional[str] = None,
         page_title: Optional[str] = None,
@@ -272,9 +272,7 @@ class CursesIndex:
                 - A dict with 'groups' and 'cycle_key' keys (for multiple menus with cycling)
                   Example: {"cycle_key": "shift+g", "groups": [{"label": "...", "options": [...]}]}
             subtitle: Text paragraph below the title
-            epititle: Optional text shown below the menu items. Can be:
-                - A string: displays as plain text
-                - A dict with 'text' and 'url' keys: displays as a clickable link (OSC 8)
+            epititle: Optional text shown below the menu items. Supports newlines for multi-line display.
             title: Text to convert to ASCII art using ansi-shadow font
             page_title: Not used in curses but kept for API compatibility
             ascii_art: Pre-made ASCII art (alternative to generated)
@@ -329,19 +327,7 @@ class CursesIndex:
 
         # Store text/title options
         self.subtitle = subtitle
-        
-        # Parse epititle - support both string and dict formats (same as HtmlIndex)
-        if isinstance(epititle, dict):
-            if 'text' not in epititle or 'url' not in epititle:
-                raise ValueError("epititle dict must contain 'text' and 'url' keys")
-            self.epititle_text = epititle['text']
-            self.epititle_url = epititle['url']
-        elif epititle:
-            self.epititle_text = epititle
-            self.epititle_url = None
-        else:
-            self.epititle_text = None
-            self.epititle_url = None
+        self.epititle = epititle
             
         self.title = title
         self.page_title = page_title or title or "Index"
@@ -542,40 +528,23 @@ class CursesIndex:
         menu_end_y = draw_menu()
 
         # Draw epititle at bottom if provided
-        if self.epititle_text:
-            if self.epititle_url:
-                # Display text with URL on separate line
-                # First line: "Text:"
-                text_with_colon = self.epititle_text + ":"
-                y_pos = my - 3
-                x_pos = (mx - len(text_with_colon)) // 2
+        if self.epititle:
+            # Split epititle into lines for multiline support
+            epititle_lines = self.epititle.split('\n')
+            
+            # Calculate starting position (bottom up)
+            total_lines = len(epititle_lines)
+            start_y = my - total_lines - 1
+            
+            # Draw each line centered
+            for i, line in enumerate(epititle_lines):
+                y_pos = start_y + i
+                x_pos = (mx - len(line)) // 2
                 safe_addstr(
                     stdscr,
                     y_pos,
                     x_pos,
-                    text_with_colon,
-                    curses.color_pair(8) | curses.A_DIM | curses.A_ITALIC,
-                )
-                
-                # Second line: URL
-                y_pos = my - 2
-                x_pos = (mx - len(self.epititle_url)) // 2
-                safe_addstr(
-                    stdscr,
-                    y_pos,
-                    x_pos,
-                    self.epititle_url,
-                    curses.color_pair(8) | curses.A_DIM | curses.A_ITALIC,
-                )
-            else:
-                # Just display text for non-URL epititle
-                y_pos = my - 2
-                x_pos = (mx - len(self.epititle_text)) // 2
-                safe_addstr(
-                    stdscr,
-                    y_pos,
-                    x_pos,
-                    self.epititle_text,
+                    line,
                     curses.color_pair(8) | curses.A_DIM | curses.A_ITALIC,
                 )
 

@@ -485,13 +485,7 @@
         </div>
 
         {% if epititle %}
-        <div class="epititle">
-            {% if epititle_url %}
-            <a href="{{ epititle_url }}" target="_blank">{{ epititle }}</a>
-            {% else %}
-            {{ epititle }}
-            {% endif %}
-        </div>
+        <div class="epititle">{{ epititle | replace('\n', '<br>') | safe }}</div>
         {% endif %}
     </div>
 
@@ -582,8 +576,7 @@
                 makeUrlsClickable(subtitle);
             }
 
-            if (epititle && !epititle.querySelector('a')) {
-                // Only make URLs clickable if there isn't already a link
+            if (epititle) {
                 makeUrlsClickable(epititle);
             }
 
