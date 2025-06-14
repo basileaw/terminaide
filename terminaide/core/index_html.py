@@ -89,7 +89,7 @@ class HtmlIndex:
         # Content
         menu: Union[List[Dict[str, Any]], Dict[str, Any]],
         subtitle: Optional[str] = None,
-        epititle: Optional[str] = None,
+        epititle: Optional[Union[str, Dict[str, str]]] = None,
         # ASCII art (visual header - can be regular text or ASCII art)
         ascii: Optional[str] = None,
         # Page title (browser tab title)
@@ -107,7 +107,9 @@ class HtmlIndex:
                 - A dict with 'groups' and 'cycle_key' keys (for multiple menus with cycling)
                   Example: {"cycle_key": "shift+g", "groups": [{"label": "...", "options": [...]}]}
             subtitle: Text paragraph below the title
-            epititle: Optional text shown below the menu items
+            epititle: Optional text shown below the menu items. Can be:
+                - A string: displays as plain text
+                - A dict with 'text' and 'url' keys: displays as a clickable link
             ascii: Visual ASCII art text - if multi-line, treated as ASCII art; if single-line, converted to ASCII art
             title: Browser tab title (defaults to 'Index')
             supertitle: Regular text above ASCII art
@@ -161,7 +163,20 @@ class HtmlIndex:
 
         # Store text/title options
         self.subtitle = subtitle
-        self.epititle = epititle
+        
+        # Parse epititle - support both string and dict formats
+        if isinstance(epititle, dict):
+            if 'text' not in epititle or 'url' not in epititle:
+                raise ValueError("epititle dict must contain 'text' and 'url' keys")
+            self.epititle_text = epititle['text']
+            self.epititle_url = epititle['url']
+        elif epititle:
+            self.epititle_text = epititle
+            self.epititle_url = None
+        else:
+            self.epititle_text = None
+            self.epititle_url = None
+            
         self.ascii = ascii
         self.title = title or "Index"
         self.supertitle = supertitle
@@ -248,7 +263,8 @@ class HtmlIndex:
             "title_ascii": title_ascii,
             "supertitle": self.supertitle,
             "subtitle": self.subtitle,
-            "epititle": self.epititle,
+            "epititle": self.epititle_text,
+            "epititle_url": self.epititle_url,
             "has_multiple_groups": has_multiple_groups,
             "groups_json": groups_data,
             "cycle_key": self.cycle_key,
@@ -263,5 +279,5 @@ class HtmlIndex:
         group_count = len(self.groups)
         return (
             f"HtmlIndex(title='{self.title}', ascii='{self.ascii}', "
-            f"items={item_count}, groups={group_count})"
+            f"epititle='{self.epititle_text}', items={item_count}, groups={group_count})"
         )
