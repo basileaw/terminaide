@@ -23,12 +23,11 @@ class Monitor:
             title: Main title for monitor display (triggers auto-write if provided)
         """
         self.output_file = output_file or os.path.join(
-            tempfile.gettempdir(), "toolbox_monitor.log"
+            tempfile.gettempdir(), "monitor.log"
         )
 
-        # If title provided, automatically start monitoring
-        if title is not None:
-            self.write(title=title)
+        # Always start monitoring (with default title if none provided)
+        self.write(title=title or "MONITOR")
 
     def write(self, title="MONITOR"):
         """Set up monitoring and restart if needed"""
@@ -60,12 +59,10 @@ def monitor_read_standalone(output_file=None, use_curses=True):
 
     # Set default output file
     if output_file is None:
-        output_file = os.path.join(tempfile.gettempdir(), "toolbox_monitor.log")
+        output_file = os.path.join(tempfile.gettempdir(), "monitor.log")
 
     # Extract config from log file, fallback to defaults
     title = "MONITOR"
-    supertitle = "SERVER"
-    subtitle = "MONITOR"
 
     try:
         with open(output_file, "r") as f:
@@ -76,8 +73,6 @@ def monitor_read_standalone(output_file=None, use_curses=True):
                 ].strip()  # Remove "MONITOR_CONFIG: " prefix
                 config = json.loads(config_json)
                 title = config.get("title", title)
-                supertitle = config.get("supertitle", supertitle)
-                subtitle = config.get("subtitle", subtitle)
     except (FileNotFoundError, json.JSONDecodeError, Exception):
         # Use defaults if config extraction fails
         pass
@@ -205,7 +200,7 @@ def monitor_read_standalone(output_file=None, use_curses=True):
 
         return color_pairs[key]
 
-    def _generate_banner(width, title, supertitle, subtitle, output_file=None):
+    def _generate_banner(width, title, output_file=None):
         """Generate banner lines for display"""
         try:
             from rich.console import Console
@@ -223,9 +218,9 @@ def monitor_read_standalone(output_file=None, use_curses=True):
                 "expand": True,
                 "padding": [1, 1],
             }
-            panel_kwargs["title"] = f"[bold green]{supertitle}[/bold green]"
+            panel_kwargs["title"] = "[bold green]SERVER[/bold green]"
             panel_kwargs["title_align"] = "left"
-            panel_kwargs["subtitle"] = f"[bold green]{subtitle}[/bold green]"
+            panel_kwargs["subtitle"] = "[bold green]MONITOR[/bold green]"
             panel_kwargs["subtitle_align"] = "right"
 
             panel = Panel(centered_banner, **panel_kwargs)
@@ -244,12 +239,9 @@ def monitor_read_standalone(output_file=None, use_curses=True):
 
         except Exception:
             # Fallback to simple banner
-            # Build header line
-            header_parts = [supertitle, subtitle]
-
             return [
                 "=" * min(50, width),
-                " ".join(header_parts),
+                "SERVER MONITOR",
                 f"File: {os.path.basename(output_file)}",
                 "=" * min(50, width),
             ]
@@ -331,9 +323,7 @@ def monitor_read_standalone(output_file=None, use_curses=True):
             height, width = stdscr.getmaxyx()
 
             # Generate banner
-            banner_lines = _generate_banner(
-                width, title, supertitle, subtitle, output_file
-            )
+            banner_lines = _generate_banner(width, title, output_file)
 
             footer_height = 1
             header_height = len(banner_lines) + 1  # +1 for spacing
@@ -349,7 +339,7 @@ def monitor_read_standalone(output_file=None, use_curses=True):
             file_queue = queue.Queue()
             stop_event = threading.Event()
             color_pairs = {}  # Cache for color pairs
-            
+
             # Track what's currently displayed to minimize redraws
             displayed_lines = {}  # row -> (start_idx, line_content)
             last_footer_text = ""  # Track footer to avoid unnecessary updates
@@ -437,7 +427,7 @@ def monitor_read_standalone(output_file=None, use_curses=True):
 
             # Draw initial footer
             controls = " [q]uit [↑↓]scroll [Home/End]jump "
-            
+
             # Initial atomic update with empty content
             if curses.has_colors():
                 footer_win.bkgd(" ", curses.color_pair(2))
@@ -458,16 +448,14 @@ def monitor_read_standalone(output_file=None, use_curses=True):
                     footer_win = curses.newwin(
                         footer_height, width, height - footer_height, 0
                     )
-                    
+
                     # Reset display tracking for new window
                     displayed_lines.clear()
                     last_footer_text = ""
                     content_changed = True  # Force redraw after resize
 
                     # Regenerate and redraw banner for new width
-                    banner_lines = _generate_banner(
-                        width, title, supertitle, subtitle, output_file
-                    )
+                    banner_lines = _generate_banner(width, title, output_file)
                     header_height = len(banner_lines) + 1
 
                     # Clear and redraw banner
@@ -516,7 +504,7 @@ def monitor_read_standalone(output_file=None, use_curses=True):
                 content_changed = False
                 lines_processed = 0
                 max_lines_per_update = 100  # Process up to 100 lines per update cycle
-                
+
                 while lines_processed < max_lines_per_update:
                     try:
                         msg_type, data = file_queue.get_nowait()
@@ -584,33 +572,32 @@ def monitor_read_standalone(output_file=None, use_curses=True):
                 # Redraw content when content or scroll changes
                 if content_changed or scroll_changed:
                     # Calculate which lines to show
-                    start_idx = max(
-                        0, total_lines - content_height - display_offset
-                    )
+                    start_idx = max(0, total_lines - content_height - display_offset)
                     end_idx = min(total_lines, start_idx + content_height)
 
                     # Track which rows need updating
                     rows_to_update = set()
-                    
+
                     # Check which lines have changed or need to be drawn
                     for row in range(content_height):
                         line_idx = start_idx + row if start_idx + row < end_idx else -1
                         current_display = displayed_lines.get(row, (-1, ""))
-                        
+
                         if line_idx == -1:
                             # This row should be empty
                             if current_display[0] != -1:
                                 rows_to_update.add(row)
-                        elif (current_display[0] != line_idx or 
-                              (line_idx < len(content_buffer) and 
-                               current_display[1] != content_buffer[line_idx])):
+                        elif current_display[0] != line_idx or (
+                            line_idx < len(content_buffer)
+                            and current_display[1] != content_buffer[line_idx]
+                        ):
                             # Line has changed
                             rows_to_update.add(row)
-                    
+
                     # Update only the rows that changed
                     for row in rows_to_update:
                         line_idx = start_idx + row if start_idx + row < end_idx else -1
-                        
+
                         if line_idx == -1 or line_idx >= len(content_buffer):
                             # Clear this row
                             content_win.move(row, 0)
@@ -619,11 +606,11 @@ def monitor_read_standalone(output_file=None, use_curses=True):
                         else:
                             # Draw the line
                             line = content_buffer[line_idx]
-                            
+
                             # Clear the row first (more efficient than overwriting)
                             content_win.move(row, 0)
                             content_win.clrtoeol()
-                            
+
                             if curses.has_colors():
                                 # Parse ANSI colors and display with colors
                                 segments = parse_ansi_colors(line)
@@ -655,9 +642,9 @@ def monitor_read_standalone(output_file=None, use_curses=True):
                                     content_win.addnstr(row, 0, clean_line, width - 1)
                                 except curses.error:
                                     pass
-                            
+
                             displayed_lines[row] = (line_idx, line)
-                    
+
                     content_win.noutrefresh()
 
                     # Update footer only if it changed
@@ -671,13 +658,16 @@ def monitor_read_standalone(output_file=None, use_curses=True):
                         + " " * (width - len(controls) - len(scroll_pos) - 1)
                         + scroll_pos
                     )
-                    
-                    if footer_text != last_footer_text or total_lines != last_total_lines:
+
+                    if (
+                        footer_text != last_footer_text
+                        or total_lines != last_total_lines
+                    ):
                         # Footer has changed, update it
                         if curses.has_colors() and last_footer_text == "":
                             # Set background only once
                             footer_win.bkgd(" ", curses.color_pair(2))
-                        
+
                         footer_win.move(0, 0)
                         footer_win.clrtoeol()
                         try:
@@ -720,11 +710,11 @@ def _monitor_write(output_file=None, title="MONITOR"):
 
     # Set default output file to temp directory
     if output_file is None:
-        output_file = os.path.join(tempfile.gettempdir(), "toolbox_monitor.log")
+        output_file = os.path.join(tempfile.gettempdir(), "monitor.log")
 
     # Write config header to log file
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
-    config = {"title": title, "supertitle": "SERVER", "subtitle": "MONITOR"}
+    config = {"title": title}
     config_header = f"MONITOR_CONFIG: {json.dumps(config)}\n--- LOG START ---\n"
 
     # Initialize log file with config
