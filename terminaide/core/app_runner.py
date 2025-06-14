@@ -9,14 +9,11 @@ in different Terminaide modes (function, script, apps).
 
 import os
 import sys
-import time
 import signal
 import logging
 import uvicorn
-import tempfile
 from pathlib import Path
 from fastapi import FastAPI
-from typing import Dict, Any, Union
 from contextlib import asynccontextmanager
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -117,6 +114,7 @@ class ServeWithConfig:
         try:
             from rich.console import Console
             from rich.panel import Panel
+            from rich.align import Align
 
             mode_colors = {
                 "function": "dark_orange",
@@ -125,10 +123,12 @@ class ServeWithConfig:
             }
             color = mode_colors.get(mode, "yellow")
             mode_upper = mode.upper()
-
             console = Console(highlight=False)
+
+            # Center the content within the panel
+            centered_content = Align.center(f"TERMINAIDE {mode_upper} SERVER")
             panel = Panel(
-                f"TERMINAIDE {mode_upper} SERVER",
+                centered_content,
                 border_style=color,
                 expand=True,
                 padding=(0, 1),
