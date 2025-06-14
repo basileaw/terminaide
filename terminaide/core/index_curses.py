@@ -15,7 +15,7 @@ import logging
 from typing import Optional, List, Dict, Any, Union
 from pathlib import Path
 
-from .index_html import MenuItem, MenuGroup
+from .index_base import BaseIndex, BaseMenuItem, BaseMenuGroup
 from .termin_ascii import termin_ascii
 import subprocess
 import importlib
@@ -77,24 +77,21 @@ def make_hyperlink(text: str, url: str) -> str:
     return f"\033]8;;{url}\033\\{text}\033]8;;\033\\"
 
 
-class CursesMenuItem(MenuItem):
-    """Extended MenuItem that can launch functions or scripts."""
+class CursesMenuItem(BaseMenuItem):
+    """Extended BaseMenuItem that can launch functions or scripts."""
     
     def __init__(self, path: str, title: str, function=None, script=None, launcher_args=None):
         """
         Initialize a CursesMenuItem.
         
         Args:
-            path: The URL path (for compatibility with MenuItem)
+            path: The URL path (for compatibility with BaseMenuItem)
             title: Display title for the menu item
             function: Python function to execute when selected
             script: Python script path to execute when selected
             launcher_args: Additional arguments for the launcher
         """
-        super().__init__(path, title)
-        self.function = function
-        self.script = script
-        self.launcher_args = launcher_args or {}
+        super().__init__(path, title, function, script, launcher_args)
     
     def launch(self) -> bool:
         """
@@ -205,42 +202,25 @@ class CursesMenuItem(MenuItem):
             return True
 
 
-class CursesMenuGroup:
+class CursesMenuGroup(BaseMenuGroup):
     """Group of CursesMenuItem objects with a label."""
     
-    def __init__(self, label: str, options: List[Dict[str, Any]]):
-        """
-        Initialize a menu group.
-        
-        Args:
-            label: The label shown for this group of menu items
-            options: List of menu items as dictionaries
-        """
-        self.label = label
-        self.menu_items = []
-        
-        for item in options:
-            if isinstance(item, CursesMenuItem):
-                self.menu_items.append(item)
-            else:
-                # Create CursesMenuItem from dict
-                self.menu_items.append(CursesMenuItem(
-                    path=item.get('path', ''),
-                    title=item.get('title', ''),
-                    function=item.get('function'),
-                    script=item.get('script'),
-                    launcher_args=item.get('launcher_args', {})
-                ))
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        return {
-            "label": self.label,
-            "options": [item.to_dict() for item in self.menu_items],
-        }
+    def _create_menu_item(self, item):
+        """Create a CursesMenuItem from dict or existing item."""
+        if isinstance(item, CursesMenuItem):
+            return item
+        else:
+            # Create CursesMenuItem from dict
+            return CursesMenuItem(
+                path=item.get('path', ''),
+                title=item.get('title', ''),
+                function=item.get('function'),
+                script=item.get('script'),
+                launcher_args=item.get('launcher_args', {})
+            )
 
 
-class CursesIndex:
+class CursesIndex(BaseIndex):
     """
     Configuration for a curses-based index/menu page.
 
@@ -282,84 +262,23 @@ class CursesIndex:
         Raises:
             ValueError: If menu is empty or has invalid structure
         """
-        # Parse menu structure (reuse HtmlIndex logic)
-        if isinstance(menu, dict):
-            # Dict format with cycle_key
-            if "groups" not in menu:
-                raise ValueError("Menu dict must contain 'groups' key")
-            if "cycle_key" not in menu:
-                raise ValueError("Menu dict must contain 'cycle_key' key")
-
-            menu_groups = menu["groups"]
-            self.cycle_key = menu["cycle_key"]
-
-            # Validate cycle_key
-            self._validate_cycle_key()
-        else:
-            # List format (no cycle_key)
-            menu_groups = menu
-            self.cycle_key = "shift+g"  # Default, won't be used if single group
-
-        # Validate menu structure
-        if not menu_groups:
-            raise ValueError("Menu must contain at least one group")
-
-        for i, group in enumerate(menu_groups):
-            if not isinstance(group, dict):
-                raise ValueError(f"Menu group at index {i} must be a dictionary")
-            if "label" not in group:
-                raise ValueError(
-                    f"Menu group at index {i} missing required 'label' key"
-                )
-            if "options" not in group:
-                raise ValueError(
-                    f"Menu group at index {i} missing required 'options' key"
-                )
-            if not isinstance(group["options"], list):
-                raise ValueError(f"Menu group at index {i} 'options' must be a list")
-            if not group["options"]:
-                raise ValueError(
-                    f"Menu group at index {i} must have at least one option"
-                )
-
-        # Convert menu groups
-        self.groups = [CursesMenuGroup(g["label"], g["options"]) for g in menu_groups]
-
-        # Store text/title options
-        self.subtitle = subtitle
-        self.epititle = epititle
-            
-        self.title = title
+        # Initialize base class with all validation and parsing
+        super().__init__(
+            menu=menu,
+            subtitle=subtitle,
+            epititle=epititle,
+            title=title,
+            supertitle=supertitle,
+            preview_image=preview_image
+        )
+        
+        # Curses-specific attributes
         self.page_title = page_title or title or "Index"
         self.ascii_art = ascii_art
-        self.supertitle = supertitle
 
-        # Handle preview image (not used in curses but stored for compatibility)
-        if preview_image:
-            self.preview_image = Path(preview_image)
-        else:
-            self.preview_image = None
-
-    def _validate_cycle_key(self) -> None:
-        """Validate the cycle key format."""
-        valid_modifiers = {"shift", "ctrl", "alt", "meta"}
-        parts = self.cycle_key.lower().split("+")
-
-        if len(parts) != 2:
-            raise ValueError(
-                f"cycle_key must be in format 'modifier+key', got: {self.cycle_key}"
-            )
-
-        modifier, key = parts
-        if modifier not in valid_modifiers:
-            raise ValueError(
-                f"Invalid modifier in cycle_key. Must be one of: {valid_modifiers}"
-            )
-
-        if not key or len(key) != 1:
-            raise ValueError(
-                f"Invalid key in cycle_key. Must be a single character, got: {key}"
-            )
+    def _create_menu_group(self, label: str, options: List[Dict[str, Any]]):
+        """Create curses-specific menu groups."""
+        return CursesMenuGroup(label, options)
 
     def get_all_menu_items(self) -> List[CursesMenuItem]:
         """
@@ -639,11 +558,3 @@ class CursesIndex:
             exit_requested = True
             cleanup()
 
-    def __repr__(self) -> str:
-        """String representation for debugging."""
-        item_count = len(self.get_all_menu_items())
-        group_count = len(self.groups)
-        return (
-            f"CursesIndex(title='{self.title}', "
-            f"items={item_count}, groups={group_count})"
-        )
