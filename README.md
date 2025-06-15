@@ -66,56 +66,29 @@ if __name__ == "__main__":
 
 ```
 
-#### Solo Mode Configuration Options
+#### Solo Server Config
 
-All Solo Mode functions (`serve_function`, `serve_script`) accept these configuration options:
+Both `serve_function()` and `serve_script()` accept the same optional configuration arguments:
 
 ```python
-kwargs = {
-    # Server options
-    "port": 8000,                # Web server port
-    "title": None,               # Terminal title (auto-generated if not specified)
-    "debug": True,               # Enable debug mode
-    "reload": False,             # Enable auto-reload on code changes
-    "trust_proxy_headers": True, # Trust X-Forwarded-Proto headers
-    "template_override": None,   # Custom HTML template path
-    "preview_image": None,       # Custom preview image for social media sharing
-    
-    # Terminal appearance
-    "theme": {
-        "background": "black",     # Background color
-        "foreground": "white",     # Text color
-        "cursor": "white",         # Cursor color
-        "cursor_accent": None,     # Secondary cursor color
-        "selection": None,         # Selection highlight color
-        "font_family": None,       # Terminal font
-        "font_size": None          # Font size in pixels
-    },
-    
-    # TTYD process options
-    "ttyd_options": {
-        "writable": True,            # Allow terminal input
-        "interface": "127.0.0.1",    # Network interface to bind
-        "check_origin": True,        # Enforce same-origin policy
-        "max_clients": 1,            # Maximum simultaneous connections
-        "credential_required": False, # Enable authentication
-        "username": None,            # Login username
-        "password": None,            # Login password
-        "force_https": False         # Force HTTPS mode
-    },
-    
-    # Environment variable handling
-    "forward_env": True,         # Forward all environment variables (default)
-    # Alternative 1: "forward_env": False,  # Disable environment forwarding
-    # Alternative 2: "forward_env": ["AWS_PROFILE", "PATH", "DJANGO_SETTINGS"],  # Specific variables
-    # Alternative 3: "forward_env": {       # With selective overrides
-    #     "AWS_PROFILE": "dev",   # Set specific value
-    #     "DEBUG": "1",           # Set specific value
-    #     "PATH": None            # Use value from parent process
-    # }
+{
+    "port": 8000,                    # Web server port (default: 8000)
+    "title": "My Terminal App",      # Terminal window title (default: auto-generated)
+    "theme": {                       # Terminal appearance
+        "background": "black",       # Background color (default: "black")
+        "foreground": "white",       # Text color (default: "white")
+        "cursor": "white",           # Cursor color (default: "white")
+        "cursor_accent": "#ff0000",  # Secondary cursor color (default: None)
+        "selection": "#333333",      # Selection highlight color (default: None)
+        "font_family": "monospace",  # Terminal font (default: None)
+        "font_size": 14              # Font size in pixels (default: None)
+    }
 }
+```
 
-### Apps Mode
+For advanced configuration like authentication, environment variables, or custom templates, use `serve_apps()` instead.
+
+### Apps Server
 
 The Apps Server extends terminaide's capabilities to integrate multiple terminals into an existing FastAPI application. This approach gives you more control over routing, allows multiple terminals to coexist with regular web endpoints, and provides additional configuration options.
 
@@ -167,7 +140,7 @@ if __name__ == "__main__":
 
 #### Apps Mode Configuration
 
-The Apps Server includes all the configuration options from Solo Mode, plus these additional options:
+The Apps Server includes all the configuration options from the Solo Server, plus these additional options:
 
 ```python
 serve_apps(

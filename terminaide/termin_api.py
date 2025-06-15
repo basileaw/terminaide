@@ -79,12 +79,9 @@ def _auto_generate_title(cfg: TerminaideConfig, mode: str, target: Any, kwargs: 
 
 def serve_function(
     func: Callable,
-    config: Optional[TerminaideConfig] = None,
-    banner: Union[bool, str] = True,
     port: int = 8000,
     title: Optional[str] = None,
     theme: Optional[Dict[str, str]] = None,
-    debug: bool = True,
 ) -> None:
     f"""Serve a Python function in a browser terminal.
 
@@ -92,13 +89,9 @@ def serve_function(
 
     Args:
         func: The function to serve in the terminal
-        config: Full configuration object for advanced users (optional)
-        banner: Controls banner display. True shows Rich panel, False disables banner,
-               string value prints the string directly (default: True)
         port: Web server port (default: 8000)
         title: Terminal window title (default: auto-generated from function name)
         theme: Terminal theme colors (default: {{"background": "black", "foreground": "white"}})
-        debug: Enable debug mode with verbose output (default: True)
 
     Examples:
         ```python
@@ -113,8 +106,8 @@ def serve_function(
         ```
 
     Note:
-        For advanced configuration options like environment variables, proxy settings,
-        or custom templates, use the `config` parameter with a TerminaideConfig object.
+        For advanced configuration options like environment variables, authentication,
+        or custom templates, use serve_apps() instead.
     """
     # Build kwargs dict with explicit parameters
     kwargs = {}
@@ -124,10 +117,8 @@ def serve_function(
         kwargs["title"] = title
     if theme is not None:
         kwargs["theme"] = theme
-    if debug != True:
-        kwargs["debug"] = debug
     
-    cfg = _prepare_config(config, banner, **kwargs)
+    cfg = _prepare_config(None, True, **kwargs)
     cfg._target = func
     cfg._mode = "function"
     
@@ -137,12 +128,9 @@ def serve_function(
 
 def serve_script(
     script_path: Union[str, Path],
-    config: Optional[TerminaideConfig] = None,
-    banner: Union[bool, str] = True,
     port: int = 8000,
     title: Optional[str] = None,
     theme: Optional[Dict[str, str]] = None,
-    debug: bool = True,
 ) -> None:
     f"""Serve a Python script in a browser terminal.
 
@@ -150,13 +138,9 @@ def serve_script(
 
     Args:
         script_path: Path to the script file to serve
-        config: Full configuration object for advanced users (optional)
-        banner: Controls banner display. True shows Rich panel, False disables banner,
-               string value prints the string directly (default: True)
         port: Web server port (default: 8000)
         title: Terminal window title (default: auto-generated from script name)
         theme: Terminal theme colors (default: {{"background": "black", "foreground": "white"}})
-        debug: Enable debug mode with verbose output (default: True)
     
     Examples:
         ```python
@@ -178,10 +162,8 @@ def serve_script(
         kwargs["title"] = title
     if theme is not None:
         kwargs["theme"] = theme
-    if debug != True:
-        kwargs["debug"] = debug
     
-    cfg = _prepare_config(config, banner, **kwargs)
+    cfg = _prepare_config(None, True, **kwargs)
     cfg._target = Path(script_path)
     cfg._mode = "script"
     
