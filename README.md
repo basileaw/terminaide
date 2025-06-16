@@ -101,36 +101,19 @@ import uvicorn
 
 app = FastAPI()
 
-# Custom routes defined first take precedence
 @app.get("/")
 async def root():
-    return {"message": "Welcome to my terminal app"}
+    return {"message": "Welcome to my app"}
 
-# Define a function to serve in a terminal
-def greeting():
+def hello():
     name = input("What's your name? ")
     print(f"Hello, {name}!")
-    favorite = input("What's your favorite programming language? ")
-    print(f"{favorite} is a great choice!")
 
 serve_apps(
     app,
     terminal_routes={
-        # Script-based terminals
-        "/cli1": "script1.py",
-        "/cli2": ["script2.py", "--arg1", "value"],
-        "/cli3": {
-            "script": "script3.py",
-            "title": "Advanced CLI"
-        },
-        
-        # Function-based terminals
-        "/hello": greeting,
-        "/admin": {
-            "function": greeting,
-            "title": "Admin Greeting Terminal",
-            "preview_image": "admin_preview.png"
-        }
+        "/script": "my_script.py",    # Script-based terminal
+        "/hello": hello               # Function-based terminal
     }
 )
 
