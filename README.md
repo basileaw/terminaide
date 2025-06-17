@@ -121,6 +121,29 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
 
+### Index Objects
+
+If you want to create navigation pages for your terminal routes using pure Python instead of HTML templates, Index Objects provide menu systems with ASCII art titles and keyboard navigation. `HtmlIndex` generates web pages that display in browsers alongside your terminal routes in `serve_apps()`, while `CursesIndex` creates standalone terminal-native menus for non-web environments. Both share the same API, making it easy to provide web and terminal versions of your navigation.
+
+```python
+from terminaide import serve_apps, HtmlIndex
+
+serve_apps(app, terminal_routes={
+    "/": HtmlIndex(
+        title="MY APP",
+        menu=[{"label": "Select:", "options": [
+            {"path": "/tool1", "title": "Tool 1"},
+            {"path": "/tool2", "title": "Tool 2"}
+        ]}]
+    ),
+    "/tool1": "tool1.py",
+    "/tool2": "tool2.py"
+})
+```
+
+### Server Monitor
+
+
 #### Apps Mode Configuration
 
 The Apps Server includes all the configuration options from the Solo Server, plus these additional options:
@@ -163,89 +186,6 @@ serve_apps(
     # etc.
 )
 ```
-
-### Index Objects
-
-Index objects create navigable menu interfaces for organizing multiple terminal applications. Terminaide provides two implementations: `HtmlIndex` for web-based menus and `CursesIndex` for native terminal menus.
-
-```python
-from terminaide import serve_apps, HtmlIndex, CursesIndex
-
-# Web-based menu (HtmlIndex)
-serve_apps(
-    app,
-    terminal_routes={
-        "/": HtmlIndex(
-            menu=[{
-                "label": "Development Tools",
-                "options": [
-                    {"path": "/editor", "title": "Code Editor"},
-                    {"path": "/database", "title": "Database Client"},
-                    {"path": "/logs", "title": "Log Viewer"}
-                ]
-            }],
-            title="My Terminal Suite",
-            subtitle="Select a tool to get started"
-        ),
-        "/editor": "editor.py",
-        "/database": "db_client.py",
-        "/logs": "log_viewer.py"
-    }
-)
-
-# Terminal-based menu (CursesIndex)
-from terminaide import CursesIndex
-
-def main():
-    index = CursesIndex(
-        menu=[{
-            "label": "Select a game:",
-            "options": [
-                {"title": "Snake", "function": play_snake},
-                {"title": "Tetris", "script": "tetris.py"},
-                {"title": "Exit", "path": "exit"}
-            ]
-        }],
-        title="Game Menu"
-    )
-    index.show()  # Display the menu and handle selections
-```
-
-Both index types support:
-- Multiple menu groups with keyboard navigation
-- ASCII art titles
-- Custom styling and layout options
-- External URLs (HtmlIndex) or function/script launching (CursesIndex)
-
-### Server Monitor
-
-The Monitor class provides process output monitoring with automatic logging and a rich terminal interface for viewing logs in real-time.
-
-```python
-from terminaide import Monitor
-
-# Start monitoring - wraps your process and captures all output
-monitor = Monitor(title="My Server")
-
-# Your application code runs here
-app.run(host="0.0.0.0", port=8000)  # All output is captured
-
-# In another terminal, view the logs with a rich interface
-Monitor.read()  # Interactive viewer with scrolling and search
-```
-
-The monitor features:
-- **Automatic output capture**: Logs all stdout/stderr to a file while displaying normally
-- **Rich viewing interface**: ASCII banner, ANSI colors, keyboard navigation
-- **Real-time following**: See new output as it arrives
-- **Scrollable history**: Navigate through up to 10,000 lines of output
-- **Preserved formatting**: Maintains colors and terminal escape sequences
-
-Common uses:
-- Development servers where you want persistent logs
-- Long-running processes that need monitoring
-- Debugging sessions where you need to review output history
-- Any scenario requiring both live output and log files
 
 ### Termin-Arcade Demo
 
