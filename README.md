@@ -143,6 +143,19 @@ serve_apps(app, terminal_routes={
 
 ### Server Monitor
 
+For real time visibility into your terminal applications, Monitor wraps your process to capture all output while still displaying it normally. Create a Monitor instance to start logging, then use `Monitor.read()` in another terminal to view logs with a rich interface featuring scrolling, colors, and keyboard navigation.
+
+```python
+from terminaide import Monitor
+
+monitor = Monitor(title="My Server")
+# Your app runs normally, all output captured
+app.run()
+
+# In another terminal:
+Monitor.read()  # Interactive log viewer
+```
+
 
 #### Apps Mode Configuration
 
