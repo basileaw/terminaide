@@ -3,8 +3,6 @@
 
 A handy Python library for serving CLI applications in a browser. Terminaide allows developers to instantly web-enable terminal-based Python applications without packaging or distribution overhead, making it ideal for prototypes, demos, and applications with small user bases.
 
-## How It Works
-
 Terminaide builds on four core technical elements:
 
 1. **ttyd Management**: Automatically handles the installation and lifecycle of ttyd (terminal over WebSocket) binaries for the current platform. This eliminates the need for manual ttyd configuration.
@@ -12,6 +10,20 @@ Terminaide builds on four core technical elements:
 2. **Single-Port Proxying**: Routes all HTTP and WebSocket traffic through a single port, simplifying deployments in containers and cloud environments while maintaining cross-origin security.
 
 3. **FastAPI Integration**: Seamlessly integrates with FastAPI applications, allowing terminals to coexist with traditional web pages and REST endpoints via flexible route prioritization.
+
+## How It Works
+
+When you serve a Python function or script with Terminaide, several things happen behind the scenes:
+
+1. **Ephemeral Script Generation**: For functions passed to `serve_function()`, Terminaide creates a temporary Python wrapper script that imports and executes your function. This allows any Python callable to run in a terminal without modification.
+
+2. **Directory Context Preservation**: Scripts run from their containing directory, maintaining relative imports and file access. Functions run from the caller's directory, preserving the execution context.
+
+3. **Environment Variable Forwarding**: By default, all environment variables from the parent process are forwarded to the terminal session. You can optionally specify which variables to forward or override specific values.
+
+4. **Lifecycle Management**: Terminaide uses AsyncContext managers to handle the complex lifecycle of ttyd processes, temporary files, and proxy connections. All resources are automatically cleaned up when the server stops.
+
+5. **Smart Path Resolution**: File paths are resolved relative to the caller's context, not Terminaide's installation directory. This ensures scripts and resources are found where developers expect them.
 
 ## Installation
 
@@ -95,9 +107,9 @@ The Apps Server extends terminaide's capabilities to integrate multiple terminal
 You can use both functions and scripts in your terminal routes:
 
 ```python
+import uvicorn
 from fastapi import FastAPI
 from terminaide import serve_apps
-import uvicorn
 
 app = FastAPI()
 
@@ -120,6 +132,36 @@ serve_apps(
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
+
+#### Apps Mode Config
+
+The Apps Server integrates multiple terminal routes into an existing FastAPI application, allowing you to serve scripts, functions, and index pages alongside regular web endpoints. The Apps Server requires a FastAPI `app` and `terminal_routes` dictionary, accepts all of the same arguments as the Solo Server functions, plus additional options for managing multiple terminals, routing, and FastAPI integration. You can pass these as keyword arguments to `serve_apps()` or bundle them in a `TerminaideConfig` object for reusability.
+
+```python
+{
+    # Apps Mode Specific Parameters
+    "ttyd_port": 7681,                     # Base port for ttyd processes
+    "mount_path": "/",                     # Base path for terminal mounting  
+    "preview_image": "default.png",        # Default preview image for social media
+    "template_override": "custom.html",    # Custom HTML template file
+    "trust_proxy_headers": True,           # Trust proxy headers for authentication
+    "configure_logging": True,             # Configure Terminaide's logging handlers
+    
+    # TTYD Process Options
+    "ttyd_options": {
+        "writable": True,                  # Allow terminal input
+        "interface": "0.0.0.0",           # Bind interface
+        "check_origin": True,              # Check WebSocket origin
+        "max_clients": 1,                  # Maximum concurrent clients per terminal
+        "credential_required": False,      # Require authentication
+        "username": None,                  # Authentication username
+        "password": None,                  # Authentication password
+        "force_https": False               # Force HTTPS connections
+    }
+}
+```
+
+### Utilities 
 
 #### Index Objects
 
@@ -156,33 +198,27 @@ app.run()
 Monitor.read()  # Interactive log viewer
 ```
 
-#### Apps Mode Config
+#### Termin_Ascii 
 
-The Apps Server integrates multiple terminal routes into an existing FastAPI application, allowing you to serve scripts, functions, and index pages alongside regular web endpoints. The Apps Server requires a FastAPI `app` and `terminal_routes` dictionary, accepts all of the same arguments as the Solo Server functions, plus additional options for managing multiple terminals, routing, and FastAPI integration. You can pass these as keyword arguments to `serve_apps()` or bundle them in a `TerminaideConfig` object for reusability.
+Terminaide uses the `termin_ascii()` function to generate stylized ASCII art banners from text. This built-in utility creates decorative headers and titles using the "ansi-shadow" font, perfect for adding visual appeal to terminal applications:
 
 ```python
-{
-    # Apps Mode Specific Parameters
-    "ttyd_port": 7681,                     # Base port for ttyd processes
-    "mount_path": "/",                     # Base path for terminal mounting  
-    "preview_image": "default.png",        # Default preview image for social media
-    "template_override": "custom.html",    # Custom HTML template file
-    "trust_proxy_headers": True,           # Trust proxy headers for authentication
-    "configure_logging": True,             # Configure Terminaide's logging handlers
-    
-    # TTYD Process Options
-    "ttyd_options": {
-        "writable": True,                  # Allow terminal input
-        "interface": "0.0.0.0",           # Bind interface
-        "check_origin": True,              # Check WebSocket origin
-        "max_clients": 1,                  # Maximum concurrent clients per terminal
-        "credential_required": False,      # Require authentication
-        "username": None,                  # Authentication username
-        "password": None,                  # Authentication password
-        "force_https": False               # Force HTTPS connections
-    }
-}
+from terminaide import termin_ascii
+
+# Generate ASCII art banner
+banner = termin_ascii("HELLO WORLD")
+print(banner)
+
+# Output:
+# ██╗  ██╗███████╗██╗     ██╗      ██████╗     ██╗    ██╗ ██████╗ ██████╗ ██╗     ██████╗ 
+# ██║  ██║██╔════╝██║     ██║     ██╔═══██╗    ██║    ██║██╔═══██╗██╔══██╗██║     ██╔══██╗
+# ███████║█████╗  ██║     ██║     ██║   ██║    ██║ █╗ ██║██║   ██║██████╔╝██║     ██║  ██║
+# ██╔══██║██╔══╝  ██║     ██║     ██║   ██║    ██║███╗██║██║   ██║██╔══██╗██║     ██║  ██║
+# ██║  ██║███████╗███████╗███████╗╚██████╔╝    ╚███╔███╔╝╚██████╔╝██║  ██║███████╗██████╔╝
+# ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝ ╚═════╝      ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═════╝ 
 ```
+
+Supports uppercase and lowercase letters, numbers, and common punctuation. Returns `None` if generation fails.
 
 ### Termin-Arcade Demo
 
