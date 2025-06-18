@@ -3,13 +3,11 @@
 
 A handy Python library for serving CLI applications in a browser. Terminaide allows developers to instantly web-enable terminal-based Python applications without packaging or distribution overhead, making it ideal for prototypes, demos, and applications with small user bases.
 
-Terminaide builds on four core technical elements:
+Terminaide builds on three core design principles:
 
-1. **ttyd Management**: Automatically handles the installation and lifecycle of ttyd (terminal over WebSocket) binaries for the current platform. This eliminates the need for manual ttyd configuration.
-
-2. **Single-Port Proxying**: Routes all HTTP and WebSocket traffic through a single port, simplifying deployments in containers and cloud environments while maintaining cross-origin security.
-
-3. **FastAPI Integration**: Seamlessly integrates with FastAPI applications, allowing terminals to coexist with traditional web pages and REST endpoints via flexible route prioritization.
+- **Instant Web Enablement**: Any Python function or script becomes web-accessible without modification
+- **Zero Infrastructure**: Self-contained with automatic ttyd management and single-port architecture for easy cloud/container deployment
+- **Transparent Execution**: Preserves execution context (directory, environment variables) as if running locally
 
 ## How It Works
 
