@@ -1,7 +1,16 @@
-# Terminaide
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/terminaide) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![PyPI - Version](https://img.shields.io/pypi/v/terminaide) 
+<!-- # TERMINAIDE -->
+```
+████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗ █████╗ ██╗██████╗ ███████╗
+╚══██╔══╝██╔════╝██╔══██╗████╗ ████║██║████╗  ██║██╔══██╗██║██╔══██╗██╔════╝
+   ██║   █████╗  ██████╔╝██╔████╔██║██║██╔██╗ ██║███████║██║██║  ██║█████╗  
+   ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║██║██║╚██╗██║██╔══██║██║██║  ██║██╔══╝  
+   ██║   ███████╗██║  ██║██║ ╚═╝ ██║██║██║ ╚████║██║  ██║██║██████╔╝███████╗
+   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝╚═════╝ ╚══════╝
+```
 
-A handy Python library for serving CLI applications in a browser. Terminaide allows developers to instantly web-enable terminal-based Python applications without packaging or distribution overhead, making it ideal for prototypes, demos, and applications with small user bases.
+A handy Python library for serving CLI applications in a browser. Terminaide allows developers to instantly web-enable Python CLIs without packaging or distribution overhead, making it ideal for prototypes, demos, and applications with small user bases.
+
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/terminaide) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![PyPI - Version](https://img.shields.io/pypi/v/terminaide) 
 
 ## How It Works
 
@@ -33,10 +42,12 @@ pip install terminaide
 poetry add terminaide
 ```
 
-Terminaide automatically installs and manages its own ttyd binary within the package, with no reliance on system-installed versions, to ensure a consistent experience across environments and simplified setup and cleanup.:
+Terminaide automatically installs and manages its own ttyd binary within the package, with no reliance on system-installed versions, to ensure a consistent experience across environments and simplified setup and cleanup:
 
 - On Linux: Pre-built binaries are downloaded automatically
-- On macOS: The binary is compiled from source (requires Xcode Command Line Tools)
+- On macOS: The binary is compiled from source (requires Xcode Command Line Tools `xcode-select --install`)
+
+Unfortunately, Windows is not currently supported :(
 
 ## Usage
 
@@ -239,22 +250,13 @@ from terminaide import termin_ascii
 # Generate ASCII art banner
 banner = termin_ascii("HELLO WORLD")
 print(banner)
-
-# Output:
-# ██╗  ██╗███████╗██╗     ██╗      ██████╗     ██╗    ██╗ ██████╗ ██████╗ ██╗     ██████╗ 
-# ██║  ██║██╔════╝██║     ██║     ██╔═══██╗    ██║    ██║██╔═══██╗██╔══██╗██║     ██╔══██╗
-# ███████║█████╗  ██║     ██║     ██║   ██║    ██║ █╗ ██║██║   ██║██████╔╝██║     ██║  ██║
-# ██╔══██║██╔══╝  ██║     ██║     ██║   ██║    ██║███╗██║██║   ██║██╔══██╗██║     ██║  ██║
-# ██║  ██║███████╗███████╗███████╗╚██████╔╝    ╚███╔███╔╝╚██████╔╝██║  ██║███████╗██████╔╝
-# ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝ ╚═════╝      ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═════╝ 
 ```
 
-### Termin-Arcade Demo
+## Termin-Arcade Demo
 
 The `demo/` directory contains working examples that demonstrate all Terminaide features. These serve as both development tests and usage examples:
 
-```bash
-# Using make commands
+```
 make serve              # Default mode with instructions
 make serve function     # Function mode - demo of serve_function()
 make serve script       # Script mode - demo of serve_script()
@@ -263,12 +265,6 @@ make serve container    # Run in Docker container (requires Docker Desktop)
 ```
 
 Explore the demo source code to see advanced usage patterns and implementation examples.
-
-### Pre-Requisites
-
-- Python 3.12+
-- Linux or macOS 
-- macOS users need Xcode Command Line Tools (`xcode-select --install`)
 
 ## Disclaimer
 
