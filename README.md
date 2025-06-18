@@ -272,5 +272,5 @@ Explore the demo source code to see advanced usage patterns and implementation e
 
 ## Disclaimer
 
-Terminaide is designed to support rapid prototype deployments for small user bases. It's not intended for high-traffic production environments and provides only basic security via TTYD.
+Terminaide is designed to support rapid prototype deployments for small user bases. It's not intended for high-traffic production environments and provides only basic security (via TTYD authentication). If deploying, it is highly recommended that you implement appropriate security measures for your environment, such as proper authentication, network isolation, and access controls. 
 
