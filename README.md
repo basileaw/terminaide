@@ -159,6 +159,8 @@ The Apps Server integrates multiple terminal routes into an existing FastAPI app
 
 ### Utilities 
 
+Terminaide also includes a few utilities for turning your Apps Server into a fully functional, stylish website in pure Python.
+
 #### Index Objects
 
 If you want to create navigation pages for your terminal routes using pure Python instead of HTML templates, Index Objects provide menu systems with ASCII art titles and keyboard navigation.
@@ -214,7 +216,7 @@ Otherwise, both accept the same optional args:
 
 #### Server Monitor
 
-If you want real time visibility into your terminal applications, Monitor wraps your process to capture all output while still displaying it normally. Create a Monitor instance to start logging, then use `Monitor.read()` in another terminal to view logs with a rich interface featuring scrolling, colors, and keyboard navigation.
+If you want real time visibility into your terminal applications, `Monitor` wraps your process to capture all output while still displaying it normally. Create a Monitor instance to start logging, then use `Monitor.read()` in another terminal to view logs with a rich interface featuring scrolling, colors, and keyboard navigation.
 
 ```python
 from terminaide import Monitor
@@ -249,15 +251,18 @@ print(banner)
 
 ### Termin-Arcade Demo
 
-The `demo/` directory contains a client and server that demonstrate several ready-to-use configurations:
+The `demo/` directory contains working examples that demonstrate all Terminaide features. These serve as both development tests and usage examples:
 
 ```bash
+# Using make commands
 make serve              # Default mode with instructions
 make serve function     # Function mode - demo of serve_function()
 make serve script       # Script mode - demo of serve_script()
 make serve apps         # Apps mode - HTML page at root with multiple terminals
-make serve container    # Run in Docker container, requires Docker Desktop
+make serve container    # Run in Docker container (requires Docker Desktop)
 ```
+
+Explore the demo source code to see advanced usage patterns and implementation examples.
 
 ### Pre-Requisites
 
