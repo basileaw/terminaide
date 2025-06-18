@@ -161,27 +161,60 @@ The Apps Server integrates multiple terminal routes into an existing FastAPI app
 
 #### Index Objects
 
-If you want to create navigation pages for your terminal routes using pure Python instead of HTML templates, Index Objects provide menu systems with ASCII art titles and keyboard navigation. `HtmlIndex` generates web pages that display in browsers alongside your terminal routes in `serve_apps()`, while `CursesIndex` creates standalone terminal-native menus for non-web environments. Both share the same API, making it easy to provide web and terminal versions of your navigation.
+If you want to create navigation pages for your terminal routes using pure Python instead of HTML templates, Index Objects provide menu systems with ASCII art titles and keyboard navigation.
+
+The `HtmlIndex` menu accepts paths that can be either internal terminal routes or external URLs, allowing you to mix terminal applications with regular web links in the same menu:
 
 ```python
-from terminaide import serve_apps, HtmlIndex
+from terminaide import HtmlIndex
 
-serve_apps(app, terminal_routes={
-    "/": HtmlIndex(
-        title="MY APP",
-        menu=[{"label": "Select:", "options": [
-            {"path": "/tool1", "title": "Tool 1"},
-            {"path": "/tool2", "title": "Tool 2"}
-        ]}]
-    ),
-    "/tool1": "tool1.py",
-    "/tool2": "tool2.py"
-})
+index = HtmlIndex(
+    title="MY APP",
+    menu=[{
+        "label": "Resources",
+        "options": [
+            {"path": "/terminal", "title": "My App"},     # Internal terminal route
+            {"path": "https://docs.python.org", "title": "Python Docs"}  # External URL
+        ]
+    }]
+)
+```
+In contrast, the `CursesIndex` requires each menu item to specify either a Python function or script to execute, since it runs in a terminal environment where web navigation isn't possible. This allows the CurseIndex to function outside of a web browser if a pure CLI is preferred:
+
+```python
+from terminaide import CursesIndex
+
+def calc_app():
+    # Calculator implementation
+    pass
+
+index = CursesIndex(
+    title="MY APP",
+    menu=[{
+        "label": "Tools",
+        "options": [
+            {"path": "/calc", "title": "Calculator", "function": calc_app},
+            {"path": "/edit", "title": "Editor", "script": "editor.py"}
+        ]
+    }]
+)
+``` 
+
+Otherwise, both accept the same optional args:
+
+```python
+{
+    "title": "MY APP",          # Title text (default: 'Index')
+    "subtitle": "Welcome!",     # Text below title
+    "epititle": "Press Enter",  # Text below menu
+    "supertitle": "v1.0",       # Text above title
+    "preview_image": "img.png"  # Preview image path
+}
 ```
 
 #### Server Monitor
 
-For real time visibility into your terminal applications, Monitor wraps your process to capture all output while still displaying it normally. Create a Monitor instance to start logging, then use `Monitor.read()` in another terminal to view logs with a rich interface featuring scrolling, colors, and keyboard navigation.
+If you want real time visibility into your terminal applications, Monitor wraps your process to capture all output while still displaying it normally. Create a Monitor instance to start logging, then use `Monitor.read()` in another terminal to view logs with a rich interface featuring scrolling, colors, and keyboard navigation.
 
 ```python
 from terminaide import Monitor
@@ -214,8 +247,6 @@ print(banner)
 # ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝ ╚═════╝      ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═════╝ 
 ```
 
-Supports uppercase and lowercase letters, numbers, and common punctuation. Returns `None` if generation fails.
-
 ### Termin-Arcade Demo
 
 The `demo/` directory contains a client and server that demonstrate several ready-to-use configurations:
@@ -232,10 +263,9 @@ make serve container    # Run in Docker container, requires Docker Desktop
 
 - Python 3.12+
 - Linux or macOS 
-- Demo requires Docker Desktop
 - macOS users need Xcode Command Line Tools (`xcode-select --install`)
 
-## Limitations
+## Disclaimer
 
 Terminaide is designed to support rapid prototype deployments for small user bases. It's not intended for high-traffic production environments and provides only basic security via TTYD.
 
