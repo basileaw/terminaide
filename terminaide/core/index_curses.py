@@ -237,8 +237,6 @@ class CursesIndex(BaseIndex):
         epititle: Optional[str] = None,
         # Title/ASCII options
         title: Optional[str] = None,
-        page_title: Optional[str] = None,
-        ascii_art: Optional[str] = None,
         supertitle: Optional[str] = None,
         # Assets (not used in curses but kept for API compatibility)
         preview_image: Optional[Union[str, Path]] = None,
@@ -254,8 +252,6 @@ class CursesIndex(BaseIndex):
             subtitle: Text paragraph below the title
             epititle: Optional text shown below the menu items. Supports newlines for multi-line display.
             title: Text to convert to ASCII art using ansi-shadow font
-            page_title: Not used in curses but kept for API compatibility
-            ascii_art: Pre-made ASCII art (alternative to generated)
             supertitle: Regular text above ASCII art
             preview_image: Not used in curses but kept for API compatibility
 
@@ -271,10 +267,6 @@ class CursesIndex(BaseIndex):
             supertitle=supertitle,
             preview_image=preview_image
         )
-        
-        # Curses-specific attributes
-        self.page_title = page_title or title or "Index"
-        self.ascii_art = ascii_art
 
     def _create_menu_group(self, label: str, options: List[Dict[str, Any]]):
         """Create curses-specific menu groups."""
@@ -333,10 +325,8 @@ class CursesIndex(BaseIndex):
         # Get screen dimensions
         my, mx = stdscr.getmaxyx()
 
-        # Generate or use existing ASCII art
-        if self.ascii_art:
-            title_lines = self.ascii_art.split("\n")
-        elif self.title:
+        # Generate ASCII art from title
+        if self.title:
             ascii_art = termin_ascii(self.title)
             if ascii_art:
                 title_lines = ascii_art.split("\n")
@@ -444,7 +434,7 @@ class CursesIndex(BaseIndex):
             return menu_y + 2
 
         # Initial menu draw
-        menu_end_y = draw_menu()
+        draw_menu()
 
         # Draw epititle at bottom if provided
         if self.epititle:
