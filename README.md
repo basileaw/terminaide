@@ -121,7 +121,7 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
 
-### Index Objects
+#### Index Objects
 
 If you want to create navigation pages for your terminal routes using pure Python instead of HTML templates, Index Objects provide menu systems with ASCII art titles and keyboard navigation. `HtmlIndex` generates web pages that display in browsers alongside your terminal routes in `serve_apps()`, while `CursesIndex` creates standalone terminal-native menus for non-web environments. Both share the same API, making it easy to provide web and terminal versions of your navigation.
 
@@ -141,7 +141,7 @@ serve_apps(app, terminal_routes={
 })
 ```
 
-### Server Monitor
+#### Server Monitor
 
 For real time visibility into your terminal applications, Monitor wraps your process to capture all output while still displaying it normally. Create a Monitor instance to start logging, then use `Monitor.read()` in another terminal to view logs with a rich interface featuring scrolling, colors, and keyboard navigation.
 
@@ -156,48 +156,32 @@ app.run()
 Monitor.read()  # Interactive log viewer
 ```
 
+#### Apps Mode Config
 
-#### Apps Mode Configuration
-
-The Apps Server includes all the configuration options from the Solo Server, plus these additional options:
+The Apps Server integrates multiple terminal routes into an existing FastAPI application, allowing you to serve scripts, functions, and index pages alongside regular web endpoints. The Apps Server requires a FastAPI `app` and `terminal_routes` dictionary, accepts all of the same arguments as the Solo Server functions, plus additional options for managing multiple terminals, routing, and FastAPI integration. You can pass these as keyword arguments to `serve_apps()` or bundle them in a `TerminaideConfig` object for reusability.
 
 ```python
-serve_apps(
-    # Required parameters
-    app,                      # FastAPI application
-    terminal_routes={         # Dictionary mapping paths to scripts or functions
-        # Script formats
-        "/path1": "script1.py",
-        "/path2": ["script2.py", "--arg1", "value"],
-        "/path3": {
-            "script": "script3.py",
-            "args": ["--mode", "advanced"],
-            "title": "Custom Title",
-            "port": 7682,      # Specific port for this terminal
-            "preview_image": "path3_preview.png"  # Per-route custom preview
-        },
-        
-        # Function formats
-        "/func1": my_function,
-        "/func2": {
-            "function": my_function,
-            "title": "Function Terminal",
-            "port": 7683,      # Specific port for this terminal
-            "preview_image": "function_preview.png"  # Per-route custom preview
-        }
-    },
+{
+    # Apps Mode Specific Parameters
+    "ttyd_port": 7681,                     # Base port for ttyd processes
+    "mount_path": "/",                     # Base path for terminal mounting  
+    "preview_image": "default.png",        # Default preview image for social media
+    "template_override": "custom.html",    # Custom HTML template file
+    "trust_proxy_headers": True,           # Trust proxy headers for authentication
+    "configure_logging": True,             # Configure Terminaide's logging handlers
     
-    # Additional Apps Mode specific options
-    mount_path="/",           # Base path for terminal mounting
-    ttyd_port=7681,           # Base port for ttyd processes
-    preview_image="default_preview.png",  # Default preview image for all routes
-    
-    # Plus all options from Solo Mode
-    port=8000,
-    title=None,
-    debug=True,
-    # etc.
-)
+    # TTYD Process Options
+    "ttyd_options": {
+        "writable": True,                  # Allow terminal input
+        "interface": "0.0.0.0",           # Bind interface
+        "check_origin": True,              # Check WebSocket origin
+        "max_clients": 1,                  # Maximum concurrent clients per terminal
+        "credential_required": False,      # Require authentication
+        "username": None,                  # Authentication username
+        "password": None,                  # Authentication password
+        "force_https": False               # Force HTTPS connections
+    }
+}
 ```
 
 ### Termin-Arcade Demo
@@ -216,22 +200,10 @@ make serve container    # Run in Docker container, requires Docker Desktop
 
 - Python 3.12+
 - Linux or macOS 
+- Demo requires Docker Desktop
 - macOS users need Xcode Command Line Tools (`xcode-select --install`)
 
 ## Limitations
 
-Terminaide is designed to support rapid prototype deployments for small user bases. As a result:
+Terminaide is designed to support rapid prototype deployments for small user bases. It's not intended for high-traffic production environments and provides only basic security via TTYD.
 
-- Not intended for high-traffic production environments
-- Basic security features (though ttyd authentication is supported)
-- Windows installation not yet supported
-- Terminal capabilities limited to what ttyd provides
-
-## Function Reloading Considerations
-
-When using functions with `serve_apps()`, note the following:
-
-- Functions defined in your main application file will work seamlessly
-- Functions imported from separate modules work best when using `reload=False` (default)
-- When using `reload=True`, imported functions might not reload properly due to Uvicorn's reloading mechanism
-- For best development experience with imported functions, consider using script mode instead
