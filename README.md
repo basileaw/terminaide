@@ -3,25 +3,25 @@
 
 A handy Python library for serving CLI applications in a browser. Terminaide allows developers to instantly web-enable terminal-based Python applications without packaging or distribution overhead, making it ideal for prototypes, demos, and applications with small user bases.
 
+## How It Works
+
 Terminaide builds on three core design principles:
 
 - **Instant Web Enablement**: Any Python function or script becomes web-accessible without modification
 - **Zero Infrastructure**: Self-contained with automatic ttyd management and single-port architecture for easy cloud/container deployment
 - **Transparent Execution**: Preserves execution context (directory, environment variables) as if running locally
 
-## How It Works
-
 When you serve a Python function or script with Terminaide, several things happen behind the scenes:
 
 1. **Ephemeral Script Generation**: For functions passed to `serve_function()`, Terminaide creates a temporary Python wrapper script that imports and executes your function. This allows any Python callable to run in a terminal without modification.
 
-2. **Directory Context Preservation**: Scripts run from their containing directory, maintaining relative imports and file access. Functions run from the caller's directory, preserving the execution context.
+2. **Single-Port Architecture**: Terminaide implements a proxy layer that routes both WebSocket (terminal) and HTTP (web) traffic through a single port. The ttyd process runs on a dynamically allocated internal port, while the proxy handles all external communication. In Apps mode, each terminal route gets its own ttyd instance with automatic port assignment.
 
-3. **Environment Variable Forwarding**: By default, all environment variables from the parent process are forwarded to the terminal session. You can optionally specify which variables to forward or override specific values.
+3. **Execution Context Preservation**: Scripts run from their containing directory, maintaining relative imports and file access. Functions run from the caller's directory. File paths are resolved relative to the caller's context, not Terminaide's installation directory.
 
-4. **Lifecycle Management**: Terminaide uses AsyncContext managers to handle the complex lifecycle of ttyd processes, temporary files, and proxy connections. All resources are automatically cleaned up when the server stops.
+4. **Environment Variable Forwarding**: By default, all environment variables from the parent process are forwarded to the terminal session. You can optionally specify which variables to forward or override specific values.
 
-5. **Smart Path Resolution**: File paths are resolved relative to the caller's context, not Terminaide's installation directory. This ensures scripts and resources are found where developers expect them.
+5. **Lifecycle Management**: Terminaide uses AsyncContext managers to handle the complex lifecycle of ttyd processes, temporary files, and proxy connections. All resources are automatically cleaned up when the server stops.
 
 ## Installation
 
@@ -33,12 +33,10 @@ pip install terminaide
 poetry add terminaide
 ```
 
-Terminaide automatically installs and manages its own ttyd binary within the package, with no reliance on system-installed versions:
+Terminaide automatically installs and manages its own ttyd binary within the package, with no reliance on system-installed versions, to ensure a consistent experience across environments and simplified setup and cleanup.:
 
 - On Linux: Pre-built binaries are downloaded automatically
 - On macOS: The binary is compiled from source (requires Xcode Command Line Tools)
-
-This approach ensures a consistent experience across environments and simplifies both setup and cleanup.
 
 ## Usage
 
