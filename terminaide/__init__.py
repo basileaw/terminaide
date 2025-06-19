@@ -1,4 +1,4 @@
-# __init__.py
+# terminaide/__init__.py
 
 """
 terminaide: Serve Python CLI applications in the browser using ttyd.
@@ -14,7 +14,6 @@ Public API:
 - HtmlIndex/CursesIndex: Create navigable index pages
 - termin_ascii(): Generate ASCII banners
 - Monitor: Process output monitoring with rich terminal interface
-- terminarcade: Collection of terminal games
 
 Supported Platforms:
 - Linux x86_64 (Docker containers)
