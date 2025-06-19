@@ -232,14 +232,17 @@ Otherwise, both accept the same optional args:
 If you want real time visibility into your terminal applications, `Monitor` wraps your process to capture all output while still displaying it normally. Create a Monitor instance to start logging, then use `Monitor.read()` in another terminal to view logs with a rich interface featuring scrolling, colors, and keyboard navigation.
 
 ```python
-from terminaide import Monitor
+from terminaide import serve_apps, Monitor
+from fastapi import FastAPI
 
-monitor = Monitor(title="My Server")
-# Your app runs normally, all output captured
-app.run()
+def my_app():
+    Monitor(title="My App")
+    print("Hello from monitored app!")
 
-# In another terminal:
-Monitor.read()  # Interactive log viewer
+serve_apps(FastAPI(), {
+    "/app": my_app,
+    "/logs": Monitor.read
+})
 ```
 
 #### Termin_Ascii 
