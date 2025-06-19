@@ -1,16 +1,26 @@
 <!-- # TERMINAIDE -->
-```
+<div align="center">
+   
+
+
+
+<pre>
 ████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗ █████╗ ██╗██████╗ ███████╗
 ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║██║████╗  ██║██╔══██╗██║██╔══██╗██╔════╝
    ██║   █████╗  ██████╔╝██╔████╔██║██║██╔██╗ ██║███████║██║██║  ██║█████╗  
    ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║██║██║╚██╗██║██╔══██║██║██║  ██║██╔══╝  
    ██║   ███████╗██║  ██║██║ ╚═╝ ██║██║██║ ╚████║██║  ██║██║██████╔╝███████╗
    ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝╚═════╝ ╚══════╝
-```
+</pre>
 
-A handy Python library for serving CLI applications in a browser. Terminaide allows developers to instantly web-enable Python CLIs without packaging or distribution overhead, making it ideal for prototypes, demos, and applications with small user bases.
+A Unix compatible, batteries-included Python library for serving CLI applications in a browser. 
+
+Instantly web-enable Python CLIs with only one or two lines of code.
 
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/terminaide) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![PyPI - Version](https://img.shields.io/pypi/v/terminaide) 
+
+</div>
+
 
 ## How It Works
 
@@ -46,8 +56,6 @@ Terminaide automatically installs and manages its own ttyd binary within the pac
 
 - On Linux: Pre-built binaries are downloaded automatically
 - On macOS: The binary is compiled from source (requires Xcode Command Line Tools `xcode-select --install`)
-
-Unfortunately, Windows is not currently supported :(
 
 ## Usage
 
