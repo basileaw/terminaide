@@ -17,7 +17,6 @@ Instantly web-enable terminal applications with as few as two lines of code.
 
 </div>
 
-
 ## How It Works
 
 Terminaide builds on three core design principles:
@@ -26,18 +25,17 @@ Terminaide builds on three core design principles:
 - **Zero Infrastructure**: Self-contained with automatic ttyd management and single-port architecture for easy cloud/container deployment
 - **Transparent Execution**: Preserves execution context (directory, environment variables) as if running locally
 
-When you serve a Python function or script with Terminaide, several things happen behind the scenes:
+When you serve a Python function or script(s) with Terminaide, several things happen behind the scenes:
 
-1. **Ephemeral Script Generation**: For functions passed to `serve_function()`, Terminaide creates a temporary Python wrapper script that imports and executes your function. This allows any Python callable to run in a terminal without modification.
+1. **Function Wrapping**: Functions are automatically wrapped in temporary scripts, allowing any Python callable to run in a terminal without modification.
 
-2. **Single-Port Architecture**: Terminaide implements a proxy layer that routes both WebSocket (terminal) and HTTP (web) traffic through a single port. The ttyd process runs on a dynamically allocated internal port, while the proxy handles all external communication. In Apps mode, each terminal route gets its own ttyd instance with automatic port assignment.
+2. **Unified Port Access**: A proxy layer routes both terminal and web traffic through a single port, with each terminal getting its own isolated backend process.
 
-3. **Execution Context Preservation**: Scripts run from their containing directory, maintaining relative imports and file access. Functions run from the caller's directory. File paths are resolved relative to the caller's context, not Terminaide's installation directory.
+3. **Context Preservation**: Code runs from the appropriate working directory, maintaining relative imports and file paths as expected.
 
-4. **Environment Variable Forwarding**: By default, all environment variables from the parent process are forwarded to the terminal session. You can optionally specify which variables to forward or override specific values.
+4. **Environment Inheritance**: Environment variables are automatically forwarded to terminal sessions, with optional customization.
 
-5. **Lifecycle Management**: Terminaide uses AsyncContext managers to handle the complex lifecycle of ttyd processes, temporary files, and proxy connections. All resources are automatically cleaned up when the server stops.
-
+5. **Resource Management**: All processes, temporary files, and connections are automatically created and cleaned up as needed.
 ## Installation
 
 Install it from PyPI via your favorite package manager:
@@ -269,6 +267,13 @@ make serve container    # Run in Docker container (requires Docker Desktop)
 ```
 
 Explore the demo source code to see advanced usage patterns and implementation examples.
+
+## Integrations
+
+Terminaide pairs well with:
+
+- [Ngrok](https://github.com/ngrok/ngrok-python) for exposing local terminal sessions to remote users securely. 
+- [Lazy Beanstalk](https://github.com/basileaw/lazy-beanstalk) for simple cloud deployments to AWS Elastic Beanstalk.
 
 ## Disclaimer
 
