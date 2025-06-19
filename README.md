@@ -1,9 +1,5 @@
 <!-- # TERMINAIDE -->
 <div align="center">
-   
-
-
-
 <pre>
 ████████╗███████╗██████╗ ███╗   ███╗██╗███╗   ██╗ █████╗ ██╗██████╗ ███████╗
 ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║██║████╗  ██║██╔══██╗██║██╔══██╗██╔════╝
@@ -15,9 +11,9 @@
 
 A Unix compatible, batteries-included Python library for serving CLI applications in a browser. 
 
-Instantly web-enable Python CLIs with only one or two lines of code.
+Instantly web-enable terminal applications with as few as two lines of code.
 
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/terminaide) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) ![PyPI - Version](https://img.shields.io/pypi/v/terminaide) 
+![PyPI - Version](https://img.shields.io/pypi/v/terminaide) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/terminaide) ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg) 
 
 </div>
 
