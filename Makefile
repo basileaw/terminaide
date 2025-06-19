@@ -43,6 +43,10 @@ task:
 idea:
 	$(call create_issue,Idea,idea)
 
+issues:
+	@printf "Make => $(BLUE)Fetching all issues$(RESET)\n" && \
+	gh issue list
+
 # Example of using with a different command
 # build:
 #	$(call task,npm build)
