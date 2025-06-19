@@ -1,5 +1,3 @@
-.PHONY: serve release
-
 # Define color codes
 BLUE := \033[1;34m
 RESET := \033[0m
@@ -19,6 +17,14 @@ define task
   exit $$status; }
 endef
 
+# Define a function to create GitHub issues
+# Usage: $(call create_issue,Issue Type,label)
+define create_issue
+@printf "Make => $(BLUE)Creating $(1) issue$(RESET)\n" && \
+read -p "$(1) title: " title; \
+gh issue create --label "$(2)" --title "$$title"
+endef
+
 # Run demo server
 serve:
 	$(call task,python demo/server.py)
@@ -26,6 +32,16 @@ serve:
 # Release new version
 release:
 	$(call task,python utilities/release.py)
+
+# GitHub issue creation targets
+bug:
+	$(call create_issue,Bug,bug)
+
+task:
+	$(call create_issue,Task,task)
+
+idea:
+	$(call create_issue,Idea,idea)
 
 # Example of using with a different command
 # build:
