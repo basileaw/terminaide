@@ -92,7 +92,7 @@ def build_and_run_container(port: int = 8000) -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         # Copy directories
-        for directory in ["terminaide", "demo"]:
+        for directory in ["terminaide", "terminarcade", "demo"]:
             src_dir = project_root / directory
             dst_dir = temp_path / directory
             if src_dir.exists():
@@ -113,6 +113,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 WORKDIR /app
 COPY terminaide/ ./terminaide/
+COPY terminarcade/ ./terminarcade/
 COPY demo/ ./demo/
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt

@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from terminaide import logger
 from terminaide import serve_function, serve_script, serve_apps
 from terminaide import HtmlIndex
-from terminaide.terminarcade import (
+from terminarcade import (
     snake,
     tetris,
     pong,
@@ -121,7 +121,6 @@ def main() -> None:
             instructions,
             port=port,
             title="Instructions",
-            debug=True,
         )
         return
 
@@ -131,7 +130,6 @@ def main() -> None:
             asteroids,
             port=port,
             title="Function Mode",
-            debug=True,
         )
         return
 
@@ -141,7 +139,6 @@ def main() -> None:
             "demo/client.py",
             port=port,
             title="Script Mode",
-            debug=True,
         )
         return
 

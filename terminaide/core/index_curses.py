@@ -176,7 +176,12 @@ class CursesMenuItem(BaseMenuItem):
                 # Single name - try common patterns
                 # For backwards compatibility with terminarcade games
                 if path in ["snake", "tetris", "pong", "asteroids"]:
-                    module_path = f"terminaide.terminarcade.{path}"
+                    # Try top-level terminarcade first, then fall back to old path
+                    try:
+                        module_path = f"terminarcade.{path}"
+                        importlib.import_module(module_path)
+                    except ImportError:
+                        module_path = f"terminaide.terminarcade.{path}"
                     function_name = f"play_{path}"
                     
                     if module_path in sys.modules:

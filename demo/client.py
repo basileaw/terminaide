@@ -5,7 +5,7 @@ This script demonstrates how to use terminaide's built-in games.
 """
 
 from terminaide import CursesIndex
-from terminaide.terminarcade import snake, tetris, pong
+from terminarcade import snake, tetris, pong
 
 
 def main():

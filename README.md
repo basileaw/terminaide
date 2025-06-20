@@ -257,7 +257,7 @@ banner = termin_ascii("HELLO WORLD")
 print(banner)
 ```
 
-## Termin-Arcade Demo
+## Terminarcade Demo
 
 The `demo/` directory contains working examples that demonstrate all Terminaide features. These serve as both development tests and usage examples:
 
