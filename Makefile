@@ -39,16 +39,25 @@ release:
 # ISSUE MANAGER
 # =============================================================================
 
-# Define a function to create GitHub issues
+# Define a function to create GitHub issues with dynamic label colors
 # Usage: $(call create_issue,Issue Type,label)
 define create_issue
 @printf "Make => $(BLUE)Creating $(1)$(RESET)\n" && \
 read -p "? Title: " title; \
+label_color=$$(gh label list --json name,color | jq -r '.[] | select(.name=="$(2)") | .color' 2>/dev/null); \
+if [ -n "$$label_color" ]; then \
+	r=$$(printf "%d" 0x$${label_color:0:2}); \
+	g=$$(printf "%d" 0x$${label_color:2:2}); \
+	b=$$(printf "%d" 0x$${label_color:4:2}); \
+	label_escape="\033[38;2;$${r};$${g};$${b}m"; \
+else \
+	label_escape="$(BLUE)"; \
+fi; \
 response=$$(echo '{"title":"'$$title'","body":"","labels":["$(2)"]}' | \
 gh api repos/:owner/:repo/issues --method POST --input - --template '{{.number}} {{.html_url}}'); \
 number=$$(echo $$response | cut -d' ' -f1); \
 url=$$(echo $$response | cut -d' ' -f2); \
-printf "$(GREEN)✓$(RESET) Created $(1) $(GH_GREEN)#$$number$(RESET): $(BOLD)\"$$title\"$(RESET)\n$(GRAY)→ $$url$(RESET)\n"
+printf "$(GREEN)✓$(RESET) Created $${label_escape}$(1)$(RESET) $(GH_GREEN)#$$number$(RESET): $(BOLD)\"$$title\"$(RESET)\n$(GRAY)→ $$url$(RESET)\n"
 endef
 
 # GitHub issue creation targets
@@ -62,7 +71,7 @@ idea:
 	$(call create_issue,Idea,idea)
 
 # List GitHub issues
-issues:
+list:
 	@printf "Make => $(BLUE)Listing GitHub issues$(RESET)\n" && \
 	gh issue list
 
@@ -88,10 +97,6 @@ delete:
 		gh issue delete $$issue --yes > /dev/null 2>&1; \
 		printf "$(RED)✔$(RESET) Deleted issue $(GH_GREEN)#$$issue$(RESET): $(BOLD)\"$$title\"$(RESET)\n"; \
 	done
-
-# Example of using with a different command
-# build:
-#	$(call task,npm build)
 
 # Prevent Make from treating extra args as targets
 %:
