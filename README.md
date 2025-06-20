@@ -174,59 +174,61 @@ The Apps Server integrates multiple terminal routes into an existing FastAPI app
 
 Terminaide also includes a few utilities for turning your Apps Server into a fully functional, stylish website in pure Python.
 
-#### Index Objects
+#### Auto Index
 
-If you want to create navigation pages for your terminal routes using pure Python instead of HTML templates, Index Objects provide menu systems with ASCII art titles and keyboard navigation.
+AutoIndex creates navigable menu pages with ASCII art titles and keyboard navigation using pure Python instead of HTML templates. It provides a unified API that can render either as a web page or terminal interface based on the `type` parameter.
 
-The `AutoIndex` with `type="html"` accepts paths that can be either internal terminal routes or external URLs, allowing you to mix terminal applications with regular web links in the same menu:
+```python
+{
+    "type": "html" | "curses",  # Required: rendering mode
+    "menu": [...],              # Required: menu structure (groups and options)
+    "title": "MY APP",          # Title text (default: 'Index')
+    "subtitle": "Welcome!",     # Text below title
+    "epititle": "Press Enter",  # Text below menu
+    "supertitle": "v1.0",       # Text above title
+    "preview_image": "img.png"  # Preview image path (HTML only)
+}
+```
+
+The key difference is how the `path` field in menu options is interpreted: HTML mode expects URLs or routes, while Curses mode expects functions, scripts, or module paths for direct execution.
 
 ```python
 from terminaide import AutoIndex
 
-index = AutoIndex(
+# HTML mode - creates web page with clickable links
+html_index = AutoIndex(
     type="html",
     title="MY APP",
     menu=[{
         "label": "Resources",
         "options": [
-            {"path": "/terminal", "title": "My App"},     # Internal terminal route
-            {"path": "https://docs.python.org", "title": "Python Docs"}  # External URL
+            {"path": "/terminal", "title": "Terminal App"},
+            {"path": "https://docs.python.org", "title": "Python Docs"}
         ]
     }]
 )
-```
-In contrast, the `AutoIndex` with `type="curses"` requires each menu item to specify either a Python function or script to execute, since it runs in a terminal environment where web navigation isn't possible. This allows the curses-type index to function outside of a web browser if a pure CLI is preferred:
 
-```python
-from terminaide import AutoIndex
+# Curses mode - creates terminal menu that executes functions/scripts
+def calculator():
+    print("Calculator app running...")
 
-def calc_app():
-    # Calculator implementation
-    pass
-
-index = AutoIndex(
-    type="curses",
+curses_index = AutoIndex(
+    type="curses", 
     title="MY APP",
     menu=[{
         "label": "Tools",
         "options": [
-            {"path": "/calc", "title": "Calculator", "function": calc_app},
-            {"path": "/edit", "title": "Editor", "script": "editor.py"}
+            {"function": calculator, "title": "Calculator"},
+            {"script": "editor.py", "title": "Text Editor"}
         ]
     }]
 )
-``` 
 
-Otherwise, both accept the same optional args:
+# Use in Apps Mode
+serve_apps(app, {"/": html_index, "/cli": curses_index})
 
-```python
-{
-    "title": "MY APP",          # Title text (default: 'Index')
-    "subtitle": "Welcome!",     # Text below title
-    "epititle": "Press Enter",  # Text below menu
-    "supertitle": "v1.0",       # Text above title
-    "preview_image": "img.png"  # Preview image path
-}
+# Or run Curses mode directly
+curses_index.show()
 ```
 
 #### Server Monitor
