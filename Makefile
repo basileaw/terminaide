@@ -65,8 +65,12 @@ close:
 
 # Delete issues: make delete 10 11 12  
 delete:
-	@printf "Make => $(RED)Deleting issues: $(ARGS)$(RESET)\n" && \
-	gh issue delete $(ARGS) --yes
+	@printf "Make => $(BLUE)Deleting issues: $(ARGS)$(RESET)\n" && \
+	for issue in $(ARGS); do \
+		title=$$(gh issue view $$issue --json title --template '{{.title}}'); \
+		gh issue delete $$issue --yes > /dev/null 2>&1; \
+		printf "$(RED)✔$(RESET) Deleted issue $(GH_GREEN)#$$issue$(RESET): $(BOLD)\"$$title\"$(RESET)\n"; \
+	done
 
 # Example of using with a different command
 # build:
