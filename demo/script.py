@@ -4,7 +4,7 @@
 This script demonstrates how to use terminaide's built-in games.
 """
 
-from terminaide import CursesIndex
+from terminaide import AutoIndex
 from terminarcade import snake, tetris, pong
 
 
@@ -20,7 +20,8 @@ def main():
         }
     ]
 
-    CursesIndex(
+    AutoIndex(
+        type="curses",
         menu=menu,
         title="TERMIN-ARCADE",
         epititle="Press Q or ESC in games to return to this menu",

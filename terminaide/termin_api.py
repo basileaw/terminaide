@@ -12,8 +12,7 @@ from typing import Optional, Dict, Any, Union, List, Callable
 
 from .core.app_config import TerminaideConfig, build_config
 from .core.app_factory import ServeWithConfig
-from .core.index_html import HtmlIndex
-from .core.index_curses import CursesIndex
+from .core.index_auto import AutoIndex
 from .core.termin_ascii import termin_ascii
 from .core.monitor import Monitor
 
@@ -139,7 +138,7 @@ def serve_script(
 
 def serve_apps(
     app: FastAPI,
-    terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any], Callable, HtmlIndex]],
+    terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any], Callable, AutoIndex]],
     config: Optional[TerminaideConfig] = None,
     banner: Union[bool, str] = True,
     **kwargs,
@@ -160,7 +159,7 @@ def serve_apps(
         Each value in terminal_routes can be:
         - String/Path: Script file path
         - Callable: Python function
-        - HtmlIndex: Navigable menu page
+        - AutoIndex: Navigable menu page (HTML or Curses)
         - List: [script_path, arg1, arg2, ...] for scripts with arguments
         - Dict: Advanced configuration with "script"/"function" key plus options
 
@@ -177,7 +176,7 @@ def serve_apps(
             serve_apps(app, {
                 "/script": "my_script.py",
                 "/hello": my_function,
-                "/": HtmlIndex(title="MENU", menu=[...])
+                "/": AutoIndex(type="html", title="MENU", menu=[...])
             })
 
         Advanced configuration:
@@ -212,8 +211,7 @@ def serve_apps(
 ################################################################################
 
 # UI Components are imported and re-exported
-# HtmlIndex - Create navigable web index pages
-# CursesIndex - Create terminal-based index pages
+# AutoIndex - Create navigable index pages (HTML or Curses)
 
 # Utilities are imported and re-exported  
 # termin_ascii - Generate ASCII banners
@@ -230,8 +228,7 @@ __all__ = [
     # Apps Server API
     "serve_apps",
     # UI Components
-    "HtmlIndex",
-    "CursesIndex",
+    "AutoIndex",
     # Utilities
     "termin_ascii",
     "Monitor",

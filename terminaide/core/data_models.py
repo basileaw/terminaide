@@ -491,13 +491,13 @@ def create_route_configs(
     - IndexPage instances
     """
     # Import here to avoid circular import
-    from .index_html import HtmlIndex
+    from .index_auto import AutoIndex
 
     route_configs = []
 
     for route_path, route_spec in terminal_routes.items():
-        # Handle HtmlIndex instances
-        if isinstance(route_spec, HtmlIndex):
+        # Handle AutoIndex instances
+        if isinstance(route_spec, AutoIndex):
             route_configs.append(
                 IndexPageConfig(
                     route_path=route_path,

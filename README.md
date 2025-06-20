@@ -178,12 +178,13 @@ Terminaide also includes a few utilities for turning your Apps Server into a ful
 
 If you want to create navigation pages for your terminal routes using pure Python instead of HTML templates, Index Objects provide menu systems with ASCII art titles and keyboard navigation.
 
-The `HtmlIndex` menu accepts paths that can be either internal terminal routes or external URLs, allowing you to mix terminal applications with regular web links in the same menu:
+The `AutoIndex` with `type="html"` accepts paths that can be either internal terminal routes or external URLs, allowing you to mix terminal applications with regular web links in the same menu:
 
 ```python
-from terminaide import HtmlIndex
+from terminaide import AutoIndex
 
-index = HtmlIndex(
+index = AutoIndex(
+    type="html",
     title="MY APP",
     menu=[{
         "label": "Resources",
@@ -194,16 +195,17 @@ index = HtmlIndex(
     }]
 )
 ```
-In contrast, the `CursesIndex` requires each menu item to specify either a Python function or script to execute, since it runs in a terminal environment where web navigation isn't possible. This allows the CurseIndex to function outside of a web browser if a pure CLI is preferred:
+In contrast, the `AutoIndex` with `type="curses"` requires each menu item to specify either a Python function or script to execute, since it runs in a terminal environment where web navigation isn't possible. This allows the curses-type index to function outside of a web browser if a pure CLI is preferred:
 
 ```python
-from terminaide import CursesIndex
+from terminaide import AutoIndex
 
 def calc_app():
     # Calculator implementation
     pass
 
-index = CursesIndex(
+index = AutoIndex(
+    type="curses",
     title="MY APP",
     menu=[{
         "label": "Tools",

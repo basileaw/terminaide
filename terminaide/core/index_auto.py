@@ -1,28 +1,28 @@
-# terminaide/core/index_curses.py
+# terminaide/core/index_auto.py
 
 """
-Curses-based index page functionality for Terminaide.
+Unified AutoIndex functionality for Terminaide.
 
-This module provides the CursesIndex class which creates terminal-based
-navigable menu pages with ASCII art titles, keyboard navigation, and optional
-grouping for organizing terminal routes.
+This module provides the AutoIndex class which creates either HTML or Curses-based
+index pages based on a type parameter, offering a single API for both web and
+terminal menu systems.
 """
 
 import curses
 import signal
 import sys
 import logging
-from typing import Optional, List, Dict, Any, Union
+import subprocess
+import importlib
+from typing import Optional, List, Dict, Any, Union, Literal, Callable
 from pathlib import Path
 
 from .index_base import BaseIndex, BaseMenuItem, BaseMenuGroup
 from .termin_ascii import termin_ascii
-import subprocess
-import importlib
 
 logger = logging.getLogger("terminaide")
 
-# Global state for signal handling
+# Global state for signal handling (curses mode)
 stdscr = None
 exit_requested = False
 
@@ -63,39 +63,38 @@ def safe_addstr(win, y, x, text, attr=0):
         curses.error
 
 
-def make_hyperlink(text: str, url: str) -> str:
+def is_ascii_art(text: str) -> bool:
     """
-    Create an OSC 8 hyperlink for modern terminals.
+    Detect if a string contains ASCII art by checking for multiple lines.
     
     Args:
-        text: The visible text
-        url: The URL to link to
+        text: The text to analyze
         
     Returns:
-        Text wrapped in OSC 8 escape sequences
+        True if the text appears to be ASCII art (multi-line), False otherwise
     """
-    return f"\033]8;;{url}\033\\{text}\033]8;;\033\\"
+    return '\n' in text and len(text.split('\n')) > 1
 
 
-class CursesMenuItem(BaseMenuItem):
-    """Extended BaseMenuItem that can launch functions or scripts."""
+class AutoMenuItem(BaseMenuItem):
+    """Extended BaseMenuItem that can handle both HTML and Curses behavior."""
     
     def __init__(self, path: str, title: str, function=None, script=None, launcher_args=None):
         """
-        Initialize a CursesMenuItem.
+        Initialize an AutoMenuItem.
         
         Args:
-            path: The URL path (for compatibility with BaseMenuItem)
+            path: The URL path (for HTML) or launch target (for Curses)
             title: Display title for the menu item
-            function: Python function to execute when selected
-            script: Python script path to execute when selected
-            launcher_args: Additional arguments for the launcher
+            function: Python function to execute when selected (Curses mode)
+            script: Python script path to execute when selected (Curses mode)
+            launcher_args: Additional arguments for the launcher (Curses mode)
         """
         super().__init__(path, title, function, script, launcher_args)
     
     def launch(self) -> bool:
         """
-        Launch this menu item.
+        Launch this menu item (Curses mode only).
         
         Returns:
             bool: True to return to menu (always true now)
@@ -207,16 +206,16 @@ class CursesMenuItem(BaseMenuItem):
             return True
 
 
-class CursesMenuGroup(BaseMenuGroup):
-    """Group of CursesMenuItem objects with a label."""
+class AutoMenuGroup(BaseMenuGroup):
+    """Group of AutoMenuItem objects with a label."""
     
     def _create_menu_item(self, item):
-        """Create a CursesMenuItem from dict or existing item."""
-        if isinstance(item, CursesMenuItem):
+        """Create an AutoMenuItem from dict or existing item."""
+        if isinstance(item, AutoMenuItem):
             return item
         else:
-            # Create CursesMenuItem from dict
-            return CursesMenuItem(
+            # Create AutoMenuItem from dict
+            return AutoMenuItem(
                 path=item.get('path', ''),
                 title=item.get('title', ''),
                 function=item.get('function'),
@@ -225,45 +224,63 @@ class CursesMenuGroup(BaseMenuGroup):
             )
 
 
-class CursesIndex(BaseIndex):
+class AutoIndex(BaseIndex):
     """
-    Configuration for a curses-based index/menu page.
+    Unified configuration for index/menu pages with automatic type selection.
 
-    CursesIndex allows creating navigable menu pages with ASCII art titles,
-    keyboard navigation, and optional grouping. It can be used as an alternative
-    to HtmlIndex for terminal-based interfaces.
+    AutoIndex provides a single API for creating both HTML web pages and
+    terminal-based curses menus. The behavior is determined by the 'type'
+    parameter.
+
+    When type="html", paths in menu items can be:
+    - Internal routes (e.g., "/terminal", "/admin")
+    - External URLs (e.g., "https://example.com")
+
+    When type="curses", paths in menu items can be:
+    - Python functions (passed directly)
+    - Script paths (e.g., "script.py")
+    - Module paths (e.g., "module.function")
     """
 
     def __init__(
         self,
+        type: Literal["html", "curses"],
         # Content
         menu: Union[List[Dict[str, Any]], Dict[str, Any]],
         subtitle: Optional[str] = None,
         epititle: Optional[str] = None,
-        # Title/ASCII options
+        # Title options
         title: Optional[str] = None,
         supertitle: Optional[str] = None,
-        # Assets (not used in curses but kept for API compatibility)
+        # Assets (only used for HTML)
         preview_image: Optional[Union[str, Path]] = None,
     ):
         """
-        Initialize a CursesIndex.
+        Initialize an AutoIndex.
 
         Args:
+            type: The type of index to create - "html" for web pages, "curses" for terminal menus
             menu: Either:
                 - A list of menu groups (for single menu or when cycle_key not needed)
                 - A dict with 'groups' and 'cycle_key' keys (for multiple menus with cycling)
                   Example: {"cycle_key": "shift+g", "groups": [{"label": "...", "options": [...]}]}
             subtitle: Text paragraph below the title
             epititle: Optional text shown below the menu items. Supports newlines for multi-line display.
-            title: Text to convert to ASCII art using ansi-shadow font
-            supertitle: Regular text above ASCII art
-            preview_image: Not used in curses but kept for API compatibility
+            title: Title text (defaults to 'Index')
+            supertitle: Regular text above title
+            preview_image: Path to preview image for social media (HTML only)
 
         Raises:
+            ValueError: If type is not "html" or "curses"
             ValueError: If menu is empty or has invalid structure
         """
-        # Initialize base class with all validation and parsing
+        # Validate type parameter
+        if type not in ["html", "curses"]:
+            raise ValueError(f"type must be 'html' or 'curses', got: {type}")
+        
+        self.index_type = type
+        
+        # Initialize base class
         super().__init__(
             menu=menu,
             subtitle=subtitle,
@@ -272,25 +289,73 @@ class CursesIndex(BaseIndex):
             supertitle=supertitle,
             preview_image=preview_image
         )
-
+        
+        # Set default cycle_key for HTML (different from base)
+        if self.index_type == "html" and hasattr(self, 'cycle_key') and self.cycle_key == "shift+g":
+            self.cycle_key = "shift+p"
+    
     def _create_menu_group(self, label: str, options: List[Dict[str, Any]]):
-        """Create curses-specific menu groups."""
-        return CursesMenuGroup(label, options)
-
-    def get_all_menu_items(self) -> List[CursesMenuItem]:
+        """Create appropriate menu group based on index type."""
+        return AutoMenuGroup(label, options)
+    
+    def get_all_menu_items(self) -> List[AutoMenuItem]:
         """
         Get all menu items as a flat list.
 
         Returns:
-            List of all CursesMenuItem objects across all groups
+            List of all AutoMenuItem objects across all groups
         """
         all_items = []
         for group in self.groups:
             all_items.extend(group.menu_items)
         return all_items
+    
+    def to_template_context(self) -> Dict[str, Any]:
+        """
+        Convert to dictionary for template rendering (HTML only).
 
+        Returns:
+            Dictionary with all data needed for Jinja2 template
+
+        Raises:
+            AttributeError: If called on a curses-type index
+        """
+        if self.index_type != "html":
+            raise AttributeError("to_template_context() is only available for HTML indexes")
+        
+        # Simple logic: title gets converted to ASCII art
+        title_ascii = None
+        
+        if self.title and self.title != "Index":
+            if is_ascii_art(self.title):
+                # Title is already ASCII art - use it directly
+                title_ascii = self.title
+            else:
+                # Generate ASCII art from title text
+                title_ascii = termin_ascii(self.title)
+
+        # Prepare groups data for JavaScript
+        groups_data = [group.to_dict() for group in self.groups]
+        has_multiple_groups = len(self.groups) > 1
+
+        # Count total items for grid sizing hints
+        total_items = len(self.get_all_menu_items())
+
+        return {
+            "page_title": self.title,
+            "title_ascii": title_ascii,
+            "supertitle": self.supertitle,
+            "subtitle": self.subtitle,
+            "epititle": self.epititle,
+            "has_multiple_groups": has_multiple_groups,
+            "groups_json": groups_data,
+            "cycle_key": self.cycle_key,
+            "total_items": total_items,
+            "title": self.title,
+        }
+    
     def _index_menu_loop(self, stdscr_param):
-        """Main menu interface.
+        """Main menu interface for curses mode.
 
         Args:
             stdscr_param: The curses window.
@@ -514,14 +579,20 @@ class CursesIndex(BaseIndex):
             return key == ord(cycle_char.lower()) or key == ord(cycle_char.upper())
         except (ValueError, IndexError):
             return False
-
+    
     def show(self) -> Optional[str]:
         """
-        Display the curses menu and launch selected items.
+        Display the curses menu and launch selected items (Curses only).
 
         Returns:
             str: The path of the last selected item, or None if user exited
+
+        Raises:
+            AttributeError: If called on an HTML-type index
         """
+        if self.index_type != "curses":
+            raise AttributeError("show() is only available for Curses indexes")
+        
         global exit_requested
         last_selection = None
 
@@ -537,19 +608,27 @@ class CursesIndex(BaseIndex):
                 if choice == "exit" or exit_requested or choice is None:
                     return last_selection
                 
-                # If choice is a CursesMenuItem, launch it
-                if isinstance(choice, CursesMenuItem):
+                # If choice is an AutoMenuItem, launch it
+                if isinstance(choice, AutoMenuItem):
                     last_selection = choice.path
                     choice.launch()  # Always returns True now
                     # Continue the loop (show menu again)
                 else:
-                    # Fallback for non-CursesMenuItem objects
+                    # Fallback for non-AutoMenuItem objects
                     return choice
 
         except Exception as e:
-            logger.error(f"Error in CursesIndex: {e}")
+            logger.error(f"Error in AutoIndex: {e}")
             return last_selection
         finally:
             exit_requested = True
             cleanup()
-
+    
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        item_count = len(self.get_all_menu_items())
+        group_count = len(self.groups)
+        return (
+            f"AutoIndex(type='{self.index_type}', title='{self.title}', "
+            f"items={item_count}, groups={group_count})"
+        )

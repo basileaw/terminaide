@@ -11,7 +11,7 @@ Public API:
 - serve_function(): Serve a Python function in a browser terminal
 - serve_script(): Serve a Python script file in a terminal  
 - serve_apps(): Integrate multiple terminals into a FastAPI application
-- HtmlIndex/CursesIndex: Create navigable index pages
+- AutoIndex: Create navigable index pages (HTML or Curses)
 - termin_ascii(): Generate ASCII banners
 - Monitor: Process output monitoring with rich terminal interface
 

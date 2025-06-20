@@ -11,13 +11,14 @@ Usage:
 
 import uvicorn
 from fastapi import FastAPI
-from terminaide import serve_apps, HtmlIndex
+from terminaide import serve_apps, AutoIndex
 from terminarcade import snake, tetris, pong, asteroids
 
 
-def create_index_page() -> HtmlIndex:
-    """Create HtmlIndex configuration for the terminal arcade."""
-    return HtmlIndex(
+def create_index_page() -> AutoIndex:
+    """Create AutoIndex configuration for the terminal arcade."""
+    return AutoIndex(
+        type="html",
         title="TERMIN-ARCADE",
         subtitle="This demo shows HTML pages and terminal applications combined in one server, running a separate terminal for each game.",
         menu=[

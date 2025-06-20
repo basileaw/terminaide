@@ -25,13 +25,13 @@ class BaseMenuItem:
         Args:
             path: The URL path (can be internal route or external URL)
             title: Display title for the menu item
-            function: Python function to execute when selected (optional, used by CursesIndex)
-            script: Python script path to execute when selected (optional, used by CursesIndex)
-            launcher_args: Additional arguments for the launcher (optional, used by CursesIndex)
+            function: Python function to execute when selected (optional, used by AutoIndex with type="curses")
+            script: Python script path to execute when selected (optional, used by AutoIndex with type="curses")
+            launcher_args: Additional arguments for the launcher (optional, used by AutoIndex with type="curses")
         """
         self.path = path
         self.title = title
-        # Optional fields used by CursesIndex, ignored by HtmlIndex
+        # Optional fields used by AutoIndex with type="curses", ignored when type="html"
         self.function = function
         self.script = script
         self.launcher_args = launcher_args or {}
