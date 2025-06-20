@@ -491,7 +491,7 @@ def create_route_configs(
     - IndexPage instances
     """
     # Import here to avoid circular import
-    from .index_auto import AutoIndex
+    from .auto_index import AutoIndex
 
     route_configs = []
 

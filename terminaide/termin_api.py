@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any, Union, List, Callable
 
 from .core.app_config import TerminaideConfig, build_config
 from .core.app_factory import ServeWithConfig
-from .core.index_auto import AutoIndex
+from .core.auto_index import AutoIndex
 from .core.termin_ascii import termin_ascii
 from .core.monitor import Monitor
 
