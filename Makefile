@@ -11,6 +11,10 @@ RESET := \033[0m
 # Get remaining arguments after the target
 ARGS := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
 
+# =============================================================================
+# TASK RUNNER
+# =============================================================================
+
 # Define a function to execute commands with nice output and handle arguments
 # Usage: $(call task,command)
 define task
@@ -30,6 +34,10 @@ serve:
 # Release new version
 release:
 	$(call task,python utilities/release.py)
+
+# =============================================================================
+# ISSUE MANAGER
+# =============================================================================
 
 # Define a function to create GitHub issues
 # Usage: $(call create_issue,Issue Type,label)
@@ -59,9 +67,18 @@ issues:
 	gh issue list
 
 # Close issues: make close 10 11 12
-close:
-	@printf "Make => $(GREEN)Closing issues: $(ARGS)$(RESET)\n" && \
-	gh issue close $(ARGS)
+resolve:
+	@printf "Make => $(BLUE)Resolving issues: $(ARGS)$(RESET)\n" && \
+	for issue in $(ARGS); do \
+		if response=$$(gh issue view $$issue --json title,url --template '{{.title}} {{.url}}' 2>/dev/null); then \
+			title=$$(echo $$response | cut -d' ' -f1- | sed 's/ [^ ]*$$//'); \
+			url=$$(echo $$response | awk '{print $$NF}'); \
+			gh issue close $$issue > /dev/null 2>&1; \
+			printf "$(GREEN)✓$(RESET) Resolved issue $(GH_GREEN)#$$issue$(RESET): $(BOLD)\"$$title\"$(RESET)\n$(GRAY)→ $$url$(RESET)\n"; \
+		else \
+			printf "$(RED)✗$(RESET) Issue $(GH_GREEN)#$$issue$(RESET) not found\n"; \
+		fi; \
+	done
 
 # Delete issues: make delete 10 11 12  
 delete:
