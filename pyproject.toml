@@ -3,11 +3,9 @@ authors = ["Alex Basile <basileaw@gmail.com>"]
 description = "Serve Python CLI applications in the browser using ttyd"
 license = "MIT"
 name = "terminaide"
-packages = [
-  {include = "terminaide"},
-]
+packages = [{ include = "terminaide" }]
 readme = "README.md"
-repository = "https://github.com/bazeindustries/terminaide"
+repository = "https://github.com/basileaw/terminaide"
 version = "0.6.3"
 
 [tool.poetry.dependencies]
