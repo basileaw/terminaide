@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-"""Docker container functionality for terminaide demo."""
+"""
+Standalone demo of running terminaide in a Docker container.
 
-import argparse
+This example shows how to build and run the terminaide demo in Docker.
+
+Usage:
+    python demo/container.py
+"""
+
 import os
 import re
 import shutil
@@ -10,11 +16,6 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Union
-
-# Add project root to path for imports
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
 
 from terminaide import logger
 
@@ -118,7 +119,7 @@ COPY demo/ ./demo/
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 8000
-CMD ["python", "demo/server.py", "apps"]
+CMD ["python", "demo/apps.py"]
 """
         dockerfile_path = temp_path / "Dockerfile"
         with open(dockerfile_path, "w") as f:
@@ -186,29 +187,5 @@ CMD ["python", "demo/server.py", "apps"]
             logger.info("Container stopped")
 
 
-def main() -> None:
-    """Main entry point when running this module directly."""
-    parser = argparse.ArgumentParser(
-        description="Build and run terminaide demo in a Docker container",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python demo/container.py              # Run on default port 8000
-  python demo/container.py --port 8080  # Run on custom port
-  PYTHONPATH=. python demo/container.py # Run from any directory
-""",
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=8000,
-        help="Host port to expose (default: 8000)",
-    )
-    args = parser.parse_args()
-
-    logger.info(f"Starting terminaide container on port {args.port}")
-    build_and_run_container(args.port)
-
-
 if __name__ == "__main__":
-    main()
+    build_and_run_container()

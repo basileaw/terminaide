@@ -1,49 +1,40 @@
+#!/usr/bin/env python3
 # server.py
 
 """
-Test server for terminaide that demonstrates all API modes.
+Main router for terminaide demos - demonstrates all API modes.
+
+This server acts as the primary entry point for all demo modes, delegating
+to specialized modules for each mode while maintaining backward compatibility
+with existing make commands.
+
 Usage:
-python demo/server.py                     # Default mode - shows getting started interface
-python demo/server.py function            # Function mode - demo of serve_function() with Asteroids
-python demo/server.py script              # Script mode - demo of serve_script()
-python demo/server.py apps                # Apps mode - HTML page at root, terminal games at routes
-python demo/server.py container           # Run the apps mode in a Docker container
+    make serve                     # Default mode - shows getting started interface
+    make serve function            # Function mode - demo of serve_function() with Asteroids
+    make serve script              # Script mode - demo of serve_script()
+    make serve apps                # Apps mode - HTML page at root, terminal games at routes
+    make serve container           # Run the apps mode in a Docker container
+
+Or directly:
+    python demo/server.py                     # Default mode
+    python demo/server.py function            # Function mode
+    python demo/server.py script              # Script mode
+    python demo/server.py apps                # Apps mode
+    python demo/server.py container           # Container mode
 """
 
 import os
-import uvicorn
+import sys
 import argparse
-from fastapi import FastAPI
-from terminaide import logger
-from terminaide import serve_function, serve_script, serve_apps
-from terminaide import HtmlIndex
-from terminarcade import (
-    snake,
-    tetris,
-    pong,
-    asteroids,
-    instructions,
-)
-from demo.container import build_and_run_container
+from terminaide import serve_function, serve_script
+from terminarcade import instructions
+
+# Add demo directory to path for imports
+demo_dir = os.path.dirname(os.path.abspath(__file__))
+if demo_dir not in sys.path:
+    sys.path.insert(0, demo_dir)
 
 
-def create_index_page() -> HtmlIndex:
-    """Create HtmlIndex configuration for the terminal arcade."""
-    return HtmlIndex(
-        title="TERMIN-ARCADE",
-        subtitle="This demo shows HTML pages and terminal applications combined in one server, running a separate terminal for each game.",
-        menu=[
-            {
-                "label": "Available Games",
-                "options": [
-                    {"path": "/snake", "title": "Snake"},
-                    {"path": "/tetris", "title": "Tetris"},
-                    {"path": "/pong", "title": "Pong"},
-                    {"path": "/asteroids", "title": "Asteroids"},
-                ],
-            }
-        ],
-    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -62,60 +53,12 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-app = None
-
-
-def create_app() -> FastAPI:
-    """Create the FastAPI app for apps mode."""
-    global app
-    app = FastAPI(title="Terminaide - APPS Mode")
-    serve_apps(
-        app,
-        terminal_routes={
-            "/": create_index_page(),
-            "/snake": {
-                "function": snake,
-                "title": "Snake",
-            },
-            "/tetris": {
-                "function": tetris,
-                "title": "Tetris",
-            },
-            "/pong": {
-                "function": pong,
-                "title": "Pong",
-            },
-            "/asteroids": {
-                "function": asteroids,
-                "title": "Asteroids",
-            },
-        },
-        debug=True,
-    )
-    return app
-
-
 def main() -> None:
     args = parse_args()
     mode = args.actual_mode
     port = args.port
-    os.environ["TERMINAIDE_MODE"] = mode
 
-    if mode != "container":
-        os.environ["WATCHFILES_FORCE_POLLING"] = "0"
-        os.environ["WATCHFILES_POLL_DELAY"] = "0.1"
-        os.environ["TERMINAIDE_VERBOSE"] = "0"
-        log_level = "WARNING" if mode != "apps" else "INFO"
-        logger.setLevel(log_level)
-        import logging
-
-        logging.getLogger("uvicorn").setLevel(log_level)
-
-    if mode == "container":
-        build_and_run_container(port)
-        return
-
-    # DEFAULT MODE
+    # DEFAULT MODE - serve instructions directly
     if mode == "default":
         serve_function(
             instructions,
@@ -124,39 +67,44 @@ def main() -> None:
         )
         return
 
-    # FUNCTION MODE
+    # DELEGATE TO OTHER MODULES
+    # Each module is self-contained and can run independently
+    
     if mode == "function":
-        serve_function(
-            asteroids,
-            port=port,
-            title="Function Mode",
-        )
+        # Import and run function demo directly (uses default port 8000)
+        from terminarcade import asteroids
+        serve_function(asteroids, port=port, title="Asteroids Game")
         return
 
-    # SCRIPT MODE
     if mode == "script":
+        # Delegate to script.py (renamed from client.py)
         serve_script(
-            "demo/client.py",
+            os.path.join(demo_dir, "script.py"),
             port=port,
-            title="Script Mode",
+            title="Script Mode - Terminal Arcade",
         )
         return
 
-    # APPS MODE
     if mode == "apps":
-        create_app()
+        # Import and run apps demo with proper reload support
+        import uvicorn
+        # Set port in environment so apps module can use it
+        os.environ["TERMINAIDE_PORT"] = str(port)
         uvicorn.run(
-            "demo.server:app",
-            host="0.0.0.0",
-            port=port,
-            reload=True,
-            reload_dirs=["."],
+            "demo.apps:app", 
+            host="0.0.0.0", 
+            port=port, 
+            reload=True, 
+            reload_dirs=["."]
         )
+        return
 
-
-# When uvicorn imports this module in reload mode, check if we need to create the app
-if os.environ.get("TERMINAIDE_MODE") == "apps" and app is None:
-    create_app()
+    if mode == "container":
+        # Import and run container demo directly with custom port
+        sys.path.insert(0, demo_dir)
+        from container import build_and_run_container
+        build_and_run_container(port)
+        return
 
 if __name__ == "__main__":
     main()
