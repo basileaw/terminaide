@@ -86,17 +86,15 @@ def main() -> None:
         return
 
     if mode == "apps":
-        # Import and run apps demo with proper reload support
-        import uvicorn
+        # Delegate to apps.py as a separate process
+        import subprocess
         # Set port in environment so apps module can use it
         os.environ["TERMINAIDE_PORT"] = str(port)
-        uvicorn.run(
-            "demo.apps:app", 
-            host="0.0.0.0", 
-            port=port, 
-            reload=True, 
-            reload_dirs=["."]
-        )
+        try:
+            subprocess.run([sys.executable, os.path.join(demo_dir, "apps.py")])
+        except KeyboardInterrupt:
+            # Clean exit on Ctrl+C
+            pass
         return
 
     if mode == "container":

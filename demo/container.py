@@ -175,6 +175,7 @@ CMD ["python", "demo/apps.py"]
         container_id = result.stdout.strip()
         logger.info(f"Container {container_name} started (ID: {container_id[:12]})")
         logger.info(f"Access at: http://localhost:{port}")
+        logger.info(f"Server Logs:\nhttp://localhost:{port}/monitor")
         logger.info("Streaming container logs (Ctrl+C to stop)")
 
         try:
