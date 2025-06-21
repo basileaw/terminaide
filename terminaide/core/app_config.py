@@ -21,7 +21,7 @@ from typing import Optional, Dict, Union, Tuple, List, Callable, Any
 from .ttyd_proxy import ProxyManager
 from .ttyd_manager import TTYDManager
 from .exceptions import TemplateError
-from .data_models import (
+from .models import (
     TTYDConfig,
     ThemeConfig,
     TTYDOptions,
