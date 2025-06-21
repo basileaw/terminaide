@@ -12,7 +12,7 @@ Public API:
 - serve_script(): Serve a Python script file in a terminal  
 - serve_apps(): Integrate multiple terminals into a FastAPI application
 - AutoIndex: Create navigable index pages (HTML or Curses)
-- termin_ascii(): Generate ASCII banners
+- terminascii(): Generate ASCII banners
 - Monitor: Process output monitoring with rich terminal interface
 
 Supported Platforms:

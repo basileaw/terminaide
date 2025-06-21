@@ -249,15 +249,15 @@ serve_apps(FastAPI(), {
 })
 ```
 
-#### Termin_Ascii 
+#### TerminASCII 
 
-Terminaide uses the `termin_ascii()` function to generate stylized ASCII art banners from text. This built-in utility creates decorative headers and titles using the "ansi-shadow" font, perfect for adding visual appeal to terminal applications:
+Terminaide uses the `terminascii()` function to generate stylized ASCII art banners from text. This built-in utility creates decorative headers and titles using the "ansi-shadow" font, perfect for adding visual appeal to terminal applications:
 
 ```python
-from terminaide import termin_ascii
+from terminaide import terminascii
 
 # Generate ASCII art banner
-banner = termin_ascii("HELLO WORLD")
+banner = terminascii("HELLO WORLD")
 print(banner)
 ```
 

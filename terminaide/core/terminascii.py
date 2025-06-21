@@ -1,7 +1,7 @@
 """
 ASCII art generation for Terminaide using the ansi-shadow font.
 
-This module provides the termin_ascii function for generating ASCII art banners,
+This module provides the terminascii function for generating ASCII art banners,
 consolidating the original utils.py and vendor/bigfont_slim.py into a single file.
 """
 
@@ -1022,7 +1022,7 @@ def render(text, font=None):
 
 # === Public API ===
 
-def termin_ascii(text: str) -> Optional[str]:
+def terminascii(text: str) -> Optional[str]:
     """
     Generate ASCII art banner from text using the ansi-shadow font.
 
@@ -1037,9 +1037,9 @@ def termin_ascii(text: str) -> Optional[str]:
 
     Example:
         ```python
-        from terminaide import termin_ascii
+        from terminaide import terminascii
 
-        banner = termin_ascii("HELLO")
+        banner = terminascii("HELLO")
         if banner:
             print(banner)
         ```

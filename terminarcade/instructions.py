@@ -5,7 +5,7 @@ import time
 import signal
 import sys
 import os
-from terminaide import termin_ascii
+from terminaide import terminascii
 
 _stdscr = None
 _exit_requested = False  # Set by the SIGINT handler when Ctrl+C is pressed.
@@ -34,12 +34,12 @@ def instructions(stdscr):
     curses.init_pair(1, curses.COLOR_WHITE, -1)
     curses.curs_set(0)
 
-    # Generate ASCII banner using termin_ascii
-    ascii_art = termin_ascii("TERMINAIDE")
+    # Generate ASCII banner using terminascii
+    ascii_art = terminascii("TERMINAIDE")
     if ascii_art:
         ascii_banner = ascii_art.split('\n')
     else:
-        # Fallback if termin_ascii fails
+        # Fallback if terminascii fails
         ascii_banner = ["TERMINAIDE"]
 
     instructions_before = [

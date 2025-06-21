@@ -8,7 +8,7 @@ preparing data for Jinja2 templates used in web interfaces.
 """
 
 from typing import Dict, Any
-from .termin_ascii import termin_ascii
+from .terminascii import terminascii
 from .index_api import AutoIndex
 
 
@@ -50,7 +50,7 @@ def get_template_context(auto_index: AutoIndex) -> Dict[str, Any]:
             title_ascii = auto_index.title
         else:
             # Generate ASCII art from title text
-            title_ascii = termin_ascii(auto_index.title)
+            title_ascii = terminascii(auto_index.title)
 
     # Prepare groups data for JavaScript
     groups_data = [group.to_dict() for group in auto_index.groups]

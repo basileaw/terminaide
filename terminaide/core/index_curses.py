@@ -15,7 +15,7 @@ import subprocess
 import importlib
 from typing import Optional
 
-from .termin_ascii import termin_ascii
+from .terminascii import terminascii
 from .index_api import AutoIndex, AutoMenuItem
 
 logger = logging.getLogger("terminaide")
@@ -265,7 +265,7 @@ def _index_menu_loop(stdscr_param, auto_index: AutoIndex):
 
     # Generate ASCII art from title
     if auto_index.title:
-        ascii_art = termin_ascii(auto_index.title)
+        ascii_art = terminascii(auto_index.title)
         if ascii_art:
             title_lines = ascii_art.split("\n")
         else:

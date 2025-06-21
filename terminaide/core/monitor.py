@@ -206,10 +206,10 @@ def monitor_read_standalone(output_file=None, use_curses=True):
             from rich.console import Console
             from rich.panel import Panel
             from rich.align import Align
-            from terminaide import termin_ascii
+            from terminaide import terminascii
 
             console = Console(width=width, legacy_windows=False)
-            server_banner = termin_ascii(title)
+            server_banner = terminascii(title)
             centered_banner = Align.center(server_banner)
 
             # Build panel kwargs dynamically

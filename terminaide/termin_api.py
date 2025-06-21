@@ -13,7 +13,7 @@ from typing import Optional, Dict, Any, Union, List, Callable
 from .core.app_config import TerminaideConfig, build_config
 from .core.app_factory import ServeWithConfig
 from .core.index_api import AutoIndex
-from .core.termin_ascii import termin_ascii
+from .core.terminascii import terminascii
 from .core.monitor import Monitor
 
 logger = logging.getLogger("terminaide")
@@ -214,7 +214,7 @@ def serve_apps(
 # AutoIndex - Create navigable index pages (HTML or Curses)
 
 # Utilities are imported and re-exported  
-# termin_ascii - Generate ASCII banners
+# terminascii - Generate ASCII banners
 # Monitor - Process output monitoring with rich terminal interface
 
 ################################################################################
@@ -230,6 +230,6 @@ __all__ = [
     # UI Components
     "AutoIndex",
     # Utilities
-    "termin_ascii",
+    "terminascii",
     "Monitor",
 ]
