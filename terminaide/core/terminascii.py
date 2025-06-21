@@ -23,8 +23,6 @@ try:  # py 2/3 compatible import
 except ImportError:
     pass
 
-from zipfile import ZipFile, BadZipfile
-
 logger = logging.getLogger("terminaide")
 
 

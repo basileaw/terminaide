@@ -132,7 +132,7 @@ def cleanup():
 atexit.register(cleanup)
 
 
-def signal_handler(sig, frame):
+def signal_handler(sig, _):
     if is_cursor_mgmt_enabled():
         sys.stdout.write(CURSOR_HIDE)
         sys.stdout.flush()

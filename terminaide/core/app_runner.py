@@ -200,7 +200,7 @@ class ServeWithConfig:
 
         app = create_app_with_lifespan(config.title, config, ttyd_config)
 
-        def handle_exit(sig, frame):
+        def handle_exit(sig, _):
             print("\033[93mShutting down...\033[0m")
             sys.exit(0)
 

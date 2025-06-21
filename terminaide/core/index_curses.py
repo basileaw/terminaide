@@ -25,7 +25,7 @@ stdscr = None
 exit_requested = False
 
 
-def handle_exit(sig, frame):
+def handle_exit(sig, _):
     """Handle SIGINT (Ctrl+C) for clean program exit."""
     global exit_requested
     exit_requested = True

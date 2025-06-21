@@ -759,7 +759,7 @@ def _monitor_write(output_file=None, title="MONITOR"):
     os.close(slave_fd)
 
     # Set up signal handlers to forward to child process group
-    def signal_handler(signum, frame):
+    def signal_handler(signum, _):
         if process.poll() is None:
             try:
                 # Send signal to entire process group (includes uvicorn reloader)
