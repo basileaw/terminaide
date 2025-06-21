@@ -1,5 +1,4 @@
-# triage.yml
-
+# .github/workflows/triage.yml
 name: Auto-assign Issues
 
 on:
@@ -14,6 +13,12 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            // Skip auto-assignment if the issue creator is the repo owner
+            if (context.payload.issue.user.login === context.repo.owner) {
+              console.log('Skipping auto-assignment: issue creator is repo owner');
+              return;
+            }
+            
             github.rest.issues.addAssignees({
               owner: context.repo.owner,
               repo: context.repo.repo,
