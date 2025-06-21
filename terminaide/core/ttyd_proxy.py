@@ -16,7 +16,7 @@ from fastapi.responses import Response, StreamingResponse
 
 from .exceptions import ProxyError, RouteNotFoundError
 from .data_models import TTYDConfig, ScriptConfig, IndexPageConfig
-from .log_config import route_color_manager, setup_package_logging
+from .logger import route_color_manager, setup_package_logging
 
 # Ensure logger is configured when this module is imported
 setup_package_logging()

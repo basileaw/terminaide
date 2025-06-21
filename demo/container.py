@@ -75,7 +75,7 @@ def build_and_run_container(port: int = 8000) -> None:
         port: Host port to expose (container always uses 8000 internally)
     """
     # Set up logging with terminaide formatter
-    from terminaide.core.log_config import setup_package_logging
+    from terminaide.core.logger import setup_package_logging
 
     setup_package_logging(configure=True)
 

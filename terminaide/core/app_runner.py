@@ -145,7 +145,7 @@ class ServeWithConfig:
     def serve(cls, config) -> None:
         """Serves the application based on the configuration mode."""
         # Configure logging based on config
-        from .log_config import setup_package_logging
+        from .logger import setup_package_logging
 
         setup_package_logging(configure=config.configure_logging)
 
