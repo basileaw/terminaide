@@ -42,8 +42,11 @@ release:
 # Define a function to create GitHub issues with dynamic label colors
 # Usage: $(call create_issue,Issue Type,label)
 define create_issue
-@printf "Make => $(BLUE)Creating $(1)$(RESET)\n" && \
-read -p "? Title: " title; \
+@if [ -z "$(ARGS)" ]; then \
+	printf "$(RED)Error:$(RESET) Please provide a title: make $(MAKECMDGOALS) \"Your issue title\"\n" >&2; \
+	exit 1; \
+fi; \
+title="$(ARGS)"; \
 label_color=$$(gh label list --json name,color | jq -r '.[] | select(.name=="$(2)") | .color' 2>/dev/null); \
 if [ -n "$$label_color" ]; then \
 	r=$$(printf "%d" 0x$${label_color:0:2}); \
@@ -53,7 +56,7 @@ if [ -n "$$label_color" ]; then \
 else \
 	label_escape="$(BLUE)"; \
 fi; \
-response=$$(echo '{"title":"'$$title'","body":"","labels":["$(2)"]}' | \
+response=$$(echo '{"title":"'"$$title"'","body":"","labels":["$(2)"]}' | \
 gh api repos/:owner/:repo/issues --method POST --input - --template '{{.number}} {{.html_url}}'); \
 number=$$(echo $$response | cut -d' ' -f1); \
 url=$$(echo $$response | cut -d' ' -f2); \
