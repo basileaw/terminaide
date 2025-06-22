@@ -29,7 +29,20 @@ endef
 
 # Run demo server
 serve:
-	$(call task,python demo/server.py)
+	@if [ -z "$(ARGS)" ]; then \
+		$(call task,python demo/instructions.py); \
+	elif [ "$(ARGS)" = "function" ]; then \
+		$(call task,python demo/function.py); \
+	elif [ "$(ARGS)" = "script" ]; then \
+		$(call task,python demo/script.py); \
+	elif [ "$(ARGS)" = "apps" ]; then \
+		$(call task,python demo/apps.py); \
+	elif [ "$(ARGS)" = "container" ]; then \
+		$(call task,python demo/container.py); \
+	else \
+		printf "$(RED)Error:$(RESET) Unknown mode '$(ARGS)'. Valid modes: function, script, apps, container\n" >&2; \
+		exit 1; \
+	fi
 
 # Release new version
 release:
