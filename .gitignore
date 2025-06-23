@@ -15,3 +15,5 @@ terminaide/bin/*
 
 CLAUDE.md
 .claude/
+
+**.pytest_cache/
