@@ -36,6 +36,11 @@ When you serve a Python function or script(s) with Terminaide, several things ha
 4. **Environment Inheritance**: Environment variables are automatically forwarded to terminal sessions, with optional customization.
 
 5. **Resource Management**: All processes, temporary files, and connections are automatically created and cleaned up as needed.
+
+### Disclaimer
+
+Terminaide is designed for rapid prototyping with small user bases, not high-traffic production. It provides basic security via TTYD authentication. For deployments, implement proper authentication, network isolation, and access controls.
+
 ## Installation
 
 Install it from PyPI via your favorite package manager:
@@ -233,19 +238,19 @@ curses_index.show()
 
 #### Server Monitor
 
-If you want real time visibility into your terminal applications, `Monitor` wraps your process to capture all output while still displaying it normally. Create a Monitor instance to start logging, then use `Monitor.read()` in another terminal to view logs with a rich interface featuring scrolling, colors, and keyboard navigation.
+If you want real time visibility into your terminal applications, `ServerMonitor` wraps your process to capture all output while still displaying it normally. Create a ServerMonitor instance to start logging, then use `ServerMonitor.read()` in another terminal to view logs with a rich interface featuring scrolling, colors, and keyboard navigation.
 
 ```python
-from terminaide import serve_apps, Monitor
+from terminaide import serve_apps, ServerMonitor
 from fastapi import FastAPI
 
 def my_app():
-    Monitor(title="My App")
+    ServerMonitor(title="My App")
     print("Hello from monitored app!")
 
 serve_apps(FastAPI(), {
     "/app": my_app,
-    "/logs": Monitor.read
+    "/logs": ServerMonitor.read
 })
 ```
 
@@ -261,7 +266,7 @@ banner = terminascii("HELLO WORLD")
 print(banner)
 ```
 
-## Terminarcade Demo
+## Terminarcade
 
 The `demo/` directory contains working examples that demonstrate all Terminaide features. These serve as both development tests and usage examples:
 
@@ -281,8 +286,4 @@ Terminaide pairs well with:
 
 - [Ngrok](https://github.com/ngrok/ngrok-python) for exposing local terminal sessions to remote users securely. 
 - [Lazy Beanstalk](https://github.com/basileaw/lazy-beanstalk) for simple cloud deployments to AWS Elastic Beanstalk.
-
-## Disclaimer
-
-Terminaide is designed to support rapid prototype deployments for small user bases. It's not intended for high-traffic production environments and provides only basic security (via TTYD authentication). If deploying, it is highly recommended that you implement appropriate security measures for your environment, such as proper authentication, network isolation, and access controls. 
 

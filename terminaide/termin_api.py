@@ -14,7 +14,7 @@ from .core.app_config import TerminaideConfig, build_config
 from .core.app_factory import ServeWithConfig
 from .core.index_api import AutoIndex
 from .core.terminascii import terminascii
-from .core.monitor import Monitor
+from .core.monitor import ServerMonitor
 
 logger = logging.getLogger("terminaide")
 
@@ -215,7 +215,7 @@ def serve_apps(
 
 # Utilities are imported and re-exported  
 # terminascii - Generate ASCII banners
-# Monitor - Process output monitoring with rich terminal interface
+# ServerMonitor - Process output monitoring with rich terminal interface
 
 ################################################################################
 # Public API Exports
@@ -231,5 +231,5 @@ __all__ = [
     "AutoIndex",
     # Utilities
     "terminascii",
-    "Monitor",
+    "ServerMonitor",
 ]

@@ -11,11 +11,11 @@ Usage:
 
 import uvicorn
 from fastapi import FastAPI
-from terminaide import serve_apps, AutoIndex, Monitor
+from terminaide import serve_apps, AutoIndex, ServerMonitor
 from terminarcade import snake, tetris, pong, asteroids
 
 # Create monitor instance
-monitor = Monitor(title="Termin-Arcade")
+monitor = ServerMonitor(title="Termin-Arcade")
 
 
 def create_index_page() -> AutoIndex:
@@ -53,7 +53,7 @@ def create_app() -> FastAPI:
         terminal_routes={
             "/": create_index_page(),
             "/monitor": {
-                "function": Monitor.read,
+                "function": ServerMonitor.read,
                 "title": "Server Monitor",
             },
             "/snake": {

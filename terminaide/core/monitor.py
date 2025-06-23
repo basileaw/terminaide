@@ -9,7 +9,7 @@ import signal
 import json
 
 
-class Monitor:
+class ServerMonitor:
     """
     A reusable, object-oriented monitor for logging and displaying process output.
     """
@@ -800,10 +800,10 @@ def _monitor_write(output_file=None, title="MONITOR"):
     sys.exit(process.returncode if process.returncode is not None else 0)
 
 
-# Assign the standalone function to the Monitor class
-Monitor.read = monitor_read_standalone
+# Assign the standalone function to the ServerMonitor class
+ServerMonitor.read = monitor_read_standalone
 
 
 if __name__ == "__main__":
     # Default to read mode when run directly
-    Monitor.read()
+    ServerMonitor.read()
