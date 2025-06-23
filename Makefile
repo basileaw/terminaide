@@ -8,8 +8,11 @@ BOLD := \033[1m
 GRAY := \033[90m
 RESET := \033[0m
 
-# Get remaining arguments after the target
-ARGS := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
+# Get remaining arguments after the target for task runner
+TASK_ARGS := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
+
+# Get remaining arguments after the target for issue manager  
+ISSUE_ARGS := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
 
 # =============================================================================
 # TASK RUNNER
@@ -18,8 +21,8 @@ ARGS := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
 # Define a function to execute commands with nice output and handle arguments
 # Usage: $(call task,command)
 define task
-printf "Make => $(BLUE)$(1) $(ARGS)$(RESET)\n" && \
-{ set -a; [ -f .env ] && . .env; set +a; PYTHONPATH=. $(1) $(ARGS); \
+printf "Make => $(BLUE)$(1) $(TASK_ARGS)$(RESET)\n" && \
+{ set -a; [ -f .env ] && . .env; set +a; PYTHONPATH=. $(1) $(TASK_ARGS); \
   status=$$?; \
   if [ $$status -eq 130 ]; then \
     printf "\n$(BLUE)Process terminated by user$(RESET)\n"; \
@@ -29,18 +32,18 @@ endef
 
 # Run demo server
 serve:
-	@if [ -z "$(ARGS)" ]; then \
+	@if [ -z "$(TASK_ARGS)" ]; then \
 		$(call task,python demo/instructions.py); \
-	elif [ "$(ARGS)" = "function" ]; then \
+	elif [ "$(TASK_ARGS)" = "function" ]; then \
 		$(call task,python demo/function.py); \
-	elif [ "$(ARGS)" = "script" ]; then \
+	elif [ "$(TASK_ARGS)" = "script" ]; then \
 		$(call task,python demo/script.py); \
-	elif [ "$(ARGS)" = "apps" ]; then \
+	elif [ "$(TASK_ARGS)" = "apps" ]; then \
 		$(call task,python demo/apps.py); \
-	elif [ "$(ARGS)" = "container" ]; then \
+	elif [ "$(TASK_ARGS)" = "container" ]; then \
 		$(call task,python demo/container.py); \
 	else \
-		printf "$(RED)Error:$(RESET) Unknown mode '$(ARGS)'. Valid modes: function, script, apps, container\n" >&2; \
+		printf "$(RED)Error:$(RESET) Unknown mode '$(TASK_ARGS)'. Valid modes: function, script, apps, container\n" >&2; \
 		exit 1; \
 	fi
 
@@ -60,67 +63,98 @@ test:
 # ISSUE MANAGER
 # =============================================================================
 
-# Define a function to create GitHub issues with dynamic label colors
-# Usage: $(call create_issue,Issue Type,label)
-define create_issue
-@if [ -z "$(ARGS)" ]; then \
-	printf "$(RED)Error:$(RESET) Please provide a title: make $(MAKECMDGOALS) \"Your issue title\"\n" >&2; \
-	exit 1; \
-fi; \
-title="$(ARGS)"; \
-label_color=$$(gh label list --json name,color | jq -r '.[] | select(.name=="$(2)") | .color' 2>/dev/null); \
-if [ -n "$$label_color" ]; then \
-	r=$$(printf "%d" 0x$${label_color:0:2}); \
-	g=$$(printf "%d" 0x$${label_color:2:2}); \
-	b=$$(printf "%d" 0x$${label_color:4:2}); \
-	label_escape="\033[38;2;$${r};$${g};$${b}m"; \
+# Create issue: $(call issue_create,Type,label)
+define issue_create
+@[ -n "$(ISSUE_ARGS)" ] || { printf "$(RED)Error:$(RESET) Please provide a title: make $(MAKECMDGOALS) \"Your issue title\"\n" >&2; exit 1; }; \
+set -a; [ -f .env ] && . .env; set +a; \
+title="$(ISSUE_ARGS)"; \
+repo=$$(git remote get-url origin | sed 's|.*github.com[/:]||; s|\.git$$||'); \
+if [ -z "$$GITHUB_TOKEN" ]; then printf "$(RED)Error:$(RESET) GITHUB_TOKEN required for issue creation\n" >&2; exit 1; fi; \
+auth_header="Authorization: token $$GITHUB_TOKEN"; \
+label_color=$$(curl -s -H "$$auth_header" "https://api.github.com/repos/$$repo/labels" | jq -r '.[] | select(.name=="$(2)") | .color' 2>/dev/null); \
+label_escape=$${label_color:+"\033[38;2;$$(printf %d 0x$${label_color:0:2});$$(printf %d 0x$${label_color:2:2});$$(printf %d 0x$${label_color:4:2})m"}; \
+label_escape=$${label_escape:-"$(BLUE)"}; \
+api_response=$$(curl -s -H "$$auth_header" -H "Content-Type: application/json" -X POST "https://api.github.com/repos/$$repo/issues" -d '{"title":"'"$$title"'","body":"","labels":["$(2)"]}'); \
+if echo "$$api_response" | jq -e '.message' >/dev/null 2>&1; then \
+	printf "$(RED)Error:$(RESET) %s\n" "$$(echo "$$api_response" | jq -r '.message')"; \
 else \
-	label_escape="$(BLUE)"; \
-fi; \
-response=$$(echo '{"title":"'"$$title"'","body":"","labels":["$(2)"]}' | \
-gh api repos/:owner/:repo/issues --method POST --input - --template '{{.number}} {{.html_url}}'); \
-number=$$(echo $$response | cut -d' ' -f1); \
-url=$$(echo $$response | cut -d' ' -f2); \
-printf "$(GREEN)✓$(RESET) Created $${label_escape}$(1)$(RESET) $(GH_GREEN)#$$number$(RESET): $(BOLD)\"$$title\"$(RESET)\n$(GRAY)→ $$url$(RESET)\n"
+	response=$$(echo "$$api_response" | jq -r '"\(.number) \(.html_url)"'); \
+	printf "$(GREEN)✓$(RESET) Created $${label_escape}$(1)$(RESET) $(GH_GREEN)#$${response%% *}$(RESET): $(BOLD)\"$$title\"$(RESET)\n$(GRAY)→ $${response##* }$(RESET)\n"; \
+fi
 endef
 
-# GitHub issue creation targets
+# List issues with dynamic colors: $(call issue_list)
+define issue_list
+@printf "Make => $(BLUE)Listing GitHub issues$(RESET)\n"; \
+set -a; [ -f .env ] && . .env; set +a; \
+repo=$$(git remote get-url origin | sed 's|.*github.com[/:]||; s|\.git$$||'); \
+auth_header=$${GITHUB_TOKEN:+-H "Authorization: token $$GITHUB_TOKEN"}; \
+response=$$(curl -s $$auth_header "https://api.github.com/repos/$$repo/issues?state=open"); \
+if echo "$$response" | jq -e '.message' >/dev/null 2>&1; then \
+	printf "$(RED)Error:$(RESET) %s\n" "$$(echo "$$response" | jq -r '.message')"; \
+elif echo "$$response" | jq -e '. | length' >/dev/null 2>&1 && [ "$$(echo "$$response" | jq '. | length')" = "0" ]; then \
+	printf "$(GRAY)No open issues found$(RESET)\n"; \
+else \
+	labels=$$(curl -s $$auth_header "https://api.github.com/repos/$$repo/labels" | jq -r '.[] | "\(.name):\(.color)"'); \
+	printf "$(BOLD)%-6s %-50s %-10s %-12s %s$(RESET)\n" "ID" "TITLE" "LABEL" "AUTHOR" "CREATED"; \
+	printf "%-6s %-50s %-10s %-12s %s\n" "------" "--------------------------------------------------" "----------" "------------" "----------"; \
+	echo "$$response" | jq -r '.[] | "\(.number)\t\(.title)\t\(.labels[0].name // "")\t\(.user.login)\t\(.created_at)"' | \
+	while IFS=$$'\t' read -r num title label user date; do \
+		short_date=$$(echo $$date | cut -d'T' -f1); \
+		if [ -n "$$label" ]; then \
+			label_color=$$(echo "$$labels" | grep "^$$label:" | cut -d: -f2); \
+			if [ -n "$$label_color" ]; then \
+				r=$$(printf %d 0x$${label_color:0:2}); g=$$(printf %d 0x$${label_color:2:2}); b=$$(printf %d 0x$${label_color:4:2}); \
+				label_escape="\033[38;2;$${r};$${g};$${b}m"; \
+			else \
+				label_escape="$(CYAN)"; \
+			fi; \
+		else \
+			label_escape="$(GRAY)"; \
+		fi; \
+		printf "$(GH_GREEN)#%-5s$(RESET) %-50.50s $${label_escape}%-10s$(RESET) %-12s %s\n" "$$num" "$$title" "$$label" "$$user" "$$short_date"; \
+	done; \
+fi
+endef
+
+# Process multiple issues: $(call issue_batch,action,command,success_icon,success_msg)
+define issue_batch
+@printf "Make => $(BLUE)$(4) issues: $(ISSUE_ARGS)$(RESET)\n"; \
+set -a; [ -f .env ] && . .env; set +a; \
+repo=$$(git remote get-url origin | sed 's|.*github.com[/:]||; s|\.git$$||'); \
+auth_header=$${GITHUB_TOKEN:+-H "Authorization: token $$GITHUB_TOKEN"}; \
+for issue in $(ISSUE_ARGS); do \
+	if response=$$(curl -s $$auth_header "https://api.github.com/repos/$$repo/issues/$$issue" | jq -r '"\(.title) \(.html_url)"' 2>/dev/null) && [ "$$response" != "null null" ]; then \
+		title=$$(echo $$response | sed 's/ [^ ]*$$//'); url=$$(echo $$response | awk '{print $$NF}'); \
+		if [ "$(1)" = "resolve" ]; then \
+			curl -s $$auth_header -X PATCH "https://api.github.com/repos/$$repo/issues/$$issue" -d '{"state":"closed"}' >/dev/null; \
+		elif [ "$(1)" = "delete" ]; then \
+			curl -s $$auth_header -X DELETE "https://api.github.com/repos/$$repo/issues/$$issue" >/dev/null; \
+		fi; \
+		printf "$(3)$(RESET) $(4) issue $(GH_GREEN)#$$issue$(RESET): $(BOLD)\"$$title\"$(RESET)$(if $(findstring resolve,$(4)),\n$(GRAY)→ $$url$(RESET))\n"; \
+	else \
+		printf "$(RED)✗$(RESET) Issue $(GH_GREEN)#$$issue$(RESET) not found\n"; \
+	fi; \
+done
+endef
+
 bug:
-	$(call create_issue,Bug,bug)
+	$(call issue_create,Bug,bug)
 
 task:
-	$(call create_issue,Task,task)
+	$(call issue_create,Task,task)
 
 idea:
-	$(call create_issue,Idea,idea)
+	$(call issue_create,Idea,idea)
 
-# List GitHub issues
 list:
-	@printf "Make => $(BLUE)Listing GitHub issues$(RESET)\n" && \
-	gh issue list
+	$(call issue_list)
 
-# Close issues: make close 10 11 12
 resolve:
-	@printf "Make => $(BLUE)Resolving issues: $(ARGS)$(RESET)\n" && \
-	for issue in $(ARGS); do \
-		if response=$$(gh issue view $$issue --json title,url --template '{{.title}} {{.url}}' 2>/dev/null); then \
-			title=$$(echo $$response | cut -d' ' -f1- | sed 's/ [^ ]*$$//'); \
-			url=$$(echo $$response | awk '{print $$NF}'); \
-			gh issue close $$issue > /dev/null 2>&1; \
-			printf "$(GREEN)✓$(RESET) Resolved issue $(GH_GREEN)#$$issue$(RESET): $(BOLD)\"$$title\"$(RESET)\n$(GRAY)→ $$url$(RESET)\n"; \
-		else \
-			printf "$(RED)✗$(RESET) Issue $(GH_GREEN)#$$issue$(RESET) not found\n"; \
-		fi; \
-	done
+	$(call issue_batch,resolve,,$(GREEN)✓,Resolved)
 
-# Delete issues: make delete 10 11 12  
 delete:
-	@printf "Make => $(BLUE)Deleting issues: $(ARGS)$(RESET)\n" && \
-	for issue in $(ARGS); do \
-		title=$$(gh issue view $$issue --json title --template '{{.title}}'); \
-		gh issue delete $$issue --yes > /dev/null 2>&1; \
-		printf "$(RED)✔$(RESET) Deleted issue $(GH_GREEN)#$$issue$(RESET): $(BOLD)\"$$title\"$(RESET)\n"; \
-	done
+	$(call issue_batch,delete,,$(RED)✔,Deleted)
 
 # Prevent Make from treating extra args as targets
 %:
