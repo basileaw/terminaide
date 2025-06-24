@@ -1,3 +1,7 @@
+# =============================================================================
+# TASK RUNNER
+# =============================================================================
+
 # Define color codes
 BLUE := \033[1;34m
 GREEN := \033[1;32m
@@ -10,10 +14,6 @@ RESET := \033[0m
 
 # Get remaining arguments after the target
 ARGS := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
-
-# =============================================================================
-# TASK RUNNER
-# =============================================================================
 
 # Define a function to execute commands with nice output and handle arguments
 # Usage: $(call task,command) - appends ARGS automatically
@@ -28,22 +28,29 @@ printf "Make => $(BLUE)$(1)$(if $(2),,$(if $(ARGS), $(ARGS)))$(RESET)\n" && \
   exit $$status; }
 endef
 
-# Run demo server
+# =============================================================================
+# TASKS
+# =============================================================================
+
+# Run default demo (instructions)
 serve:
-	@if [ -z "$(ARGS)" ]; then \
-		$(call task,python demo/instructions.py); \
-	elif [ "$(ARGS)" = "function" ]; then \
-		$(call task,python demo/function.py); \
-	elif [ "$(ARGS)" = "script" ]; then \
-		$(call task,python demo/script.py); \
-	elif [ "$(ARGS)" = "apps" ]; then \
-		$(call task,python demo/apps.py); \
-	elif [ "$(ARGS)" = "container" ]; then \
-		$(call task,python demo/container.py); \
-	else \
-		printf "$(RED)Error:$(RESET) Unknown mode '$(ARGS)'. Valid modes: function, script, apps, container\n" >&2; \
-		exit 1; \
-	fi
+	@$(call task,python demo/instructions.py)
+
+# Run function mode demo
+serve-function:
+	@$(call task,python demo/function.py)
+
+# Run script mode demo
+serve-script:
+	@$(call task,python demo/script.py)
+
+# Run apps mode demo (FastAPI integration)
+serve-apps:
+	@$(call task,python demo/apps.py)
+
+# Run container mode demo (Docker)
+serve-container:
+	@$(call task,python demo/container.py)
 
 # Run all tests
 test:
@@ -52,10 +59,6 @@ test:
 # Release new version
 release:
 	@$(call task,python utilities/release.py)
-
-# =============================================================================
-# ISSUE MANAGER
-# =============================================================================
 
 list:
 	@$(call task,python utilities/issues.py list,noargs)
