@@ -232,11 +232,20 @@ def test_serve_function():
 
 
 def test_serve_script():
-    """Test: python demo/script.py starts (no HTTP check since it's terminal-only)."""
-    # For script mode, we just verify the process starts without crashing
-    with DemoProcess("demo/script.py", port=8003, check_http=False) as demo:
-        demo.start(timeout=5)  # Shorter timeout since no HTTP server
-        # If we get here without exceptions, the process started successfully
+    """Test: python demo/script.py starts and responds."""
+    # Script mode now uses serve_script() which creates an HTTP server
+    with DemoProcess("demo/script.py", port=8002) as demo:
+        demo.start()
+        
+        # Verify ttyd process is running for the terminal
+        demo.verify_ttyd_processes([7744])
+        
+        # Verify terminal WebSocket connectivity
+        demo.verify_terminal_connectivity([7744])
+        
+        # Test HTTP response
+        content = demo.check_http_response()
+        assert len(content) > 100, "Response should have substantial content"
 
 
 def test_serve_apps():

@@ -11,9 +11,8 @@ Usage:
 from terminaide import serve_function
 from terminarcade import instructions
 
-if __name__ == "__main__":
-    serve_function(
-        instructions,
-        port=8000,
-        title="Instructions",
-    )
+serve_function(
+    instructions,
+    port=8000,
+    title="Instructions",
+)
