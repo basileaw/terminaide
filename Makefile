@@ -2,31 +2,11 @@
 # TASK RUNNER
 # =============================================================================
 
-# Define color codes
-BLUE := \033[1;34m
-GREEN := \033[1;32m
-GH_GREEN := \033[32m
-CYAN := \033[1;36m
-RED := \033[1;31m
-BOLD := \033[1m
-GRAY := \033[90m
-RESET := \033[0m
-
 # Get remaining arguments after the target
 ARGS := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
 
-# Define a function to execute commands with nice output and handle arguments
-# Usage: $(call task,command) - appends ARGS automatically
-# Usage: $(call task,command,noargs) - runs command as-is without ARGS
-define task
-printf "Make => $(BLUE)$(1)$(if $(2),,$(if $(ARGS), $(ARGS)))$(RESET)\n" && \
-{ set -a; [ -f .env ] && . .env; set +a; PYTHONPATH=. $(1)$(if $(2),,$(if $(ARGS), $(ARGS))); \
-  status=$$?; \
-  if [ $$status -eq 130 ]; then \
-    printf "\n$(BLUE)Process terminated by user$(RESET)\n"; \
-  fi; \
-  exit $$status; }
-endef
+# Use Python task runner for all tasks
+TASK_RUNNER := python -m tools.task_runner
 
 # =============================================================================
 # TASKS
@@ -34,49 +14,49 @@ endef
 
 # Run default demo (instructions)
 serve:
-	@$(call task,python demo/instructions.py)
+	@$(TASK_RUNNER) "python demo/instructions.py" $(ARGS)
 
 # Run function mode demo
 serve-function:
-	@$(call task,python demo/function.py)
+	@$(TASK_RUNNER) "python demo/function.py" $(ARGS)
 
 # Run script mode demo
 serve-script:
-	@$(call task,python demo/script.py)
+	@$(TASK_RUNNER) "python demo/script.py" $(ARGS)
 
 # Run apps mode demo (FastAPI integration)
 serve-apps:
-	@$(call task,python demo/apps.py)
+	@$(TASK_RUNNER) "python demo/apps.py" $(ARGS)
 
 # Run container mode demo (Docker)
 serve-container:
-	@$(call task,python demo/container.py)
+	@$(TASK_RUNNER) "python demo/container.py" $(ARGS)
 
 # Run all tests
 test:
-	@$(call task,pytest tests/ -v)
+	@$(TASK_RUNNER) "pytest tests/ -v" $(ARGS)
 
 # Release new version
 release:
-	@$(call task,python utilities/release.py)
+	@$(TASK_RUNNER) "python tools/publisher.py" $(ARGS)
 
 list:
-	@$(call task,python utilities/issues.py list,noargs)
+	@$(TASK_RUNNER) "python tools/issue_manager.py list"
 
 bug:
-	@$(call task,python utilities/issues.py create bug $(ARGS),noargs)
+	@$(TASK_RUNNER) "python tools/issue_manager.py create bug $(ARGS)"
 
 task:
-	@$(call task,python utilities/issues.py create task $(ARGS),noargs)
+	@$(TASK_RUNNER) "python tools/issue_manager.py create task $(ARGS)"
 
 idea:
-	@$(call task,python utilities/issues.py create idea $(ARGS),noargs)
+	@$(TASK_RUNNER) "python tools/issue_manager.py create idea $(ARGS)"
 
 resolve:
-	@$(call task,python utilities/issues.py resolve $(ARGS),noargs)
+	@$(TASK_RUNNER) "python tools/issue_manager.py resolve $(ARGS)"
 
 delete:
-	@$(call task,python utilities/issues.py delete $(ARGS),noargs)
+	@$(TASK_RUNNER) "python tools/issue_manager.py delete $(ARGS)"
 
 # Prevent Make from treating extra args as targets
 %:
