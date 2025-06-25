@@ -51,7 +51,7 @@ pip install terminaide
 poetry add terminaide
 ```
 
-Terminaide automatically installs and manages its own ttyd binary within the package, with no reliance on system-installed versions, to ensure a consistent experience across environments and simplified setup and cleanup:
+Terminaide automatically installs and manages its own ttyd binary (using latest version available on GitHub) within the package, with no reliance on system-installed versions, to ensure a consistent experience across environments and simplified setup and cleanup:
 
 - On Linux: Pre-built binaries are downloaded automatically
 - On macOS: The binary is compiled from source (requires Xcode Command Line Tools `xcode-select --install`)

@@ -18,19 +18,56 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Tuple, List
 import urllib.request
+import json
 
 logger = logging.getLogger("terminaide")
 
-TTYD_VERSION = "1.7.3"
-TTYD_GITHUB_BASE = f"https://github.com/tsl0922/ttyd/releases/download/{TTYD_VERSION}"
+# Fallback version in case API request fails
+TTYD_FALLBACK_VERSION = "1.7.3"
 
-# Platform-specific binary URLs
-PLATFORM_BINARIES = {
-    ("Linux", "x86_64"): (f"{TTYD_GITHUB_BASE}/ttyd.x86_64", "ttyd"),
-    ("Linux", "aarch64"): (f"{TTYD_GITHUB_BASE}/ttyd.aarch64", "ttyd"),
-    ("Linux", "arm64"): (f"{TTYD_GITHUB_BASE}/ttyd.aarch64", "ttyd"),
-    # For macOS, we'll compile from source
-}
+
+def get_latest_ttyd_version() -> str:
+    """
+    Fetch the latest ttyd version from GitHub releases API.
+    
+    Returns:
+        Latest version string (e.g., "1.7.7")
+    """
+    try:
+        logger.info("Fetching latest ttyd version from GitHub API...")
+        api_url = "https://api.github.com/repos/tsl0922/ttyd/releases/latest"
+        
+        with urllib.request.urlopen(api_url, timeout=10) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode())
+                version = data.get("tag_name", "").lstrip("v")
+                if version:
+                    logger.info(f"Latest ttyd version: {version}")
+                    return version
+                else:
+                    raise ValueError("No tag_name found in API response")
+            else:
+                raise urllib.error.HTTPError(api_url, response.status, "API request failed", None, None)
+                
+    except Exception as e:
+        logger.warning(f"Failed to fetch latest ttyd version: {e}")
+        logger.info(f"Using fallback version: {TTYD_FALLBACK_VERSION}")
+        return TTYD_FALLBACK_VERSION
+
+
+def get_ttyd_github_base(version: str) -> str:
+    """Get the GitHub base URL for ttyd downloads for a specific version."""
+    return f"https://github.com/tsl0922/ttyd/releases/download/{version}"
+
+def get_platform_binaries(version: str) -> dict:
+    """Get platform-specific binary URLs for a given ttyd version."""
+    github_base = get_ttyd_github_base(version)
+    return {
+        ("Linux", "x86_64"): (f"{github_base}/ttyd.x86_64", "ttyd"),
+        ("Linux", "aarch64"): (f"{github_base}/ttyd.aarch64", "ttyd"),
+        ("Linux", "arm64"): (f"{github_base}/ttyd.aarch64", "ttyd"),
+        # For macOS, we'll compile from source
+    }
 
 # Platform-specific system dependencies
 SYSTEM_DEPENDENCIES = {
@@ -166,7 +203,7 @@ def download_binary(url: str, target_path: Path) -> None:
         raise RuntimeError(f"Failed to download ttyd: {e}")
 
 
-def compile_ttyd_from_source(target_path: Path) -> None:
+def compile_ttyd_from_source(target_path: Path, version: str) -> None:
     """
     Compile ttyd from source for macOS.
 
@@ -190,7 +227,7 @@ def compile_ttyd_from_source(target_path: Path) -> None:
 
             # Download source code
             logger.info("Downloading ttyd source code...")
-            source_url = f"https://github.com/tsl0922/ttyd/archive/refs/tags/{TTYD_VERSION}.tar.gz"
+            source_url = f"https://github.com/tsl0922/ttyd/archive/refs/tags/{version}.tar.gz"
             logger.info(f"Source URL: {source_url}")
             try:
                 urllib.request.urlretrieve(source_url, source_tarball)
@@ -205,7 +242,7 @@ def compile_ttyd_from_source(target_path: Path) -> None:
                 tar.extractall(path=temp_dir_path)
 
             # The directory will be named "ttyd-{version}" when extracting from GitHub's tarball
-            source_dir = temp_dir_path / f"ttyd-{TTYD_VERSION}"
+            source_dir = temp_dir_path / f"ttyd-{version}"
             if not source_dir.exists():
                 # Look for any ttyd-* directory as fallback
                 for item in temp_dir_path.iterdir():
@@ -349,6 +386,9 @@ def get_ttyd_path(force_reinstall: bool = False) -> Optional[Path]:
     Returns:
         Path to the ttyd binary
     """
+    # Get the latest version
+    version = get_latest_ttyd_version()
+    
     system, machine = get_platform_info()
     platform_key = (system, machine)
     binary_dir = get_binary_dir()
@@ -370,23 +410,25 @@ def get_ttyd_path(force_reinstall: bool = False) -> Optional[Path]:
 
         # Compile from source for macOS
         try:
-            compile_ttyd_from_source(binary_path)
+            compile_ttyd_from_source(binary_path, version)
             return binary_path
         except Exception as e:
             logger.error(f"Error compiling ttyd from source: {e}")
             raise RuntimeError(f"Failed to compile ttyd for macOS: {e}")
 
     # For other platforms, continue with binary download approach
+    platform_binaries = get_platform_binaries(version)
+    
     # Try common platform keys for Linux
-    if platform_key not in PLATFORM_BINARIES:
+    if platform_key not in platform_binaries:
         if system == "Linux":
             for machine_type in ["arm64", "aarch64", "x86_64"]:
                 alt_key = (system, machine_type)
-                if alt_key in PLATFORM_BINARIES:
+                if alt_key in platform_binaries:
                     platform_key = alt_key
                     break
 
-    if platform_key not in PLATFORM_BINARIES:
+    if platform_key not in platform_binaries:
         raise PlatformNotSupportedError(system, machine)
 
     # Set up system dependencies first
@@ -408,7 +450,7 @@ def get_ttyd_path(force_reinstall: bool = False) -> Optional[Path]:
                 f"Failed to install required libraries: {', '.join(still_missing)}"
             )
 
-    url, download_binary_name = PLATFORM_BINARIES[platform_key]
+    url, download_binary_name = platform_binaries[platform_key]
 
     # Check if binary exists and is executable, or if force_reinstall is specified
     if (
