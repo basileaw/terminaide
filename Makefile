@@ -8,6 +8,7 @@ ARGS := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
 # Use Python task runner for all tasks
 TASK_RUNNER := python -m tools.task_runner
 
+
 # =============================================================================
 # TASKS
 # =============================================================================
@@ -44,13 +45,13 @@ list:
 	@$(TASK_RUNNER) "python tools/issue_manager.py list"
 
 bug:
-	@$(TASK_RUNNER) "python tools/issue_manager.py create bug $(ARGS)"
+	@$(TASK_RUNNER) "python tools/issue_manager.py create bug"
 
 task:
-	@$(TASK_RUNNER) "python tools/issue_manager.py create task $(ARGS)"
+	@$(TASK_RUNNER) "python tools/issue_manager.py create task"
 
 idea:
-	@$(TASK_RUNNER) "python tools/issue_manager.py create idea $(ARGS)"
+	@$(TASK_RUNNER) "python tools/issue_manager.py create idea"
 
 resolve:
 	@$(TASK_RUNNER) "python tools/issue_manager.py resolve $(ARGS)"
@@ -58,6 +59,6 @@ resolve:
 delete:
 	@$(TASK_RUNNER) "python tools/issue_manager.py delete $(ARGS)"
 
-# Prevent Make from treating extra args as targets
+# Dummy targets to prevent Make errors when passing arguments
 %:
 	@:

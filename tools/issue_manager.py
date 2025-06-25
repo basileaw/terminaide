@@ -102,6 +102,40 @@ def make_github_request(method, url, data=None, token=None):
         sys.exit(1)
 
 
+def make_github_graphql_request(query, variables=None, token=None):
+    """Make a GitHub GraphQL API request."""
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    
+    data = {
+        "query": query,
+        "variables": variables or {}
+    }
+    
+    try:
+        response = requests.post(
+            "https://api.github.com/graphql",
+            headers=headers,
+            json=data,
+            timeout=10
+        )
+        response.raise_for_status()
+        result = response.json()
+        
+        if "errors" in result:
+            for error in result["errors"]:
+                console.print(f"[red]GraphQL error: {error['message']}[/red]")
+            sys.exit(1)
+            
+        return result["data"]
+        
+    except requests.exceptions.RequestException as e:
+        console.print(f"[red]GitHub GraphQL request failed: {e}[/red]")
+        sys.exit(1)
+
+
 def get_label_color(repo, label_name, token):
     """Get the color for a specific label."""
     url = f"https://api.github.com/repos/{repo}/labels"
@@ -130,12 +164,16 @@ def create_issue(repo, title, label, token):
         b = int(label_color[4:6], 16)
         color_code = f"rgb({r},{g},{b})"
 
-    # Format the output to match the original Makefile style
-    issue_type = label.capitalize()
-    console.print(
-        f"[green]✓[/green] Created [{color_code}]{issue_type}[/{color_code}] [green]#{issue['number']}[/green]: [bold]\"{title}\"[/bold]"
-    )
-    console.print(f"[dim]→ {issue['html_url']}[/dim]")
+    # Format issue type with label color (preserve original casing)
+    if label_color:
+        r = int(label_color[0:2], 16)
+        g = int(label_color[2:4], 16) 
+        b = int(label_color[4:6], 16)
+        formatted_issue_type = f"\033[38;2;{r};{g};{b}m{label}\033[0m"
+    else:
+        formatted_issue_type = label
+    
+    print(f"\033[32m✓\033[0m Created {formatted_issue_type} \033[32m{issue['number']}\033[0m → \033[90m{issue['html_url']}\033[0m")
 
 
 def list_issues(repo, token):
@@ -182,7 +220,7 @@ def list_issues(repo, token):
             formatted_label = f"[dim]{label_name}[/dim]" if label_name else ""
 
         table.add_row(
-            f"[green]#{issue['number']}[/green]",
+            f"[green]{issue['number']}[/green]",
             issue["title"][:50],
             formatted_label,
             issue["user"]["login"],
@@ -207,27 +245,76 @@ def batch_operation(repo, issue_numbers, operation, token):
                 # Close the issue
                 data = {"state": "closed"}
                 make_github_request("PATCH", issue_url, data=data, token=token)
-                console.print(
-                    f"[green]✓[/green] Resolved issue [green]#{issue_num}[/green]: [bold]\"{issue['title']}\"[/bold]"
-                )
-                console.print(f"[dim]→ {issue['html_url']}[/dim]")
+                
+                # Get label information
+                label_name = issue["labels"][0]["name"] if issue["labels"] else "issue"
+                label_color = get_label_color(repo, label_name, token) if issue["labels"] else None
+                
+                # Format label with ANSI color
+                if label_color:
+                    r = int(label_color[0:2], 16)
+                    g = int(label_color[2:4], 16)
+                    b = int(label_color[4:6], 16)
+                    formatted_label = f"\033[38;2;{r};{g};{b}m{label_name}\033[0m"
+                else:
+                    formatted_label = label_name
+                
+                print(f"\033[32m✓\033[0m Resolved {formatted_label} \033[32m{issue_num}\033[0m → \033[90m{issue['html_url']}\033[0m")
 
             elif operation == "delete":
-                # Note: GitHub API doesn't allow deleting issues, only closing them
-                # We'll close them instead and note this limitation
-                data = {"state": "closed"}
-                make_github_request("PATCH", issue_url, data=data, token=token)
-                console.print(
-                    f"[red]✔[/red] Closed issue [green]#{issue_num}[/green]: [bold]\"{issue['title']}\"[/bold]"
-                )
-                console.print(
-                    "[dim]Note: GitHub API doesn't support deleting issues, so it was closed instead[/dim]"
-                )
+                # Use GraphQL API to actually delete the issue
+                query = """
+                mutation DeleteIssue($issueId: ID!) {
+                    deleteIssue(input: {issueId: $issueId}) {
+                        repository {
+                            id
+                        }
+                    }
+                }
+                """
+                
+                # First get the issue's GraphQL ID
+                id_query = """
+                query GetIssueId($owner: String!, $name: String!, $number: Int!) {
+                    repository(owner: $owner, name: $name) {
+                        issue(number: $number) {
+                            id
+                        }
+                    }
+                }
+                """
+                
+                repo_parts = repo.split("/")
+                id_variables = {
+                    "owner": repo_parts[0],
+                    "name": repo_parts[1], 
+                    "number": int(issue_num)
+                }
+                
+                id_result = make_github_graphql_request(id_query, id_variables, token)
+                issue_id = id_result["repository"]["issue"]["id"]
+                
+                # Now delete the issue
+                variables = {"issueId": issue_id}
+                make_github_graphql_request(query, variables, token)
+                
+                # Get label information for display
+                label_name = issue["labels"][0]["name"] if issue["labels"] else "issue"
+                label_color = get_label_color(repo, label_name, token) if issue["labels"] else None
+                
+                # Format label with ANSI color
+                if label_color:
+                    r = int(label_color[0:2], 16)
+                    g = int(label_color[2:4], 16)
+                    b = int(label_color[4:6], 16)
+                    formatted_label = f"\033[38;2;{r};{g};{b}m{label_name}\033[0m"
+                else:
+                    formatted_label = label_name
+                
+                print(f"\033[32m✓\033[0m Deleted {formatted_label} \033[32m{issue_num}\033[0m: \033[1m{issue['title']}\033[0m")
 
         except Exception as e:
-            console.print(
-                f"[red]✗[/red] Issue [green]#{issue_num}[/green] not found or error occurred"
-            )
+            print(f"\033[31m✗\033[0m Issue \033[32m{issue_num}\033[0m not found or error occurred")
 
 
 def main():
@@ -239,9 +326,6 @@ def main():
     create_parser = subparsers.add_parser("create", help="Create a new issue")
     create_parser.add_argument(
         "label", choices=["bug", "task", "idea"], help="Issue label/type"
-    )
-    create_parser.add_argument(
-        "title", nargs="*", help="Issue title (multiple words allowed)"
     )
 
     # List command
@@ -274,11 +358,10 @@ def main():
 
     # Execute command
     if args.command == "create":
-        title = " ".join(args.title) if args.title else ""
+        # Prompt for title interactively
+        title = console.input("[bright_blue]?[/bright_blue] Title: ").strip()
         if not title:
-            console.print(
-                f'[red]Error:[/red] Please provide a title: make {args.label} "Your issue title"'
-            )
+            console.print("[red]Error:[/red] Title cannot be empty")
             sys.exit(1)
         create_issue(repo, title, args.label, token)
     elif args.command == "list":
