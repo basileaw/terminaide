@@ -64,11 +64,12 @@ def run_task(command, args=None):
 
         if status == 130:
             print(f"\n{Colors.BLUE}Process terminated by user{Colors.RESET}")
+            sys.exit(0)  # Exit cleanly to prevent Make error
 
         sys.exit(status)
     except KeyboardInterrupt:
         print(f"\n{Colors.BLUE}Process terminated by user{Colors.RESET}")
-        sys.exit(130)
+        sys.exit(0)  # Exit cleanly to prevent Make error
 
 
 def main():
