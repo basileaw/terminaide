@@ -7,7 +7,6 @@ Python tracebacks, and shut down cleanly.
 """
 
 import asyncio
-import os
 import signal
 import socket
 import subprocess
@@ -35,12 +34,8 @@ class DemoProcess:
 
     def start(self, timeout: int = 10) -> None:
         """Start the demo process and wait for it to be ready."""
-        env = os.environ.copy()
-        env["TERMINAIDE_PORT"] = str(self.port)
-
         self.process = subprocess.Popen(
             ["python", self.script_path],
-            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -110,6 +105,7 @@ class DemoProcess:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
+        return False  # Don't suppress exceptions
 
     def _is_port_listening(self, port: int, host: str = "127.0.0.1") -> bool:
         """Check if a port is listening for connections."""
@@ -190,15 +186,15 @@ class DemoProcess:
 
 
 def test_serve_function():
-    """Test: python demo/function.py starts and responds."""
-    with DemoProcess("demo/function.py", port=8000) as demo:
+    """Test: python tryit/function.py starts and responds."""
+    with DemoProcess("tryit/function.py", port=8000) as demo:
         demo.start()
 
         # Verify ttyd process is running for the terminal
-        demo.verify_ttyd_processes([7744])
+        demo.verify_ttyd_processes([7740])
 
         # Verify terminal WebSocket connectivity
-        demo.verify_terminal_connectivity([7744])
+        demo.verify_terminal_connectivity([7740])
 
         # Test HTTP response
         content = demo.check_http_response()
@@ -206,16 +202,16 @@ def test_serve_function():
 
 
 def test_serve_script():
-    """Test: python demo/script.py starts and responds."""
+    """Test: python tryit/script.py starts and responds."""
     # Script mode now uses serve_script() which creates an HTTP server
-    with DemoProcess("demo/script.py", port=8002) as demo:
+    with DemoProcess("tryit/script.py", port=8000) as demo:
         demo.start()
         
         # Verify ttyd process is running for the terminal
-        demo.verify_ttyd_processes([7744])
+        demo.verify_ttyd_processes([7740])
         
         # Verify terminal WebSocket connectivity
-        demo.verify_terminal_connectivity([7744])
+        demo.verify_terminal_connectivity([7740])
         
         # Test HTTP response
         content = demo.check_http_response()
@@ -223,21 +219,21 @@ def test_serve_script():
 
 
 def test_serve_apps():
-    """Test: python demo/apps.py starts and all routes respond."""
-    with DemoProcess("demo/apps.py", port=8004) as demo:
+    """Test: python tryit/apps.py starts and all routes respond."""
+    with DemoProcess("tryit/apps.py", port=8000) as demo:
         demo.start()
 
         # Test main page
         demo.check_http_response("/")
 
         # Verify ttyd processes are running for all terminals
-        # Apps mode allocates ports starting from base_port - 4 (so 8004-4=8000, then 7744, 7745, etc.)
+        # Apps mode allocates ports starting from 7740
         expected_ttyd_ports = [
+            7740,
+            7741,
+            7742,
+            7743,
             7744,
-            7745,
-            7746,
-            7747,
-            7748,
         ]  # monitor, snake, tetris, pong, asteroids
         demo.verify_ttyd_processes(expected_ttyd_ports)
 
@@ -252,72 +248,76 @@ def test_serve_apps():
         demo.check_terminal_health([f"/{route}" for route in terminal_routes])
 
 
-@pytest.mark.docker
 def test_serve_container():
-    """Test: python demo/container.py builds and responds (requires Docker)."""
+    """Test: make spin builds Docker image and runs container (requires Docker)."""
     # Skip if Docker not available
     try:
         subprocess.run(["docker", "--version"], check=True, capture_output=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
         pytest.skip("Docker not available")
 
-    # Container demo is special - it builds and runs in Docker, then streams logs
-    # We just verify it starts without Python errors
-    env = os.environ.copy()
-    env["TERMINAIDE_PORT"] = "8005"
+    # Clean up any existing container first
+    try:
+        subprocess.run(["docker", "stop", "terminaide-container"], capture_output=True, timeout=5)
+        subprocess.run(["docker", "rm", "terminaide-container"], capture_output=True, timeout=5)
+    except:
+        pass
 
+    # Test make spin command - it builds and runs container
     process = subprocess.Popen(
-        ["python", "demo/container.py"],
-        env=env,
+        ["make", "spin"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
 
     try:
-        # Wait for build process to start
+        # Wait for build and startup process
         time.sleep(10)
 
-        # Check if process is still running (build in progress) or completed successfully
+        # Check if process is still running (container should be running)
         if process.poll() is None:
-            # Still running - likely building or running container
-            # Test passes if no immediate crash
-            pass
+            # Still running - container is likely running successfully
+            # Verify container is actually running
+            result = subprocess.run(
+                ["docker", "ps", "--filter", "name=terminaide-container", "--format", "{{.Names}}"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            assert "terminaide-container" in result.stdout, "Container is not running"
+
+            # Wait for HTTP server to be ready (container needs time to install deps and start)
+            max_wait = 30  # seconds
+            start_time = time.time()
+            while time.time() - start_time < max_wait:
+                try:
+                    response = requests.get("http://localhost:8000", timeout=2)
+                    if response.status_code == 200:
+                        break  # Server is ready
+                except requests.exceptions.RequestException:
+                    time.sleep(2)  # Wait before retrying
+            else:
+                # If we get here, server didn't start in time
+                raise RuntimeError(f"Container HTTP server did not start within {max_wait} seconds")
+
         else:
             # Process completed - check for errors
             stdout, stderr = process.communicate()
-            assert "Docker build failed" not in stderr, "Docker build failed"
-            assert "Docker run failed" not in stderr, "Docker run failed"
-
-        # Try to connect to port 8005 to see if container is running
-        try:
-            response = requests.get("http://localhost:8005", timeout=2)
-            if response.status_code == 200:
-                # Great! Container is running and serving
-                pass
-        except requests.exceptions.RequestException:
-            # Container might still be starting, that's okay for this test
-            pass
+            if "Error" in stderr or process.returncode != 0:
+                raise RuntimeError(f"make spin failed:\nSTDOUT: {stdout}\nSTDERR: {stderr}")
 
     finally:
-        # Clean up: kill process and any containers
+        # Clean up: kill process and containers
         process.terminate()
         try:
             process.wait(timeout=5)
         except subprocess.TimeoutExpired:
             process.kill()
 
-        # Clean up any containers created by the test
+        # Clean up container
         try:
-            subprocess.run(
-                ["docker", "stop", "terminaide-container"],
-                capture_output=True,
-                timeout=10,
-            )
-            subprocess.run(
-                ["docker", "rm", "terminaide-container"],
-                capture_output=True,
-                timeout=10,
-            )
+            subprocess.run(["docker", "stop", "terminaide-container"], capture_output=True, timeout=10)
+            subprocess.run(["docker", "rm", "terminaide-container"], capture_output=True, timeout=10)
         except:
             pass

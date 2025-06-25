@@ -20,10 +20,6 @@ monitor = ServerMonitor(title="Termin-Arcade")
 
 def create_index_page() -> AutoIndex:
     """Create AutoIndex configuration for the terminal arcade."""
-    import os
-
-    port = int(os.environ.get("TERMINAIDE_PORT", 8000))
-
     return AutoIndex(
         type="html",
         title="TERMIN-ARCADE",
@@ -39,7 +35,7 @@ def create_index_page() -> AutoIndex:
                 ],
             }
         ],
-        epititle=f"Server Monitor:\nhttp://localhost:{port}/monitor",
+        epititle="Server Monitor:\nhttp://localhost:8000/monitor",
     )
 
 
@@ -83,15 +79,10 @@ def create_app() -> FastAPI:
 app = create_app()
 
 if __name__ == "__main__":
-    import os
-
-    # Use port from environment if set (for server.py routing), otherwise default to 8000
-    port = int(os.environ.get("TERMINAIDE_PORT", 8000))
-
     uvicorn.run(
         "tryit.apps:app",
         host="0.0.0.0",
-        port=port,
+        port=8000,
         reload=True,
         reload_dirs=["."],
     )
