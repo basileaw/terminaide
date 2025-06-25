@@ -524,7 +524,7 @@
                 <pre class="title">{{ title_ascii | safe }}</pre>
             </div>
             {% elif not ascii_art and title %}
-            <!-- Fallback when pyfiglet is not available -->
+            <!-- Fallback for plain text title -->
             <div class="title-fallback">{{ title }}</div>
             {% endif %}
 
