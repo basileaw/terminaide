@@ -268,7 +268,7 @@ print(banner)
 
 ## Terminarcade
 
-The `demo/` directory contains working examples that demonstrate all Terminaide features. These serve as both development tests and usage examples:
+The `tryit/` directory contains working examples that demonstrate all Terminaide features. These serve as both development tests and usage examples:
 
 ```
 make serve              # Default mode with instructions

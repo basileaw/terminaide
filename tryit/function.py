@@ -6,7 +6,7 @@ This example shows how to serve a Python function directly in the terminal.
 The function (asteroids game) will run in a web-based terminal interface.
 
 Usage:
-    python demo/function.py
+    python tryit/function.py
 """
 
 from terminaide import serve_function

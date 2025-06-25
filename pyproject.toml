@@ -3,11 +3,8 @@ authors = ["Alex Basile <basileaw@gmail.com>"]
 description = "Serve Python CLI applications in the browser using ttyd"
 license = "MIT"
 name = "terminaide"
-packages = [
-    { include = "terminaide" },
-    { include = "terminarcade" }
-]
-readme = "README.md"
+packages = [{ include = "terminaide" }, { include = "terminarcade" }]
+# readme = "README.md"
 repository = "https://github.com/basileaw/terminaide"
 version = "0.6.3"
 

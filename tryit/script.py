@@ -8,4 +8,4 @@ through a terminal in the browser.
 
 from terminaide import serve_script
 
-serve_script("terminarcade_demo.py", port=8000, title="Terminarcade Demo")
+serve_script("demo.py", port=8000, title="Terminarcade Demo")

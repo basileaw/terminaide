@@ -13,21 +13,24 @@ TASK_RUNNER := python -m tools.task_runner
 # =============================================================================
 
 
-# Run function mode demo
+# Run function mode tryit
 serve-function:
-	@$(TASK_RUNNER) "python demo/function.py" $(ARGS)
+	@$(TASK_RUNNER) "python tryit/function.py" $(ARGS)
 
-# Run script mode demo
+# Run script mode tryit
 serve-script:
-	@$(TASK_RUNNER) "python demo/script.py" $(ARGS)
+	@$(TASK_RUNNER) "python tryit/script.py" $(ARGS)
 
-# Run apps mode demo (FastAPI integration)
+# Run apps mode tryit (FastAPI integration)
 serve-apps:
-	@$(TASK_RUNNER) "python demo/apps.py" $(ARGS)
+	@$(TASK_RUNNER) "python tryit/apps.py" $(ARGS)
 
-# Run container mode demo (Docker)
-serve-container:
-	@$(TASK_RUNNER) "python demo/container.py" $(ARGS)
+# Run container mode tryit (Docker)
+spin:
+	@$(TASK_RUNNER) "docker stop terminaide-container 2>/dev/null || true" $(ARGS)
+	@$(TASK_RUNNER) "docker rm terminaide-container 2>/dev/null || true" $(ARGS)
+	@$(TASK_RUNNER) "docker build -t terminaide ." $(ARGS)
+	@$(TASK_RUNNER) "docker run --name terminaide-container -p 8000:8000 terminaide" $(ARGS)
 
 # Run all tests
 test:
