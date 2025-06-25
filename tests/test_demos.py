@@ -187,36 +187,10 @@ class DemoProcess:
             )
 
 
-def test_serve_default():
-    """Test: python demo/instructions.py starts and responds."""
-    # Note: instructions.py hardcodes port 8000, so we need to kill anything on that port first
-    import subprocess
-
-    try:
-        subprocess.run(
-            ["pkill", "-f", "python demo/instructions.py"], capture_output=True
-        )
-        subprocess.run(["pkill", "-f", "python demo/function.py"], capture_output=True)
-    except:
-        pass
-
-    with DemoProcess("demo/instructions.py", port=8000) as demo:
-        demo.start()
-
-        # Verify ttyd process is running for the terminal
-        demo.verify_ttyd_processes([7744])
-
-        # Verify terminal WebSocket connectivity
-        demo.verify_terminal_connectivity([7744])
-
-        # Test HTTP response
-        content = demo.check_http_response()
-        assert "terminaide" in content.lower(), "Response should mention terminaide"
 
 
 def test_serve_function():
     """Test: python demo/function.py starts and responds."""
-    # Note: function.py uses default port 8000, so test immediately after default test
     with DemoProcess("demo/function.py", port=8000) as demo:
         demo.start()
 

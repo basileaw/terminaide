@@ -12,9 +12,6 @@ TASK_RUNNER := python -m tools.task_runner
 # TASKS
 # =============================================================================
 
-# Run default demo (instructions)
-serve:
-	@$(TASK_RUNNER) "python demo/serve.py" $(ARGS)
 
 # Run function mode demo
 serve-function:

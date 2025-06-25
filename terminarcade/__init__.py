@@ -17,7 +17,6 @@ from .snake import snake
 from .pong import pong
 from .tetris import tetris
 from .asteroids import asteroids
-from .instructions import instructions
 
 
 # Define the module's public API
@@ -26,5 +25,4 @@ __all__ = [
     "pong",
     "tetris",
     "asteroids",
-    "instructions",
 ]
