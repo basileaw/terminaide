@@ -58,13 +58,9 @@ Terminaide automatically installs and manages its own ttyd binary (using latest 
 
 ## Usage
 
-Terminaide offers two primary approaches: Solo Mode for quickly serving individual functions, scripts, or servers, and Apps Mode for integrating multiple terminals into a FastAPI application. Start with Solo Mode for simplicity, then graduate to Apps Mode when you need multiple terminals in one application.
+Terminaide offers three types of Python servers: Script, Function and Apps.
 
-### Solo Server
-
-The Solo Server provides the fastest way to web-enable a Python function or script. It creates a standalone web server with a single terminal and handles all the configuration details for you. Choose between Function or Script Server based on your use case.
-
-#### Scripts
+### Script Server 
 
 The absolute simplest way to use Terminaide is to serve an existing Python script that you don't want to modify:
 
@@ -76,49 +72,29 @@ if __name__ == "__main__":
 
 ```
 
-#### Functions
+### Function Server
 
-Serve a Python function directly from a single entry point. Just pass any Python function to `serve_function()` and it's instantly accessible: 
+If you want total self-containment, you can also pass any Python function to `serve_function()` and it's instantly accessible. Just make sure to wrap your imports in the function that you're serving: 
 
 ```python
 from terminaide import serve_function
 
 def hello():
-    name = input("What's your name? ")
-    print(f"Hello, {name}!")
+    from rich.console import Console
 
+    console = Console()
+
+    name = input("What's your name? ")
+
+    console.print(f"Hello, {name}!")
+    
 if __name__ == "__main__":
     serve_function(hello)
-
 ```
-
-#### Solo Server Config
-
-Both `serve_function()` and `serve_script()` accept the same optional configuration arguments:
-
-```python
-{
-    "port": 8000,                    # Web server port (default: 8000)
-    "title": "My Terminal App",      # Terminal window title (default: auto-generated)
-    "theme": {                       # Terminal appearance
-        "background": "black",       # Background color (default: "black")
-        "foreground": "white",       # Text color (default: "white")
-        "cursor": "white",           # Cursor color (default: "white")
-        "cursor_accent": "#ff0000",  # Secondary cursor color (default: None)
-        "selection": "#333333",      # Selection highlight color (default: None)
-        "font_family": "monospace",  # Terminal font (default: None)
-        "font_size": 14              # Font size in pixels (default: None)
-    }
-}
-```
-
-For advanced configuration like authentication, environment variables, or custom templates, use `serve_apps()` instead.
 
 ### Apps Server
 
-The Apps Server extends terminaide's capabilities to integrate multiple terminals into an existing FastAPI application. This approach gives you more control over routing, allows multiple terminals to coexist with regular web endpoints, and provides additional configuration options.
-
-You can use both functions and scripts in your terminal routes:
+The Apps Server integrates multiple terminal routes into an existing FastAPI application, allowing you to serve scripts, functions, and index pages alongside regular web endpoints. The Apps Server requires a FastAPI `app` and `terminal_routes` dictionary (which is both functions and script compatible):
 
 ```python
 import uvicorn
@@ -147,9 +123,27 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 ```
 
-#### Apps Mode Config
+#### Config
 
-The Apps Server integrates multiple terminal routes into an existing FastAPI application, allowing you to serve scripts, functions, and index pages alongside regular web endpoints. The Apps Server requires a FastAPI `app` and `terminal_routes` dictionary, accepts all of the same arguments as the Solo Server functions, plus additional options for managing multiple terminals, routing, and FastAPI integration. You can pass these as keyword arguments to `serve_apps()` or bundle them in a `TerminaideConfig` object for reusability.
+All three servers accept the following optional configuration arguments:
+
+```python
+{
+    "port": 8000,                    # Web server port (default: 8000)
+    "title": "My Terminal App",      # Terminal window title (default: auto-generated)
+    "theme": {                       # Terminal appearance
+        "background": "black",       # Background color (default: "black")
+        "foreground": "white",       # Text color (default: "white")
+        "cursor": "white",           # Cursor color (default: "white")
+        "cursor_accent": "#ff0000",  # Secondary cursor color (default: None)
+        "selection": "#333333",      # Selection highlight color (default: None)
+        "font_family": "monospace",  # Terminal font (default: None)
+        "font_size": 14              # Font size in pixels (default: None)
+    }
+}
+```
+
+However, the Apps Server accepts additional options for managing multiple terminals, routing, and FastAPI integration. You can pass these as keyword arguments to `serve_apps()` or bundle them in a `TerminaideConfig` object for reusability.
 
 ```python
 {
@@ -271,7 +265,6 @@ print(banner)
 The `tryit/` directory contains working examples that demonstrate all Terminaide features. These serve as both development tests and usage examples:
 
 ```
-make serve              # Default mode with instructions
 make serve function     # Function mode - demo of serve_function()
 make serve script       # Script mode - demo of serve_script()
 make serve apps         # Apps mode - HTML page at root with multiple terminals

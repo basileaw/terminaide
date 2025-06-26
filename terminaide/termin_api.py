@@ -22,21 +22,22 @@ logger = logging.getLogger("terminaide")
 # Shared Helper Functions
 ################################################################################
 
+
 def _prepare_config(
-    config: Optional[TerminaideConfig],
-    banner: Union[bool, str],
-    **kwargs
+    config: Optional[TerminaideConfig], banner: Union[bool, str], **kwargs
 ) -> TerminaideConfig:
     """Prepare configuration with common parameters."""
     kwargs["banner"] = banner
     return build_config(config, kwargs)
 
 
-def _auto_generate_title(cfg: TerminaideConfig, mode: str, target: Any, kwargs: Dict) -> None:
+def _auto_generate_title(
+    cfg: TerminaideConfig, mode: str, target: Any, kwargs: Dict
+) -> None:
     """Auto-generate title if not specified by user."""
     if "title" in kwargs or (cfg.title != "Terminal"):
         return
-    
+
     if mode == "function":
         cfg.title = f"{target.__name__}()"
     elif mode == "script":
@@ -45,9 +46,51 @@ def _auto_generate_title(cfg: TerminaideConfig, mode: str, target: Any, kwargs: 
         else:
             cfg.title = Path(target).name
 
+
 ################################################################################
-# Solo Server API
+# APIs
 ################################################################################
+
+
+def serve_script(
+    script_path: Union[str, Path],
+    port: int = 8000,
+    title: Optional[str] = None,
+    theme: Optional[Dict[str, str]] = None,
+) -> None:
+    """Serve a Python script in a browser terminal.
+
+    Creates a web-accessible terminal that runs the provided Python script.
+
+    Args:
+        script_path: Path to the script file to serve
+        port: Web server port (default: 8000)
+        title: Terminal window title (default: auto-generated from script name)
+        theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
+
+    Examples:
+        Basic usage:
+            serve_script("my_script.py")
+
+        With custom configuration:
+            serve_script("my_script.py", port=8080, title="My Script")
+            serve_script("my_script.py", theme={"background": "navy"})
+    """
+    kwargs = {}
+    if port != 8000:
+        kwargs["port"] = port
+    if title is not None:
+        kwargs["title"] = title
+    if theme is not None:
+        kwargs["theme"] = theme
+
+    cfg = _prepare_config(None, True, **kwargs)
+    cfg._target = Path(script_path)
+    cfg._mode = "script"
+
+    _auto_generate_title(cfg, "script", cfg._target, kwargs)
+    ServeWithConfig.serve(cfg)
+
 
 def serve_function(
     func: Callable,
@@ -68,7 +111,7 @@ def serve_function(
     Examples:
         Basic usage:
             serve_function(my_function)
-        
+
         With custom configuration:
             serve_function(my_function, port=8080, title="My CLI Tool")
             serve_function(my_function, theme={"background": "navy", "foreground": "white"})
@@ -84,68 +127,27 @@ def serve_function(
         kwargs["title"] = title
     if theme is not None:
         kwargs["theme"] = theme
-    
+
     cfg = _prepare_config(None, True, **kwargs)
     cfg._target = func
     cfg._mode = "function"
-    
+
     _auto_generate_title(cfg, "function", func, kwargs)
     ServeWithConfig.serve(cfg)
 
 
-def serve_script(
-    script_path: Union[str, Path],
-    port: int = 8000,
-    title: Optional[str] = None,
-    theme: Optional[Dict[str, str]] = None,
-) -> None:
-    """Serve a Python script in a browser terminal.
-
-    Creates a web-accessible terminal that runs the provided Python script.
-
-    Args:
-        script_path: Path to the script file to serve
-        port: Web server port (default: 8000)
-        title: Terminal window title (default: auto-generated from script name)
-        theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
-    
-    Examples:
-        Basic usage:
-            serve_script("my_script.py")
-        
-        With custom configuration:
-            serve_script("my_script.py", port=8080, title="My Script")
-            serve_script("my_script.py", theme={"background": "navy"})
-    """
-    kwargs = {}
-    if port != 8000:
-        kwargs["port"] = port
-    if title is not None:
-        kwargs["title"] = title
-    if theme is not None:
-        kwargs["theme"] = theme
-    
-    cfg = _prepare_config(None, True, **kwargs)
-    cfg._target = Path(script_path)
-    cfg._mode = "script"
-    
-    _auto_generate_title(cfg, "script", cfg._target, kwargs)
-    ServeWithConfig.serve(cfg)
-
-################################################################################
-# Apps Server API
-################################################################################
-
 def serve_apps(
     app: FastAPI,
-    terminal_routes: Dict[str, Union[str, Path, List, Dict[str, Any], Callable, AutoIndex]],
+    terminal_routes: Dict[
+        str, Union[str, Path, List, Dict[str, Any], Callable, AutoIndex]
+    ],
     config: Optional[TerminaideConfig] = None,
     banner: Union[bool, str] = True,
     **kwargs,
 ) -> None:
     """Integrate multiple terminals and index pages into a FastAPI application.
 
-    Configures a FastAPI application to serve multiple terminal instances and/or 
+    Configures a FastAPI application to serve multiple terminal instances and/or
     index pages at different routes.
 
     Args:
@@ -190,7 +192,7 @@ def serve_apps(
             })
 
     Note:
-        For simple single-terminal applications, consider using serve_function 
+        For simple single-terminal applications, consider using serve_function
         or serve_script instead.
     """
     if not terminal_routes:
@@ -206,6 +208,7 @@ def serve_apps(
 
     ServeWithConfig.serve(cfg)
 
+
 ################################################################################
 # UI Components & Utilities
 ################################################################################
@@ -213,7 +216,7 @@ def serve_apps(
 # UI Components are imported and re-exported
 # AutoIndex - Create navigable index pages (HTML or Curses)
 
-# Utilities are imported and re-exported  
+# Utilities are imported and re-exported
 # terminascii - Generate ASCII banners
 # ServerMonitor - Process output monitoring with rich terminal interface
 
@@ -224,7 +227,7 @@ def serve_apps(
 __all__ = [
     # Solo Server API
     "serve_function",
-    "serve_script", 
+    "serve_script",
     # Apps Server API
     "serve_apps",
     # UI Components

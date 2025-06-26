@@ -8,11 +8,31 @@ ARGS := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
 # Use Python task runner for all tasks
 TASK_RUNNER := python -m tools.task_runner
 
+# =============================================================================
+# ISSUE MANAGEMENT
+# =============================================================================
+
+list:
+	@$(TASK_RUNNER) "python tools/issue_manager.py list"
+
+bug:
+	@$(TASK_RUNNER) "python tools/issue_manager.py create bug"
+
+task:
+	@$(TASK_RUNNER) "python tools/issue_manager.py create task"
+
+idea:
+	@$(TASK_RUNNER) "python tools/issue_manager.py create idea"
+
+resolve:
+	@$(TASK_RUNNER) "python tools/issue_manager.py resolve $(ARGS)"
+
+delete:
+	@$(TASK_RUNNER) "python tools/issue_manager.py delete $(ARGS)"
 
 # =============================================================================
-# TASKS
+# DEMONSTRATIONS
 # =============================================================================
-
 
 # Run function mode demo
 serve-function:
@@ -33,31 +53,25 @@ spin:
 	@$(TASK_RUNNER) "docker build -t terminaide ." $(ARGS)
 	@$(TASK_RUNNER) "docker run --name terminaide-container -p 8000:8000 terminaide" $(ARGS)
 
+# =============================================================================
+# TESTING
+# =============================================================================
+
 # Run all tests
 test:
 	@$(TASK_RUNNER) "pytest tests/ -v" $(ARGS)
+
+# =============================================================================
+# PUBLICATION
+# =============================================================================
 
 # Release new version
 release:
 	@$(TASK_RUNNER) "python tools/publisher.py" $(ARGS)
 
-list:
-	@$(TASK_RUNNER) "python tools/issue_manager.py list"
-
-bug:
-	@$(TASK_RUNNER) "python tools/issue_manager.py create bug"
-
-task:
-	@$(TASK_RUNNER) "python tools/issue_manager.py create task"
-
-idea:
-	@$(TASK_RUNNER) "python tools/issue_manager.py create idea"
-
-resolve:
-	@$(TASK_RUNNER) "python tools/issue_manager.py resolve $(ARGS)"
-
-delete:
-	@$(TASK_RUNNER) "python tools/issue_manager.py delete $(ARGS)"
+# =============================================================================
+# 
+# =============================================================================
 
 # Dummy targets to prevent Make errors when passing arguments
 %:
