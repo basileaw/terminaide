@@ -131,9 +131,10 @@ All three servers accept the following optional configuration arguments:
 {
     "port": 8000,                    # Web server port (default: 8000)
     "title": "My Terminal App",      # Terminal window title (default: auto-generated)
+    "debug": False,                  # Enable debug logging (default: False)
     "theme": {                       # Terminal appearance
         "background": "black",       # Background color (default: "black")
-        "foreground": "white",       # Text color (default: "white")
+        "foreground": "white",       # Text color (default: "white")  
         "cursor": "white",           # Cursor color (default: "white")
         "cursor_accent": "#ff0000",  # Secondary cursor color (default: None)
         "selection": "#333333",      # Selection highlight color (default: None)

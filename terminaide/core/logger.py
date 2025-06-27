@@ -150,12 +150,13 @@ def colorize_route_title(title: str, route_path: str) -> str:
     return route_color_manager.colorize_title(title, route_path)
 
 
-def setup_package_logging(configure=True):
+def setup_package_logging(configure=True, debug=False):
     """Configure package-level logging for Terminaide.
 
     Args:
         configure: If True, adds handler and sets log level. If False, only returns the logger.
                   This allows applications to control Terminaide's logging configuration.
+        debug: If True, sets log level to DEBUG instead of INFO.
     """
     logger = logging.getLogger("terminaide")
 
@@ -165,7 +166,7 @@ def setup_package_logging(configure=True):
             handler = logging.StreamHandler()
             handler.setFormatter(ColorAlignedFormatter())
             logger.addHandler(handler)
-            logger.setLevel(logging.INFO)
+            logger.setLevel(logging.DEBUG if debug else logging.INFO)
             logger.propagate = False  # Prevent propagation to root logger
 
     return logger
