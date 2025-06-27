@@ -20,6 +20,7 @@ from .exceptions import TTYDStartupError, TTYDProcessError, PortAllocationError
 from .ttyd_installer import setup_ttyd
 from .models import TTYDConfig, ScriptConfig, IndexPageConfig
 from .logger import route_color_manager
+from .venv_utils import find_venv_python
 
 logger = logging.getLogger("terminaide")
 
@@ -156,6 +157,18 @@ class TTYDManager:
             "enabled",
         )
 
+        # Determine Python executable to use
+        python_executable = sys.executable  # Default fallback
+        
+        # Try to find virtual environment Python if detection is enabled
+        if self.config.venv_detection:
+            venv_python = find_venv_python(str(script_path))
+            if venv_python:
+                python_executable = venv_python
+                logger.debug(f"Found virtual environment Python: {venv_python}")
+            else:
+                logger.debug(f"No virtual environment found for script: {script_path}")
+        
         # Use cursor manager if it exists and is enabled
         if cursor_mgmt_enabled and cursor_manager_path.exists():
             target_desc = (
@@ -164,13 +177,13 @@ class TTYDManager:
                 else "script"
             )
             logger.debug(f"Using cursor manager for {target_desc}: {script_path}")
-            python_cmd = [sys.executable, str(cursor_manager_path), str(script_path)]
+            python_cmd = [python_executable, str(cursor_manager_path), str(script_path)]
         else:
             if cursor_mgmt_enabled and not cursor_manager_path.exists():
                 logger.warning(
                     f"Cursor manager not found at {cursor_manager_path}, using direct execution"
                 )
-            python_cmd = [sys.executable, str(script_path)]
+            python_cmd = [python_executable, str(script_path)]
 
         if script_config.args:
             python_cmd.extend(script_config.args)

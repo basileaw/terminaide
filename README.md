@@ -23,7 +23,7 @@ Terminaide builds on three core design principles:
 
 - **Instant Web Enablement**: Any Python function or script becomes web-accessible without modification
 - **Zero Infrastructure**: Self-contained with automatic ttyd management and single-port architecture for easy cloud/container deployment
-- **Transparent Execution**: Preserves execution context (directory, environment variables) as if running locally
+- **Transparent Execution**: Preserves execution context (directory, environment variables, virtual environments) as if running locally
 
 When you serve a Python function or script(s) with Terminaide, several things happen behind the scenes:
 
@@ -33,9 +33,11 @@ When you serve a Python function or script(s) with Terminaide, several things ha
 
 3. **Context Preservation**: Code runs from the appropriate working directory, maintaining relative imports and file paths as expected.
 
-4. **Environment Inheritance**: Environment variables are automatically forwarded to terminal sessions, with optional customization.
+4. **Virtual Environment Detection**: Scripts automatically use their associated virtual environments (.venv, venv, Poetry environments) when available, isolating dependencies without manual configuration.
 
-5. **Resource Management**: All processes, temporary files, and connections are automatically created and cleaned up as needed.
+5. **Environment Inheritance**: Environment variables are automatically forwarded to terminal sessions, with optional customization.
+
+6. **Resource Management**: All processes, temporary files, and connections are automatically created and cleaned up as needed.
 
 ### Disclaimer
 
@@ -70,6 +72,13 @@ from terminaide import serve_script
 if __name__ == "__main__":
     serve_script("my_script.py")
 
+```
+
+Scripts automatically use their associated virtual environments when available. For example, serving a script from a different project directory:
+
+```python
+# Serve script from another project with its own dependencies
+serve_script("../other_project/client.py")  # Uses ../other_project/.venv if present
 ```
 
 ### Function Server
@@ -132,6 +141,7 @@ All three servers accept the following optional configuration arguments:
     "port": 8000,                    # Web server port (default: 8000)
     "title": "My Terminal App",      # Terminal window title (default: auto-generated)
     "debug": False,                  # Enable debug logging (default: False)
+    "venv_detection": True,          # Auto-detect virtual environments (default: True)
     "theme": {                       # Terminal appearance
         "background": "black",       # Background color (default: "black")
         "foreground": "white",       # Text color (default: "white")  

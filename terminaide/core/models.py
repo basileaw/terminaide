@@ -268,6 +268,7 @@ class TTYDConfig(BaseModel):
     )
     _mode: str = "script"  # Default mode: "function", "script", "apps", or "meta"
     forward_env: Union[bool, List[str], Dict[str, Optional[str]]] = True
+    venv_detection: bool = True  # Enable automatic virtual environment detection
 
     # Legacy field names for backward compatibility
     @property
