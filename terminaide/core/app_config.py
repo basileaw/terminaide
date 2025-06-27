@@ -119,7 +119,7 @@ class TerminaideConfig:
     theme: Dict[str, Any] = field(
         default_factory=lambda: {"background": "black", "foreground": "white"}
     )
-    debug: bool = True
+    debug: bool = False
     banner: Union[bool, str] = True
     forward_env: Union[bool, List[str], Dict[str, Optional[str]]] = True
 
