@@ -17,6 +17,9 @@ from typing import Callable, Optional, Union
 
 logger = logging.getLogger("terminaide")
 
+# Global registry to track ephemeral files created by this process
+_ephemeral_files_registry = set()
+
 
 def generate_bootstrap_code(source_dir: Union[str, Path], app_dir: Optional[Union[str, Path]] = None) -> str:
     """Generate bootstrap code for wrapper scripts.
@@ -75,6 +78,10 @@ def generate_function_wrapper(func: Callable) -> Path:
 
     temp_dir = Path(tempfile.gettempdir()) / "terminaide_ephemeral"
     temp_dir.mkdir(exist_ok=True)
+    
+    # Startup cleanup (safety net)
+    cleanup_stale_ephemeral_files(temp_dir)
+    
     script_path = temp_dir / f"{func_name}.py"
 
     # Determine the original source directory of the function
@@ -113,6 +120,10 @@ def generate_function_wrapper(func: Callable) -> Path:
             f"{call_line}"
         )
         script_path.write_text(wrapper_code, encoding="utf-8")
+        
+        # Track this file for cleanup on shutdown
+        _ephemeral_files_registry.add(script_path)
+        
         return script_path
 
     # Inline fallback (if __main__ or dynamically defined)
@@ -131,6 +142,10 @@ def generate_function_wrapper(func: Callable) -> Path:
             f"{call_line}"
         )
         script_path.write_text(wrapper_code, encoding="utf-8")
+        
+        # Track this file for cleanup on shutdown
+        _ephemeral_files_registry.add(script_path)
+        
         return script_path
     except Exception:
         # Last resort: static error fallback
@@ -138,6 +153,48 @@ def generate_function_wrapper(func: Callable) -> Path:
             f'print("ERROR: cannot reload function {func_name} from module={module_name}")\n',
             encoding="utf-8",
         )
+        
+        # Track this file for cleanup on shutdown
+        _ephemeral_files_registry.add(script_path)
+        
         return script_path
+
+
+def cleanup_stale_ephemeral_files(temp_dir: Path) -> None:
+    """Clean up all ephemeral files on startup (safety net)."""
+    try:
+        cleaned_count = 0
+        for file_path in temp_dir.glob("*.py"):
+            try:
+                file_path.unlink()
+                cleaned_count += 1
+            except (OSError, FileNotFoundError, PermissionError):
+                continue
+        
+        if cleaned_count > 0:
+            logger.debug(f"Startup cleanup: removed {cleaned_count} stale ephemeral files")
+            
+    except Exception as e:
+        logger.debug(f"Startup cleanup failed (non-critical): {e}")
+
+
+def cleanup_own_ephemeral_files() -> None:
+    """Clean up ephemeral files created by this process (graceful shutdown)."""
+    try:
+        cleaned_count = 0
+        for file_path in list(_ephemeral_files_registry):
+            try:
+                if file_path.exists():
+                    file_path.unlink()
+                    cleaned_count += 1
+                _ephemeral_files_registry.discard(file_path)
+            except (OSError, FileNotFoundError, PermissionError):
+                continue
+        
+        if cleaned_count > 0:
+            logger.debug(f"Graceful cleanup: removed {cleaned_count} ephemeral files")
+            
+    except Exception as e:
+        logger.debug(f"Graceful cleanup failed (non-critical): {e}")
 
 

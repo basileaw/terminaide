@@ -204,6 +204,14 @@ class ServeWithConfig:
 
         def handle_exit(sig, _):
             print("\033[93mShutting down...\033[0m")
+            
+            # Clean up ephemeral files on graceful shutdown
+            try:
+                from .app_wrappers import cleanup_own_ephemeral_files
+                cleanup_own_ephemeral_files()
+            except ImportError:
+                pass  # Graceful fallback if import fails
+            
             sys.exit(0)
 
         signal.signal(signal.SIGINT, handle_exit)
