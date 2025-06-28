@@ -145,6 +145,27 @@ def monitor_read_standalone(output_file=None, use_curses=True):
                     }
                     current_fg = color_map[code]
                 elif code in [
+                    "90",
+                    "91",
+                    "92",
+                    "93",
+                    "94",
+                    "95",
+                    "96",
+                    "97",
+                ]:  # Bright foreground colors
+                    color_map = {
+                        "90": curses.COLOR_BLACK,
+                        "91": curses.COLOR_RED,
+                        "92": curses.COLOR_GREEN,
+                        "93": curses.COLOR_YELLOW,
+                        "94": curses.COLOR_BLUE,
+                        "95": curses.COLOR_MAGENTA,
+                        "96": curses.COLOR_CYAN,
+                        "97": curses.COLOR_WHITE,
+                    }
+                    current_fg = color_map[code]
+                elif code in [
                     "40",
                     "41",
                     "42",
