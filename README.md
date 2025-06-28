@@ -134,7 +134,7 @@ Serve_script, serve_function and terminal_routes all accept the following option
 {
     "port": 8000,                    # Web server port (default: 8000)
     "title": "My Terminal App",      # Terminal window title (default: auto-generated)
-    "debug": False,                  # Enable debug logging (default: False)
+    "log_level": "info",             # Logging level: "debug", "info", "warning", "error", None (default: "info")
     "theme": {                       # Terminal appearance
         "background": "black",       # Background color (default: "black")
         "foreground": "white",       # Text color (default: "white")  
@@ -170,7 +170,6 @@ Additionally, the Apps Server accepts several options for managing multiple term
     "preview_image": "default.png",        # Default preview image for social media
     "template_override": "custom.html",    # Custom HTML template file
     "trust_proxy_headers": True,           # Trust proxy headers for authentication
-    "configure_logging": True,             # Configure Terminaide's logging handlers
     
     # TTYD Process Options
     "ttyd_options": {
