@@ -128,7 +128,8 @@ if __name__ == "__main__":
 
 #### Config
 
-Serve_script, serve_function and terminal_routes all accept the following optional configuration arguments:
+All three serving functions accept the same configuration options, including command-line arguments via the `args` parameter and dynamic URL query parameters via `dynamic: True`:
+
 
 ```python
 {
@@ -147,19 +148,6 @@ Serve_script, serve_function and terminal_routes all accept the following option
         "font_size": 14              # Font size in pixels (default: None)
     }
 }
-```
-
-However, terminal_routes also supports additional per-route configuration options including command-line arguments and dynamic parameter passing. Individual
-routes can specify args for static command-line arguments and dynamic: True to accept additional arguments via URL query parameters.
-
-```python
-  terminal_routes = {
-      "/tool": {
-          "script": "tool.py",
-          "args": ["--config", "base.json"],  # Static arguments always passed
-          "dynamic": True                     # Enable query parameter support
-      }
-  }
 ```
 
 Additionally, the Apps Server accepts several options for managing multiple terminals, routing, and FastAPI integration. You can pass these as keyword arguments to `serve_apps()` or bundle them in a `TerminaideConfig` object for reusability.
