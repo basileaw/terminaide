@@ -150,23 +150,31 @@ def colorize_route_title(title: str, route_path: str) -> str:
     return route_color_manager.colorize_title(title, route_path)
 
 
-def setup_package_logging(configure=True, debug=False):
+def setup_package_logging(log_level="info"):
     """Configure package-level logging for Terminaide.
 
     Args:
-        configure: If True, adds handler and sets log level. If False, only returns the logger.
-                  This allows applications to control Terminaide's logging configuration.
-        debug: If True, sets log level to DEBUG instead of INFO.
+        log_level: Logging level as string ("debug", "info", "warning", "error", "critical") 
+                  or None to skip configuration. Defaults to "info".
     """
     logger = logging.getLogger("terminaide")
 
-    if configure:
+    if log_level is not None:
         # Only add handler if none exist (avoid duplicate handlers)
         if not logger.handlers:
             handler = logging.StreamHandler()
             handler.setFormatter(ColorAlignedFormatter())
             logger.addHandler(handler)
-            logger.setLevel(logging.DEBUG if debug else logging.INFO)
+            
+            # Convert string level to logging constant
+            level_map = {
+                "debug": logging.DEBUG,
+                "info": logging.INFO,
+                "warning": logging.WARNING,
+                "error": logging.ERROR,
+                "critical": logging.CRITICAL
+            }
+            logger.setLevel(level_map.get(log_level.lower(), logging.INFO))
             logger.propagate = False  # Prevent propagation to root logger
 
     return logger

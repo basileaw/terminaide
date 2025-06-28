@@ -57,6 +57,7 @@ def serve_script(
     port: int = 8000,
     title: Optional[str] = None,
     theme: Optional[Dict[str, str]] = None,
+    log_level: Optional[str] = "info",
 ) -> None:
     """Serve a Python script in a browser terminal.
 
@@ -67,6 +68,7 @@ def serve_script(
         port: Web server port (default: 8000)
         title: Terminal window title (default: auto-generated from script name)
         theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
+        log_level: Logging level ("debug", "info", "warning", "error", None) (default: "info")
 
     Examples:
         Basic usage:
@@ -75,6 +77,7 @@ def serve_script(
         With custom configuration:
             serve_script("my_script.py", port=8080, title="My Script")
             serve_script("my_script.py", theme={"background": "navy"})
+            serve_script("my_script.py", log_level="debug")
     """
     kwargs = {}
     if port != 8000:
@@ -83,6 +86,8 @@ def serve_script(
         kwargs["title"] = title
     if theme is not None:
         kwargs["theme"] = theme
+    if log_level != "info":
+        kwargs["log_level"] = log_level
 
     cfg = _prepare_config(None, True, **kwargs)
     cfg._target = Path(script_path)
@@ -97,6 +102,7 @@ def serve_function(
     port: int = 8000,
     title: Optional[str] = None,
     theme: Optional[Dict[str, str]] = None,
+    log_level: Optional[str] = "info",
 ) -> None:
     """Serve a Python function in a browser terminal.
 
@@ -107,6 +113,7 @@ def serve_function(
         port: Web server port (default: 8000)
         title: Terminal window title (default: auto-generated from function name)
         theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
+        log_level: Logging level ("debug", "info", "warning", "error", None) (default: "info")
 
     Examples:
         Basic usage:
@@ -115,6 +122,7 @@ def serve_function(
         With custom configuration:
             serve_function(my_function, port=8080, title="My CLI Tool")
             serve_function(my_function, theme={"background": "navy", "foreground": "white"})
+            serve_function(my_function, log_level="debug")
 
     Note:
         For advanced configuration options like environment variables, authentication,
@@ -127,6 +135,8 @@ def serve_function(
         kwargs["title"] = title
     if theme is not None:
         kwargs["theme"] = theme
+    if log_level != "info":
+        kwargs["log_level"] = log_level
 
     cfg = _prepare_config(None, True, **kwargs)
     cfg._target = func
@@ -143,6 +153,7 @@ def serve_apps(
     ],
     config: Optional[TerminaideConfig] = None,
     banner: Union[bool, str] = True,
+    log_level: Optional[str] = "info",
     **kwargs,
 ) -> None:
     """Integrate multiple terminals and index pages into a FastAPI application.
@@ -155,6 +166,7 @@ def serve_apps(
         terminal_routes: Dictionary mapping paths to scripts, functions, or index pages
         config: Configuration options for the terminals
         banner: Controls banner display (default: True)
+        log_level: Logging level ("debug", "info", "warning", "error", None) (default: "info")
         **kwargs: Additional configuration overrides
 
     Terminal Routes Configuration:
@@ -189,7 +201,7 @@ def serve_apps(
                     "title": "Admin Terminal",
                     "preview_image": "admin.png"
                 }
-            })
+            }, log_level="debug")
 
     Note:
         For simple single-terminal applications, consider using serve_function
@@ -201,6 +213,9 @@ def serve_apps(
         )
         return
 
+    if log_level != "info":
+        kwargs["log_level"] = log_level
+    
     cfg = _prepare_config(config, banner, **kwargs)
     cfg._target = terminal_routes
     cfg._app = app

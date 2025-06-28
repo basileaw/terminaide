@@ -147,9 +147,9 @@ class ServeWithConfig:
         # Configure logging based on config
         from .logger import setup_package_logging
 
-        setup_package_logging(configure=config.configure_logging, debug=config.debug)
+        setup_package_logging(log_level=config.log_level)
         
-        logger.debug(f"Logging configured with debug={config.debug}, level={logger.level}")
+        logger.debug(f"Logging configured with log_level={config.log_level}, level={logger.level}")
 
         # Display banner based on config.banner value
         if config.banner:

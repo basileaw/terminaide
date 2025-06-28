@@ -119,7 +119,7 @@ class TerminaideConfig:
     theme: Dict[str, Any] = field(
         default_factory=lambda: {"background": "black", "foreground": "white"}
     )
-    debug: bool = False
+    log_level: Optional[str] = "info"  # "debug", "info", "warning", "error", None
     banner: Union[bool, str] = True
     forward_env: Union[bool, List[str], Dict[str, Optional[str]]] = True
 
@@ -128,7 +128,6 @@ class TerminaideConfig:
     template_override: Optional[Path] = None
     trust_proxy_headers: bool = True
     mount_path: str = "/"
-    configure_logging: bool = True  # Whether to configure Terminaide's logging handlers
 
     # Preview image configuration
     preview_image: Optional[Path] = None
@@ -149,10 +148,30 @@ def build_config(
     if config is None:
         config = TerminaideConfig()
 
+    # Handle backward compatibility for deprecated parameters
+    if "debug" in overrides:
+        logger.warning("'debug' parameter is deprecated. Use log_level='debug' instead.")
+        if overrides["debug"]:
+            overrides["log_level"] = "debug"
+        del overrides["debug"]
+    
+    if "configure_logging" in overrides:
+        logger.warning("'configure_logging' parameter is deprecated. Use log_level=None instead.")
+        if not overrides["configure_logging"]:
+            overrides["log_level"] = None
+        del overrides["configure_logging"]
+
     # Apply overrides
     for key, value in overrides.items():
         if hasattr(config, key):
             setattr(config, key, value)
+
+    # Validate log_level
+    if config.log_level is not None:
+        valid_levels = ["debug", "info", "warning", "error", "critical"]
+        if config.log_level.lower() not in valid_levels:
+            raise ValueError(f"Invalid log_level: {config.log_level}. Must be one of {valid_levels} or None")
+        config.log_level = config.log_level.lower()
 
     return config
 

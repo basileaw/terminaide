@@ -269,7 +269,7 @@ class TTYDConfig(BaseModel):
     ttyd_options: TTYDOptions = Field(default_factory=TTYDOptions)
     template_override: Optional[Path] = None
     preview_image: Optional[Path] = None  # Added preview_image field
-    debug: bool = False
+    log_level: Optional[str] = "info"  # "debug", "info", "warning", "error", None
     title: str = "Terminal"
     route_configs: List[Union[ScriptConfig, IndexPageConfig]] = Field(
         default_factory=list
@@ -477,7 +477,7 @@ class TTYDConfig(BaseModel):
             "has_index_pages": self.has_index_pages,
             "entry_mode": self._mode,  # Add entry mode to health check info
             "port": self.port,
-            "debug": self.debug,
+            "log_level": self.log_level,
             "max_clients": self.ttyd_options.max_clients,
             "auth_required": self.ttyd_options.credential_required,
             "preview_image": str(self.preview_image) if self.preview_image else None,
