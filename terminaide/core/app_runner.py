@@ -169,7 +169,7 @@ class ServeWithConfig:
         """Implementation for serving a function."""
         # Direct mode - use local generate_function_wrapper
         func = config._target
-        ephemeral_path = generate_function_wrapper(func)
+        ephemeral_path = generate_function_wrapper(func, args=config.args)
 
         # Import from app_factory to avoid circular dependency
         from .app_factory import copy_config_attributes
@@ -221,7 +221,7 @@ class ServeWithConfig:
             app,
             host="0.0.0.0",
             port=config.port,
-            log_level="info" if config.debug else "warning",
+            log_level=config.log_level or "info",
         )
 
     @classmethod
@@ -231,7 +231,7 @@ class ServeWithConfig:
         if config.banner:
             cls.display_banner(config._mode, config.banner)
 
-        logger.debug(f"serve_apps called with debug={config.debug}")
+        logger.debug(f"serve_apps called with log_level={config.log_level}")
         
         app = config._app
         terminal_routes = config._target
@@ -247,7 +247,7 @@ class ServeWithConfig:
                     logger.debug(
                         f"Generating wrapper script for function '{func.__name__}' at route {script_config.route_path}"
                     )
-                    wrapper_path = generate_function_wrapper(func)
+                    wrapper_path = generate_function_wrapper(func, args=script_config.args)
                     script_config.set_function_wrapper_path(wrapper_path)
                     logger.debug(
                         f"Function '{func.__name__}' will use wrapper script at {wrapper_path}"

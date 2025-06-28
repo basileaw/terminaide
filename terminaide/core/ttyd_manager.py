@@ -168,7 +168,7 @@ class TTYDManager:
                 ]
             )
 
-        if self.config.debug:
+        if self.config.log_level == "debug":
             cmd.extend(["-d", "3"])
 
         theme_json = self.config.theme.model_dump_json()
@@ -344,7 +344,7 @@ class TTYDManager:
             self.processes[route_path] = process
             self.start_times[route_path] = datetime.now()
 
-            timeout = 4 if self.config.debug else 2
+            timeout = 4 if self.config.log_level == "debug" else 2
             check_interval = 0.1
             checks = int(timeout / check_interval)
 

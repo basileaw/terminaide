@@ -39,7 +39,7 @@ def set_reload_env_vars(config: TerminaideConfig, mode: str, extra_vars: Optiona
     """
     os.environ["TERMINAIDE_PORT"] = str(config.port)
     os.environ["TERMINAIDE_TITLE"] = config.title
-    os.environ["TERMINAIDE_DEBUG"] = "1" if config.debug else "0"
+    os.environ["TERMINAIDE_LOG_LEVEL"] = config.log_level or "info"
     os.environ["TERMINAIDE_BANNER"] = json.dumps(config.banner)
     os.environ["TERMINAIDE_THEME"] = str(config.theme or {})
     os.environ["TERMINAIDE_FORWARD_ENV"] = str(config.forward_env)
@@ -47,6 +47,9 @@ def set_reload_env_vars(config: TerminaideConfig, mode: str, extra_vars: Optiona
     
     if hasattr(config, "preview_image") and config.preview_image:
         os.environ["TERMINAIDE_PREVIEW_IMAGE"] = str(config.preview_image)
+    
+    if hasattr(config, "args") and config.args is not None:
+        os.environ["TERMINAIDE_ARGS"] = json.dumps(config.args)
     
     if extra_vars:
         for key, value in extra_vars.items():
@@ -62,7 +65,7 @@ def parse_reload_env_vars() -> Dict[str, Any]:
     config_vars = {
         "port": int(os.environ["TERMINAIDE_PORT"]),
         "title": os.environ["TERMINAIDE_TITLE"],
-        "debug": os.environ.get("TERMINAIDE_DEBUG") == "1",
+        "log_level": os.environ.get("TERMINAIDE_LOG_LEVEL", "info"),
         "mode": os.environ.get("TERMINAIDE_MODE", "script"),
     }
     
@@ -91,6 +94,14 @@ def parse_reload_env_vars() -> Dict[str, Any]:
     preview_image_str = os.environ.get("TERMINAIDE_PREVIEW_IMAGE")
     if preview_image_str:
         config_vars["preview_image"] = Path(preview_image_str)
+    
+    # Parse args
+    args_str = os.environ.get("TERMINAIDE_ARGS")
+    if args_str:
+        try:
+            config_vars["args"] = json.loads(args_str)
+        except:
+            config_vars["args"] = None
     
     return config_vars
 
@@ -143,7 +154,7 @@ def copy_config_attributes(source_config: TerminaideConfig, **overrides) -> Term
         "port": source_config.port,
         "title": source_config.title,
         "theme": source_config.theme,
-        "debug": source_config.debug,
+        "log_level": source_config.log_level,
         "banner": source_config.banner,
         "forward_env": source_config.forward_env,
         "ttyd_options": source_config.ttyd_options,
@@ -194,9 +205,10 @@ class AppFactory:
             port=config_vars["port"],
             title=config_vars["title"],
             theme=config_vars["theme"],
-            debug=config_vars["debug"],
+            log_level=config_vars.get("log_level", "info"),
             banner=config_vars["banner"],
             forward_env=config_vars["forward_env"],
+            args=config_vars.get("args"),
         )
         
         # Set preview image if available
@@ -243,7 +255,15 @@ class AppFactory:
                     func = getattr(candidate_mod, func_name)
 
             if func is not None and callable(func):
-                return generate_function_wrapper(func)
+                # Get args from environment if available
+                args = None
+                args_str = os.environ.get("TERMINAIDE_ARGS")
+                if args_str:
+                    try:
+                        args = json.loads(args_str)
+                    except:
+                        args = None
+                return generate_function_wrapper(func, args=args)
             else:
                 temp_dir = Path(tempfile.gettempdir()) / "terminaide_ephemeral"
                 temp_dir.mkdir(exist_ok=True)

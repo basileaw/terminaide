@@ -13,7 +13,7 @@ import inspect
 import logging
 import tempfile
 from pathlib import Path
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, List
 
 logger = logging.getLogger("terminaide")
 
@@ -68,7 +68,55 @@ if __name__ == "__main__":
     {func_name}()"""
 
 
-def generate_function_wrapper(func: Callable) -> Path:
+def extract_module_imports(func: Callable) -> str:
+    """Extract import statements from the module containing the function."""
+    imports = []
+    
+    try:
+        # Get the module that contains the function
+        module = inspect.getmodule(func)
+        if module is None:
+            return ""
+        
+        # Get the source file
+        source_file = inspect.getsourcefile(func)
+        if source_file is None:
+            return ""
+        
+        # Read the source file and extract import statements
+        with open(source_file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        in_multiline_import = False
+        for line in lines:
+            stripped = line.strip()
+            
+            # Handle multiline imports
+            if in_multiline_import:
+                imports.append(line.rstrip())
+                if ')' in line:
+                    in_multiline_import = False
+                continue
+            
+            # Single line imports
+            if (stripped.startswith('import ') or 
+                stripped.startswith('from ') or
+                stripped.startswith('import\t') or 
+                stripped.startswith('from\t')):
+                imports.append(line.rstrip())
+                
+                # Check for multiline import starting
+                if '(' in line and ')' not in line:
+                    in_multiline_import = True
+        
+        return '\n'.join(imports) + '\n' if imports else ""
+        
+    except Exception:
+        # If we can't extract imports, include common ones
+        return "import sys\nimport os\n"
+
+
+def generate_function_wrapper(func: Callable, args: Optional[List[str]] = None) -> Path:
     """
     Generate an ephemeral script for the given function. If it's in a real module,
     we do the normal import approach. If it's in __main__ or __mp_main__, inline fallback.
@@ -102,6 +150,13 @@ def generate_function_wrapper(func: Callable) -> Path:
 
     # Generate bootstrap code
     bootstrap = generate_bootstrap_code(source_dir)
+    
+    # Generate sys.argv setup if args are provided
+    argv_setup = ""
+    if args:
+        # Convert args to a properly quoted Python list
+        args_repr = repr(args)
+        argv_setup = f"import sys; sys.argv = ['{func_name}'] + {args_repr}\n"
 
     # If it's a normal module (not main or mp_main), we need to check if importing it 
     # would cause side effects (like serve_apps being called again)
@@ -115,6 +170,7 @@ def generate_function_wrapper(func: Callable) -> Path:
         wrapper_code = (
             f"# Ephemeral script for function {func_name} from module {module_name}\n"
             f"{bootstrap}"
+            f"{argv_setup}"
             f"from {module_name} import {func_name}\n"
             f'if __name__ == "__main__":\n'
             f"{call_line}"
@@ -129,6 +185,8 @@ def generate_function_wrapper(func: Callable) -> Path:
     # Inline fallback (if __main__ or dynamically defined)
     try:
         source_code = inspect.getsource(func)
+        module_imports = extract_module_imports(func)
+        
         if requires_curses:
             call_line = f"    import curses; curses.wrapper({func_name})"
         else:
@@ -137,6 +195,8 @@ def generate_function_wrapper(func: Callable) -> Path:
         wrapper_code = (
             f"# Inline wrapper for {func_name} (from __main__ or dynamic)\n"
             f"{bootstrap}"
+            f"{module_imports}"
+            f"{argv_setup}"
             f"{source_code}\n"
             f'if __name__ == "__main__":\n'
             f"{call_line}"

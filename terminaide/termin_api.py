@@ -58,6 +58,8 @@ def serve_script(
     title: Optional[str] = None,
     theme: Optional[Dict[str, str]] = None,
     log_level: Optional[str] = "info",
+    args: Optional[List[str]] = None,
+    dynamic: bool = False,
 ) -> None:
     """Serve a Python script in a browser terminal.
 
@@ -69,6 +71,8 @@ def serve_script(
         title: Terminal window title (default: auto-generated from script name)
         theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
         log_level: Logging level ("debug", "info", "warning", "error", None) (default: "info")
+        args: Command-line arguments to pass to the script (default: None)
+        dynamic: Enable dynamic arguments via URL query parameters (default: False)
 
     Examples:
         Basic usage:
@@ -78,6 +82,10 @@ def serve_script(
             serve_script("my_script.py", port=8080, title="My Script")
             serve_script("my_script.py", theme={"background": "navy"})
             serve_script("my_script.py", log_level="debug")
+        
+        With arguments:
+            serve_script("deploy.py", args=["--verbose", "--dry-run"])
+            serve_script("cli.py", dynamic=True)  # Args from URL: /cli?arg1=value1
     """
     kwargs = {}
     if port != 8000:
@@ -88,6 +96,10 @@ def serve_script(
         kwargs["theme"] = theme
     if log_level != "info":
         kwargs["log_level"] = log_level
+    if args is not None:
+        kwargs["args"] = args
+    if dynamic:
+        kwargs["dynamic"] = dynamic
 
     cfg = _prepare_config(None, True, **kwargs)
     cfg._target = Path(script_path)
@@ -103,6 +115,8 @@ def serve_function(
     title: Optional[str] = None,
     theme: Optional[Dict[str, str]] = None,
     log_level: Optional[str] = "info",
+    args: Optional[List[str]] = None,
+    dynamic: bool = False,
 ) -> None:
     """Serve a Python function in a browser terminal.
 
@@ -114,6 +128,8 @@ def serve_function(
         title: Terminal window title (default: auto-generated from function name)
         theme: Terminal theme colors (default: {"background": "black", "foreground": "white"})
         log_level: Logging level ("debug", "info", "warning", "error", None) (default: "info")
+        args: Command-line arguments to pass to the function via sys.argv (default: None)
+        dynamic: Enable dynamic arguments via URL query parameters (default: False)
 
     Examples:
         Basic usage:
@@ -123,6 +139,10 @@ def serve_function(
             serve_function(my_function, port=8080, title="My CLI Tool")
             serve_function(my_function, theme={"background": "navy", "foreground": "white"})
             serve_function(my_function, log_level="debug")
+        
+        With arguments (compatible with Click, Fire, argparse):
+            serve_function(my_cli_function, args=["--verbose", "--output", "result.txt"])
+            serve_function(my_cli_function, dynamic=True)  # Args from URL: /func?verbose=true
 
     Note:
         For advanced configuration options like environment variables, authentication,
@@ -137,6 +157,10 @@ def serve_function(
         kwargs["theme"] = theme
     if log_level != "info":
         kwargs["log_level"] = log_level
+    if args is not None:
+        kwargs["args"] = args
+    if dynamic:
+        kwargs["dynamic"] = dynamic
 
     cfg = _prepare_config(None, True, **kwargs)
     cfg._target = func

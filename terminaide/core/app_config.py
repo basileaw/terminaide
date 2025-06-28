@@ -132,6 +132,10 @@ class TerminaideConfig:
     # Preview image configuration
     preview_image: Optional[Path] = None
 
+    # Script/function arguments
+    args: Optional[List[str]] = None
+    dynamic: bool = False
+
     # Proxy settings
     ttyd_port: int = 7681  # Base port for ttyd processes
 
@@ -451,10 +455,25 @@ def convert_terminaide_config_to_ttyd_config(
     if config._mode == "apps" and isinstance(config._target, dict):
         terminal_routes = config._target
     elif script_path is not None:
-        terminal_routes = {"/": script_path}
+        # For script mode, include args and dynamic if provided
+        if config.args is not None or config.dynamic:
+            terminal_routes = {"/": {
+                "script": script_path,
+                "args": config.args or [],
+                "dynamic": config.dynamic,
+            }}
+        else:
+            terminal_routes = {"/": script_path}
     elif callable(config._target):
         # Handle function target for serve_function mode
-        terminal_routes = {"/": config._target}
+        if config.args is not None or config.dynamic:
+            terminal_routes = {"/": {
+                "function": config._target,
+                "args": config.args or [],
+                "dynamic": config.dynamic,
+            }}
+        else:
+            terminal_routes = {"/": config._target}
 
     # Use create_route_configs instead of create_script_configs
     route_configs = create_route_configs(terminal_routes)
@@ -498,7 +517,7 @@ def convert_terminaide_config_to_ttyd_config(
         template_override=config.template_override,
         preview_image=config.preview_image,  # Pass the preview_image to TTYDConfig
         title=config.title,  # Keep the original title
-        debug=config.debug,
+        log_level=config.log_level,
         route_configs=route_configs,  # Use route_configs instead of script_configs
         forward_env=config.forward_env,
     )
