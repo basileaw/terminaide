@@ -294,16 +294,24 @@ def configure_routes(
                 terminal_path=terminal_path,
                 title=title,
                 preview_image=preview_image,
+                route_config=route_config,
             ):
                 try:
                     logger.debug(
                         f"Rendering template with preview_image={preview_image}"
                     )
+                    
+                    # For dynamic routes, append query parameters to the terminal path
+                    iframe_src = terminal_path
+                    if route_config.dynamic and request.url.query:
+                        iframe_src = f"{terminal_path}?{request.url.query}"
+                        logger.debug(f"Dynamic route {route_path}: appending query params to iframe src: {iframe_src}")
+                    
                     return templates.TemplateResponse(
                         template_file,
                         {
                             "request": request,
-                            "mount_path": terminal_path,
+                            "mount_path": iframe_src,
                             "theme": config.theme.model_dump(),
                             "title": title,
                             "preview_image": preview_image,

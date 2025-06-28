@@ -21,6 +21,7 @@ from .ttyd_installer import setup_ttyd
 from .models import TTYDConfig, ScriptConfig, IndexPageConfig
 from .logger import route_color_manager
 from .venv_utils import find_venv_python
+from .dynamic_wrapper import create_dynamic_wrapper_file, cleanup_stale_param_files
 
 logger = logging.getLogger("terminaide")
 
@@ -52,6 +53,12 @@ class TTYDManager:
         # Base port handling
         self._base_port = config.port
         self._allocate_ports()
+        
+        # Generate dynamic wrappers for routes with dynamic=True
+        self._generate_dynamic_wrappers()
+        
+        # Clean up any stale parameter files
+        cleanup_stale_param_files()
 
     def _setup_ttyd(self, force_reinstall: bool = None) -> None:
         """
@@ -97,6 +104,43 @@ class TTYDManager:
                 [f"{route}:{port}" for route, port in new_assignments]
             )
             logger.debug(f"Port assignments: {assignments_str}")
+    
+    def _generate_dynamic_wrappers(self) -> None:
+        """
+        Generate dynamic wrapper scripts for routes with dynamic=True.
+        """
+        for cfg in self.terminal_configs:
+            if cfg.dynamic:
+                # Skip if already has a dynamic wrapper (e.g. from reload)
+                if cfg._dynamic_wrapper_path and cfg._dynamic_wrapper_path.exists():
+                    continue
+                
+                # Get the actual script path (could be function wrapper)
+                script_path = cfg._function_wrapper_path if cfg.is_function_based else cfg.script
+                if not script_path:
+                    logger.error(f"No script path for dynamic route {cfg.route_path}")
+                    continue
+                
+                # Determine Python executable for the wrapper
+                python_executable = sys.executable
+                if self.config.venv_detection:
+                    venv_python = find_venv_python(str(script_path))
+                    if venv_python:
+                        python_executable = venv_python
+                
+                # Create dynamic wrapper
+                try:
+                    wrapper_path = create_dynamic_wrapper_file(
+                        script_path=script_path,
+                        static_args=cfg.args,
+                        route_path=cfg.route_path,
+                        python_executable=python_executable,
+                    )
+                    cfg.set_dynamic_wrapper_path(wrapper_path)
+                    logger.debug(f"Created dynamic wrapper for route {cfg.route_path}")
+                except Exception as e:
+                    logger.error(f"Failed to create dynamic wrapper for route {cfg.route_path}: {e}")
+                    raise TTYDStartupError(f"Failed to create dynamic wrapper: {e}")
 
     def _build_command(self, script_config: ScriptConfig) -> List[str]:
         """
@@ -172,7 +216,9 @@ class TTYDManager:
         # Use cursor manager if it exists and is enabled
         if cursor_mgmt_enabled and cursor_manager_path.exists():
             target_desc = (
-                f"function wrapper script"
+                f"dynamic wrapper script"
+                if script_config.dynamic
+                else f"function wrapper script"
                 if script_config.is_function_based
                 else "script"
             )
@@ -279,6 +325,13 @@ class TTYDManager:
 
         # Log detailed command at debug level only
         logger.debug(f"Process command for {route_path}: {' '.join(cmd)}")
+        
+        # Prepare environment variables
+        env = os.environ.copy()
+        if script_config.dynamic:
+            # Set the route path for dynamic wrapper to identify itself
+            env["TERMINAIDE_ROUTE_PATH"] = route_path
+            logger.debug(f"Setting TERMINAIDE_ROUTE_PATH={route_path} for dynamic route")
 
         try:
             process = subprocess.Popen(
@@ -286,6 +339,7 @@ class TTYDManager:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 start_new_session=True,
+                env=env,
             )
             self.processes[route_path] = process
             self.start_times[route_path] = datetime.now()
@@ -388,6 +442,28 @@ class TTYDManager:
 
         self.processes.pop(route_path, None)
         self.start_times.pop(route_path, None)
+        
+        # Clean up dynamic wrapper file if exists
+        for cfg in self.terminal_configs:
+            if cfg.route_path == route_path and cfg.dynamic and cfg._dynamic_wrapper_path:
+                try:
+                    if cfg._dynamic_wrapper_path.exists():
+                        cfg._dynamic_wrapper_path.unlink()
+                        logger.debug(f"Cleaned up dynamic wrapper for route {route_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean up dynamic wrapper: {e}")
+                
+                # Also clean up any lingering parameter file
+                sanitized_route = route_path.replace("/", "_")
+                if sanitized_route == "_":
+                    sanitized_route = "_root"
+                param_file = Path(f"/tmp/terminaide_params_{sanitized_route}.json")
+                if param_file.exists():
+                    try:
+                        param_file.unlink()
+                        logger.debug(f"Cleaned up parameter file for route {route_path}")
+                    except Exception:
+                        pass
 
         if log_individual:
             logger.info(f"Stopped ttyd for route {route_path}")

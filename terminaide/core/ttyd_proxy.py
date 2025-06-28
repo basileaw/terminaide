@@ -17,6 +17,7 @@ from fastapi.responses import Response, StreamingResponse
 from .exceptions import ProxyError, RouteNotFoundError
 from .models import TTYDConfig, ScriptConfig, IndexPageConfig
 from .logger import route_color_manager
+from .dynamic_wrapper import write_query_params_file
 
 # Get logger without configuring it (configuration happens in serve methods)
 logger = logging.getLogger("terminaide")
@@ -235,6 +236,18 @@ class ProxyManager:
             ws_url = f"ws://{host}/ws"
 
             await websocket.accept(subprotocol="tty")
+            
+            # Handle dynamic routes - extract query params and write to temp file
+            if script_config and script_config.dynamic:
+                query_params = dict(websocket.query_params)
+                try:
+                    param_file = write_query_params_file(route_path, query_params)
+                    if query_params:
+                        logger.debug(f"Wrote query params for dynamic route {route_path}: {query_params}")
+                    else:
+                        logger.debug(f"Wrote empty query params for dynamic route {route_path}")
+                except Exception as e:
+                    logger.error(f"Failed to write query params for route {route_path}: {e}")
 
             # Simplified WebSocket connection logging
             if script_config:

@@ -146,6 +146,8 @@ class ScriptConfig(RouteConfigBase):
     port: Optional[int] = None
     function_object: Optional[Callable] = None
     _function_wrapper_path: Optional[Path] = None
+    dynamic: bool = False  # Enable dynamic argument passing via query parameters
+    _dynamic_wrapper_path: Optional[Path] = None
 
     @field_validator("script")
     @classmethod
@@ -220,10 +222,16 @@ class ScriptConfig(RouteConfigBase):
     def set_function_wrapper_path(self, path: Path) -> None:
         """Set the path to the generated wrapper script for a function."""
         self._function_wrapper_path = path
+    
+    def set_dynamic_wrapper_path(self, path: Path) -> None:
+        """Set the path to the generated dynamic wrapper script."""
+        self._dynamic_wrapper_path = path
 
     @property
     def effective_script_path(self) -> Path:
-        """Returns the script path to use (either direct script or generated function wrapper)."""
+        """Returns the script path to use (priority: dynamic_wrapper > function_wrapper > script)."""
+        if self.dynamic and self._dynamic_wrapper_path is not None:
+            return self._dynamic_wrapper_path
         if self.is_function_based and self._function_wrapper_path is not None:
             return self._function_wrapper_path
         return self.script
@@ -553,6 +561,9 @@ def create_route_configs(
 
             if "preview_image" in route_spec:
                 cfg_data["preview_image"] = route_spec["preview_image"]
+            
+            if "dynamic" in route_spec:
+                cfg_data["dynamic"] = route_spec["dynamic"]
 
             route_configs.append(ScriptConfig(**cfg_data))
             continue
@@ -586,6 +597,9 @@ def create_route_configs(
                 
                 if "preview_image" in route_spec:
                     cfg_data["preview_image"] = route_spec["preview_image"]
+                
+                if "dynamic" in route_spec:
+                    cfg_data["dynamic"] = route_spec["dynamic"]
                 
                 route_configs.append(ScriptConfig(**cfg_data))
                 continue
@@ -621,6 +635,9 @@ def create_route_configs(
             # Handle preview_image if provided in the script_spec
             if "preview_image" in route_spec:
                 cfg_data["preview_image"] = route_spec["preview_image"]
+            
+            if "dynamic" in route_spec:
+                cfg_data["dynamic"] = route_spec["dynamic"]
 
             route_configs.append(ScriptConfig(**cfg_data))
             continue
