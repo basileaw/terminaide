@@ -64,20 +64,11 @@ Terminaide offers three types of Python servers: Script, Function and Apps.
 
 ### Script Server 
 
-The absolute simplest way to use Terminaide is to serve an existing Python script that you don't want to modify:
+The absolute simplest way to use Terminaide is to serve an existing Python script that you don't want to modify. Scripts automatically use their associated virtual environments when available: 
 
 ```python
 from terminaide import serve_script
 
-if __name__ == "__main__":
-    serve_script("my_script.py")
-
-```
-
-Scripts automatically use their associated virtual environments when available. For example, serving a script from a different project directory:
-
-```python
-# Serve script from another project with its own dependencies
 serve_script("../other_project/client.py")  # Uses ../other_project/.venv if present
 ```
 
@@ -97,8 +88,7 @@ def hello():
 
     console.print(f"Hello, {name}!")
     
-if __name__ == "__main__":
-    serve_function(hello)
+serve_function(hello)
 ```
 
 ### Apps Server
@@ -124,7 +114,11 @@ serve_apps(
     app,
     terminal_routes={
         "/script": "my_script.py",    # Script-based terminal
-        "/hello": hello               # Function-based terminal
+        "/hello": hello,              # Function-based terminal
+        "/tool": {                    # Dynamic terminal with query params
+            "script": "tool.py", 
+            "dynamic": True
+        }
     }
 )
 
@@ -134,14 +128,13 @@ if __name__ == "__main__":
 
 #### Config
 
-All three servers accept the following optional configuration arguments:
+Serve_script, serve_function and terminal_routes all accept the following optional configuration arguments:
 
 ```python
 {
     "port": 8000,                    # Web server port (default: 8000)
     "title": "My Terminal App",      # Terminal window title (default: auto-generated)
     "debug": False,                  # Enable debug logging (default: False)
-    "venv_detection": True,          # Auto-detect virtual environments (default: True)
     "theme": {                       # Terminal appearance
         "background": "black",       # Background color (default: "black")
         "foreground": "white",       # Text color (default: "white")  
@@ -154,7 +147,20 @@ All three servers accept the following optional configuration arguments:
 }
 ```
 
-However, the Apps Server accepts additional options for managing multiple terminals, routing, and FastAPI integration. You can pass these as keyword arguments to `serve_apps()` or bundle them in a `TerminaideConfig` object for reusability.
+However, terminal_routes also supports additional per-route configuration options including command-line arguments and dynamic parameter passing. Individual
+routes can specify args for static command-line arguments and dynamic: True to accept additional arguments via URL query parameters.
+
+```python
+  terminal_routes = {
+      "/tool": {
+          "script": "tool.py",
+          "args": ["--config", "base.json"],  # Static arguments always passed
+          "dynamic": True                     # Enable query parameter support
+      }
+  }
+```
+
+Additionally, the Apps Server accepts several options for managing multiple terminals, routing, and FastAPI integration. You can pass these as keyword arguments to `serve_apps()` or bundle them in a `TerminaideConfig` object for reusability.
 
 ```python
 {
