@@ -216,7 +216,7 @@ def test_non_dynamic_route():
 
 def test_dynamic_wrapper_parsing():
     """Test the argument parsing logic directly."""
-    from terminaide.core.dynamic_wrapper import parse_args_query_param
+    from terminaide.core.wrappers import parse_args_query_param
     
     # Test basic parsing
     assert parse_args_query_param("--verbose") == ["--verbose"]
@@ -231,7 +231,7 @@ def test_dynamic_wrapper_parsing():
 
 def test_query_params_file_cleanup():
     """Test that parameter files are cleaned up properly."""
-    from terminaide.core.dynamic_wrapper import write_query_params_file, cleanup_stale_param_files
+    from terminaide.core.wrappers import write_query_params_file, cleanup_stale_param_files
     
     # Create a test parameter file
     test_params = {"args": "--test"}
@@ -248,7 +248,7 @@ def test_query_params_file_cleanup():
 
 def test_empty_query_params_file():
     """Test that empty parameter files are created and handled correctly."""
-    from terminaide.core.dynamic_wrapper import write_query_params_file
+    from terminaide.core.wrappers import write_query_params_file
     
     # Create an empty parameter file (like proxy does when no query params)
     empty_params = {}

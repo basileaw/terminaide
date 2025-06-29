@@ -431,7 +431,7 @@ async def terminaide_lifespan(app: FastAPI, config: TTYDConfig):
         
         # Clean up ephemeral files on graceful shutdown
         try:
-            from .app_wrappers import cleanup_own_ephemeral_files
+            from .wrappers import cleanup_own_ephemeral_files
             cleanup_own_ephemeral_files()
         except ImportError:
             pass  # Graceful fallback if import fails

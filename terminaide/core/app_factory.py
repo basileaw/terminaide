@@ -23,7 +23,7 @@ from .app_config import (
     convert_terminaide_config_to_ttyd_config,
     terminaide_lifespan,
 )
-from .app_wrappers import generate_function_wrapper
+from .wrappers import generate_function_wrapper
 from .app_runner import ServeWithConfig
 
 logger = logging.getLogger("terminaide")

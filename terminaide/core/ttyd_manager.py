@@ -20,7 +20,7 @@ from .exceptions import TTYDStartupError, TTYDProcessError, PortAllocationError
 from .installer import setup_ttyd
 from .models import TTYDConfig, ScriptConfig, IndexPageConfig
 from .logger import route_color_manager
-from .dynamic_wrapper import create_dynamic_wrapper_file, cleanup_stale_param_files
+from .wrappers import create_dynamic_wrapper_file, cleanup_stale_param_files
 
 logger = logging.getLogger("terminaide")
 

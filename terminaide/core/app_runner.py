@@ -23,7 +23,7 @@ from .app_config import (
     terminaide_lifespan,
     smart_resolve_path,
 )
-from .app_wrappers import (
+from .wrappers import (
     generate_function_wrapper,
 )
 
@@ -207,7 +207,7 @@ class ServeWithConfig:
             
             # Clean up ephemeral files on graceful shutdown
             try:
-                from .app_wrappers import cleanup_own_ephemeral_files
+                from .wrappers import cleanup_own_ephemeral_files
                 cleanup_own_ephemeral_files()
             except ImportError:
                 pass  # Graceful fallback if import fails

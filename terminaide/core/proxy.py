@@ -17,7 +17,7 @@ from fastapi.responses import Response, StreamingResponse
 from .exceptions import ProxyError, RouteNotFoundError
 from .models import TTYDConfig, ScriptConfig, IndexPageConfig
 from .logger import route_color_manager
-from .dynamic_wrapper import write_query_params_file
+from .wrappers import write_query_params_file
 
 # Get logger without configuring it (configuration happens in serve methods)
 logger = logging.getLogger("terminaide")
