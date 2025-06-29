@@ -1,4 +1,4 @@
-# ttyd_installer.py
+# installer.py
 
 """
 TTYd binary and dependency installation.

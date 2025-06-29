@@ -17,7 +17,7 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from .exceptions import TTYDStartupError, TTYDProcessError, PortAllocationError
-from .ttyd_installer import setup_ttyd
+from .installer import setup_ttyd
 from .models import TTYDConfig, ScriptConfig, IndexPageConfig
 from .logger import route_color_manager
 from .dynamic_wrapper import create_dynamic_wrapper_file, cleanup_stale_param_files
