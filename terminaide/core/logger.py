@@ -1,4 +1,4 @@
-# terminaide/core/logging.py
+# logger.py
 
 """Logging configuration and terminal output formatting for Terminaide."""
 
@@ -110,7 +110,7 @@ class RouteColorManager:
 
         # Format the main info line in the new style
         main_line = f"Serving '{colored_title}' {route_type}"
-        
+
         if pid:
             # Colorize PID in cyan like uvicorn
             if self._color_enabled:
@@ -118,10 +118,10 @@ class RouteColorManager:
                 main_line += f" [{colored_pid}]"
             else:
                 main_line += f" [{pid}]"
-        
+
         if port:
             main_line += f" on port {port}"
-            
+
         main_line += f" at '{route_path}'"
 
         # Format the script path line
@@ -154,7 +154,7 @@ def setup_package_logging(log_level="info"):
     """Configure package-level logging for Terminaide.
 
     Args:
-        log_level: Logging level as string ("debug", "info", "warning", "error", "critical") 
+        log_level: Logging level as string ("debug", "info", "warning", "error", "critical")
                   or None to skip configuration. Defaults to "info".
     """
     logger = logging.getLogger("terminaide")
@@ -165,14 +165,14 @@ def setup_package_logging(log_level="info"):
             handler = logging.StreamHandler()
             handler.setFormatter(ColorAlignedFormatter())
             logger.addHandler(handler)
-            
+
             # Convert string level to logging constant
             level_map = {
                 "debug": logging.DEBUG,
                 "info": logging.INFO,
                 "warning": logging.WARNING,
                 "error": logging.ERROR,
-                "critical": logging.CRITICAL
+                "critical": logging.CRITICAL,
             }
             logger.setLevel(level_map.get(log_level.lower(), logging.INFO))
             logger.propagate = False  # Prevent propagation to root logger
