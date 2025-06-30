@@ -1,4 +1,4 @@
-# app_factory.py
+# factory.py
 
 """
 Factory functions and app builders for Terminaide serving modes.
@@ -18,13 +18,13 @@ from fastapi import FastAPI
 from typing import Callable, Optional, Dict, Any
 from contextlib import asynccontextmanager
 
-from .app_config import (
+from .config import (
     TerminaideConfig,
     convert_terminaide_config_to_ttyd_config,
     terminaide_lifespan,
 )
 from .wrappers import generate_function_wrapper
-from .app_runner import ServeWithConfig
+from .server import ServeWithConfig
 
 logger = logging.getLogger("terminaide")
 

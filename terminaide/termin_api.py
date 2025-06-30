@@ -10,8 +10,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from typing import Optional, Dict, Any, Union, List, Callable
 
-from .core.app_config import TerminaideConfig, build_config
-from .core.app_factory import ServeWithConfig
+from .core.config import TerminaideConfig, build_config
+from .core.factory import ServeWithConfig
 from .core.index import AutoIndex
 from .core.terminascii import terminascii
 from .core.monitor import ServerMonitor

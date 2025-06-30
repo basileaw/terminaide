@@ -1,4 +1,4 @@
-# app_runner.py
+# server.py
 
 """
 Application runner implementation for Terminaide.
@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from .app_config import (
+from .config import (
     TerminaideConfig,
     convert_terminaide_config_to_ttyd_config,
     terminaide_lifespan,
@@ -171,8 +171,8 @@ class ServeWithConfig:
         func = config._target
         ephemeral_path = generate_function_wrapper(func, args=config.args)
 
-        # Import from app_factory to avoid circular dependency
-        from .app_factory import copy_config_attributes
+        # Import from factory to avoid circular dependency
+        from .factory import copy_config_attributes
 
         script_config = copy_config_attributes(config)
         script_config._target = ephemeral_path
@@ -197,8 +197,8 @@ class ServeWithConfig:
 
         # Direct mode
         ttyd_config = convert_terminaide_config_to_ttyd_config(config, script_path)
-        # Import from app_factory to avoid circular dependency
-        from .app_factory import create_app_with_lifespan
+        # Import from factory to avoid circular dependency
+        from .factory import create_app_with_lifespan
 
         app = create_app_with_lifespan(config.title, config, ttyd_config)
 

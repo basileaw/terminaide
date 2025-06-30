@@ -1,4 +1,4 @@
-# app_config.py
+# config.py
 
 """Core configuration module for Terminaide.
 
