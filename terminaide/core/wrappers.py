@@ -135,13 +135,16 @@ def extract_module_imports(source_file: str) -> str:
         for line in lines:
             stripped = line.strip()
             if in_multiline:
-                imports.append(line.rstrip())
+                # Normalize indentation for multiline imports
+                imports.append(stripped)
                 if ")" in line:
                     in_multiline = False
             elif stripped.startswith(import_prefixes):
-                imports.append(line.rstrip())
-                if "(" in line and ")" not in line:
-                    in_multiline = True
+                # Only extract top-level imports (not indented ones inside functions)
+                if not line.startswith(' ') and not line.startswith('\t'):
+                    imports.append(stripped)
+                    if "(" in line and ")" not in line:
+                        in_multiline = True
 
         return "\n".join(imports) + "\n" if imports else ""
     except Exception:
@@ -164,15 +167,15 @@ def generate_function_wrapper(func: Callable, args: Optional[List[str]] = None) 
     """Generate an ephemeral script for the given function (optimized)."""
     func_name, module_name = func.__name__, getattr(func, "__module__", None)
     temp_dir = get_ephemeral_dir()
-    cleanup_stale_ephemeral_files(temp_dir)
     script_path = temp_dir / f"{func_name}.py"
 
     # Get source directory (optimized path operations)
     try:
         source_file = inspect.getsourcefile(func) or inspect.getfile(func)
         source_dir = str(Path(source_file).parent.resolve())
-    except Exception:
+    except Exception as e:
         source_dir = os.getcwd()
+        logger.debug(f"Could not get source directory, using cwd: {source_dir}, error: {e}")
 
     requires_curses = detect_curses_requirement(func)
     bootstrap = generate_bootstrap_code(source_dir)
@@ -215,7 +218,8 @@ def generate_function_wrapper(func: Callable, args: Optional[List[str]] = None) 
             + call_line
         )
         return write_wrapper_file(script_path, wrapper_code)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to inline function source, creating error wrapper: {e}")
         error_content = (
             'print("ERROR: cannot reload function '
             + func_name

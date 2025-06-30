@@ -54,9 +54,11 @@ class ProxyManager:
         for route_config in self.config.route_configs:
             if isinstance(route_config, ScriptConfig) and route_config.port:
                 host = f"{self.config.ttyd_options.interface}:{route_config.port}"
+                http_url = f"http://{host}"
                 self.targets[route_config.route_path] = {
                     "host": host,
                     "port": route_config.port,
+                    "http_url": http_url,
                 }
 
     @property

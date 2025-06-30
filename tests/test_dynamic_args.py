@@ -54,6 +54,7 @@ for i, arg in enumerate(sys.argv[1:], 1):
 from pathlib import Path
 from fastapi import FastAPI
 import terminaide
+import uvicorn
 
 app = FastAPI()
 
@@ -66,8 +67,12 @@ terminal_routes = {{
     }}
 }}
 
+# Configure the app with terminaide
+terminaide.serve_apps(app, terminal_routes)
+
 if __name__ == "__main__":
-    terminaide.serve_apps(app, terminal_routes, port={self.port})
+    # Start the server
+    uvicorn.run(app, host="0.0.0.0", port={self.port})
 '''
         self.test_app_path.write_text(app_content)
         self.test_app_path.chmod(0o755)
@@ -133,7 +138,7 @@ if __name__ == "__main__":
                 pass
                 
     def check_iframe_src(self, query_params: str = "") -> str:
-        """Check that the iframe src includes query parameters for dynamic routes."""
+        """Get the iframe src response text for further assertions by the caller."""
         url = f"http://localhost:{self.port}/test"
         if query_params:
             url += f"?{query_params}"
@@ -141,11 +146,6 @@ if __name__ == "__main__":
         response = requests.get(url, timeout=5)
         assert response.status_code == 200
         
-        # Check that iframe src contains query params
-        if query_params:
-            expected_src = f"/test/terminal?{query_params}"
-            assert expected_src in response.text, f"Expected iframe src to contain '{expected_src}'"
-            
         return response.text
         
     async def test_websocket_params(self, query_params: str = "") -> bool:
@@ -180,10 +180,14 @@ def test_dynamic_route_basic():
         test.start_app()
         
         # Test without query params
-        test.check_iframe_src()
+        response_text = test.check_iframe_src()
+        assert "/test/terminal" in response_text, "Should contain basic terminal path"
         
         # Test with query params
-        test.check_iframe_src("args=--verbose,--mode,production")
+        query_params = "args=--verbose,--mode,production"
+        response_text = test.check_iframe_src(query_params)
+        expected_src = f"/test/terminal?{query_params}"
+        assert expected_src in response_text, f"Expected iframe src to contain '{expected_src}'"
 
 
 def test_dynamic_route_websocket_params():

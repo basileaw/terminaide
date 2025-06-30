@@ -131,6 +131,9 @@ class TTYDManager:
         self._base_port = config.port
         self._allocate_ports()
         
+        # Note: Don't clean up stale ephemeral files here as function wrappers 
+        # may have already been created by serve_apps()
+        
         # Generate dynamic wrappers for routes with dynamic=True
         self._generate_dynamic_wrappers()
         
@@ -520,27 +523,38 @@ class TTYDManager:
         self.processes.pop(route_path, None)
         self.start_times.pop(route_path, None)
         
-        # Clean up dynamic wrapper file if exists
+        # Clean up wrapper files if they exist
         for cfg in self.terminal_configs:
-            if cfg.route_path == route_path and cfg.dynamic and cfg._dynamic_wrapper_path:
-                try:
-                    if cfg._dynamic_wrapper_path.exists():
-                        cfg._dynamic_wrapper_path.unlink()
-                        logger.debug(f"Cleaned up dynamic wrapper for route {route_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to clean up dynamic wrapper: {e}")
-                
-                # Also clean up any lingering parameter file
-                sanitized_route = route_path.replace("/", "_")
-                if sanitized_route == "_":
-                    sanitized_route = "_root"
-                param_file = Path(f"/tmp/terminaide_params_{sanitized_route}.json")
-                if param_file.exists():
+            if cfg.route_path == route_path:
+                # Clean up function wrapper
+                if cfg.is_function_based and cfg._function_wrapper_path:
                     try:
-                        param_file.unlink()
-                        logger.debug(f"Cleaned up parameter file for route {route_path}")
-                    except Exception:
-                        pass
+                        if cfg._function_wrapper_path.exists():
+                            cfg._function_wrapper_path.unlink()
+                            logger.debug(f"Cleaned up function wrapper for route {route_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to clean up function wrapper: {e}")
+                
+                # Clean up dynamic wrapper
+                if cfg.dynamic and cfg._dynamic_wrapper_path:
+                    try:
+                        if cfg._dynamic_wrapper_path.exists():
+                            cfg._dynamic_wrapper_path.unlink()
+                            logger.debug(f"Cleaned up dynamic wrapper for route {route_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to clean up dynamic wrapper: {e}")
+                    
+                    # Also clean up any lingering parameter file
+                    sanitized_route = route_path.replace("/", "_")
+                    if sanitized_route == "_":
+                        sanitized_route = "_root"
+                    param_file = Path(f"/tmp/terminaide_params_{sanitized_route}.json")
+                    if param_file.exists():
+                        try:
+                            param_file.unlink()
+                            logger.debug(f"Cleaned up parameter file for route {route_path}")
+                        except Exception:
+                            pass
 
         if log_individual:
             logger.info(f"Stopped ttyd for route {route_path}")
