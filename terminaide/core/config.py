@@ -19,7 +19,7 @@ from fastapi import FastAPI, Request, WebSocket
 from typing import Optional, Dict, Union, Tuple, List, Callable, Any
 
 from .proxy import ProxyManager
-from .ttyd import TTYDManager
+from .terminal import TTYDManager
 from .exceptions import TemplateError
 from .models import (
     TTYDConfig,

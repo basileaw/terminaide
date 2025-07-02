@@ -6,29 +6,29 @@
 ARGS := $(wordlist 2, $(words $(MAKECMDGOALS)), $(MAKECMDGOALS))
 
 # Use Python task runner for all tasks
-TASK_RUNNER := python -m tools.task_runner
+TASK_RUNNER := python -m tools.tasks
 
 # =============================================================================
 # ISSUE MANAGEMENT
 # =============================================================================
 
 list:
-	@$(TASK_RUNNER) "python tools/issue_manager.py list"
+	@$(TASK_RUNNER) "python tools/issues.py list"
 
 bug:
-	@$(TASK_RUNNER) "python tools/issue_manager.py create bug"
+	@$(TASK_RUNNER) "python tools/issues.py create bug"
 
 task:
-	@$(TASK_RUNNER) "python tools/issue_manager.py create task"
+	@$(TASK_RUNNER) "python tools/issues.py create task"
 
 idea:
-	@$(TASK_RUNNER) "python tools/issue_manager.py create idea"
+	@$(TASK_RUNNER) "python tools/issues.py create idea"
 
 resolve:
-	@$(TASK_RUNNER) "python tools/issue_manager.py resolve $(ARGS)"
+	@$(TASK_RUNNER) "python tools/issues.py resolve $(ARGS)"
 
 delete:
-	@$(TASK_RUNNER) "python tools/issue_manager.py delete $(ARGS)"
+	@$(TASK_RUNNER) "python tools/issues.py delete $(ARGS)"
 
 # =============================================================================
 # DEMONSTRATIONS

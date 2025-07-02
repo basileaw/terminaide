@@ -1,4 +1,4 @@
-# ttyd.py
+# terminal.py
 
 """Manages TTYd processes for single (solo-server) or multi-terminal (apps-server) setups, ensuring their lifecycle, cleanup, and health monitoring."""
 

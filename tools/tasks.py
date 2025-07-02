@@ -1,4 +1,4 @@
-# task_runner.py
+# tasks.py
 
 import os
 import sys
@@ -75,7 +75,7 @@ def run_task(command, args=None):
 def main():
     """Main entry point for the task runner."""
     if len(sys.argv) < 2:
-        print("Usage: python -m tools.task_runner <command> [args...]")
+        print("Usage: python -m tools.tasks <command> [args...]")
         sys.exit(1)
 
     command = sys.argv[1]

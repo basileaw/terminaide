@@ -1,4 +1,4 @@
-# issue_manager.py
+# issues.py
 
 import os
 import sys
