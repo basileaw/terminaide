@@ -17,7 +17,7 @@ Terminaide uses a reverse proxy architecture where each terminal runs as a separ
 
 ### Key Components
 
-1. **API Layer** (`terminaide/termin_api.py`): Public API with three entry points
+1. **API Layer** (`terminaide/__init__.py`): Public API with three entry points
    - `serve_function()`: Wraps Python functions as terminal apps
    - `serve_script()`: Serves Python scripts directly
    - `serve_apps()`: Integrates terminals into existing FastAPI apps
