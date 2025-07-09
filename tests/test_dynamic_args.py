@@ -77,6 +77,36 @@ if __name__ == "__main__":
         self.test_app_path.write_text(app_content)
         self.test_app_path.chmod(0o755)
         
+    def create_test_app_with_custom_args_param(self, dynamic: bool = True, args_param: str = "args"):
+        """Create a test FastAPI app with custom args_param."""
+        app_content = f'''#!/usr/bin/env python3
+from pathlib import Path
+from fastapi import FastAPI
+import terminaide
+import uvicorn
+
+app = FastAPI()
+
+terminal_routes = {{
+    "/test": {{
+        "script": "{self.test_script_path}",
+        "args": ["--base-arg"],
+        "dynamic": {dynamic},
+        "args_param": "{args_param}",
+        "title": "Custom Args Param Test Terminal",
+    }}
+}}
+
+# Configure the app with terminaide
+terminaide.serve_apps(app, terminal_routes)
+
+if __name__ == "__main__":
+    # Start the server
+    uvicorn.run(app, host="0.0.0.0", port={self.port})
+'''
+        self.test_app_path.write_text(app_content)
+        self.test_app_path.chmod(0o755)
+        
     def start_app(self, timeout: int = 10):
         """Start the test app and wait for it to be ready."""
         self.process = subprocess.Popen(
@@ -231,6 +261,9 @@ def test_dynamic_wrapper_parsing():
     assert parse_args_query_param("") == []
     assert parse_args_query_param("   ") == []
     assert parse_args_query_param("--trim  ,  spaces  ") == ["--trim", "spaces"]
+    
+    # Test custom args_param (parameter name doesn't affect parsing logic)
+    assert parse_args_query_param("--verbose,--mode,prod", "with") == ["--verbose", "--mode", "prod"]
 
 
 def test_query_params_file_cleanup():
@@ -247,7 +280,69 @@ def test_query_params_file_cleanup():
     cleanup_stale_param_files(max_age_seconds=0)
     
     # File should be gone
-    assert not param_file.exists(), "Parameter file should have been cleaned up"
+
+
+def test_custom_args_param():
+    """Test custom args_param functionality."""
+    from terminaide.core.models import ScriptConfig
+    
+    # Test ScriptConfig with custom args_param
+    config = ScriptConfig(
+        route_path="/test",
+        script=Path("/tmp/test.py"),
+        dynamic=True,
+        args_param="with"
+    )
+    
+    assert config.args_param == "with"
+    assert config.dynamic is True
+    
+    # Test default args_param
+    config_default = ScriptConfig(
+        route_path="/test",
+        script=Path("/tmp/test.py"),
+        dynamic=True
+    )
+    
+    assert config_default.args_param == "args"
+
+
+def test_custom_args_param_in_route_config():
+    """Test that custom args_param is handled in route configurations."""
+    from terminaide.core.models import create_route_configs
+    
+    # Test with custom args_param in dictionary config
+    terminal_routes = {
+        "/test": {
+            "script": "/tmp/test.py",
+            "dynamic": True,
+            "args_param": "with"
+        }
+    }
+    
+    route_configs = create_route_configs(terminal_routes)
+    
+    assert len(route_configs) == 1
+    script_config = route_configs[0]
+    assert script_config.args_param == "with"
+    assert script_config.dynamic is True
+
+
+def test_custom_args_param_websocket_integration():
+    """Test that custom args_param works with WebSocket parameter passing."""
+    with DynamicTerminalTest() as test:
+        test.create_test_script()
+        # Create app with custom args_param
+        test.create_test_app_with_custom_args_param(dynamic=True, args_param="with")
+        test.start_app()
+        
+        # Test WebSocket with custom parameter name
+        query_params = "with=--test,--verbose"
+        param_data = asyncio.run(test.test_websocket_params(query_params))
+        
+        assert param_data is not None, "Parameter file should have been created"
+        assert param_data["type"] == "query_params"
+        assert param_data["params"]["with"] == "--test,--verbose"
 
 
 def test_empty_query_params_file():

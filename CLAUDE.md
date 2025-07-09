@@ -21,6 +21,7 @@ Terminaide uses a reverse proxy architecture where each terminal runs as a separ
    - `serve_function()`: Wraps Python functions as terminal apps
    - `serve_script()`: Serves Python scripts directly
    - `serve_apps()`: Integrates terminals into existing FastAPI apps
+   - All functions support `args_param` for configurable dynamic argument parameter names
 
 2. **Application Factory** (`terminaide/core/factory.py`): Creates FastAPI apps with lifecycle management
    - Handles reload mode with environment serialization
@@ -70,6 +71,8 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
 4. **Single Port Architecture**: All traffic through one port, proxy handles routing
 5. **Virtual Environment Isolation**: Scripts automatically use their associated virtual environments for dependency isolation
 6. **Dynamic Arguments**: Routes can accept command-line arguments via query parameters when configured with `dynamic: true`
+   - Configurable parameter names via `args_param` (default: "args")
+   - Custom parameter names enable semantic URLs (e.g., `?with=data.json` instead of `?args=data.json`)
 
 ### Testing Strategy
 - Tests verify all three serving modes

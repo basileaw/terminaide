@@ -75,6 +75,7 @@ def serve_script(
     log_level: Optional[str] = "info",
     args: Optional[List[str]] = None,
     dynamic: bool = False,
+    args_param: str = "args",
 ) -> None:
     """Serve a Python script in a browser terminal.
 
@@ -88,6 +89,7 @@ def serve_script(
         log_level: Logging level ("debug", "info", "warning", "error", None) (default: "info")
         args: Command-line arguments to pass to the script (default: None)
         dynamic: Enable dynamic arguments via URL query parameters (default: False)
+        args_param: Name of the query parameter for dynamic arguments (default: "args")
 
     Examples:
         Basic usage:
@@ -100,7 +102,8 @@ def serve_script(
         
         With arguments:
             serve_script("deploy.py", args=["--verbose", "--dry-run"])
-            serve_script("cli.py", dynamic=True)  # Args from URL: /cli?arg1=value1
+            serve_script("cli.py", dynamic=True)  # Args from URL: /cli?args=value1,value2
+            serve_script("cli.py", dynamic=True, args_param="with")  # Args from URL: /cli?with=value1,value2
     """
     kwargs = {}
     if port != 8000:
@@ -115,6 +118,8 @@ def serve_script(
         kwargs["args"] = args
     if dynamic:
         kwargs["dynamic"] = dynamic
+    if args_param != "args":
+        kwargs["args_param"] = args_param
 
     cfg = _prepare_config(None, True, **kwargs)
     cfg._target = Path(script_path)
@@ -132,6 +137,7 @@ def serve_function(
     log_level: Optional[str] = "info",
     args: Optional[List[str]] = None,
     dynamic: bool = False,
+    args_param: str = "args",
 ) -> None:
     """Serve a Python function in a browser terminal.
 
@@ -145,6 +151,7 @@ def serve_function(
         log_level: Logging level ("debug", "info", "warning", "error", None) (default: "info")
         args: Command-line arguments to pass to the function via sys.argv (default: None)
         dynamic: Enable dynamic arguments via URL query parameters (default: False)
+        args_param: Name of the query parameter for dynamic arguments (default: "args")
 
     Examples:
         Basic usage:
@@ -157,7 +164,8 @@ def serve_function(
         
         With arguments (compatible with Click, Fire, argparse):
             serve_function(my_cli_function, args=["--verbose", "--output", "result.txt"])
-            serve_function(my_cli_function, dynamic=True)  # Args from URL: /func?verbose=true
+            serve_function(my_cli_function, dynamic=True)  # Args from URL: /func?args=verbose,output
+            serve_function(my_cli_function, dynamic=True, args_param="with")  # Args from URL: /func?with=verbose,output
 
     Note:
         For advanced configuration options like environment variables, authentication,
@@ -176,6 +184,8 @@ def serve_function(
         kwargs["args"] = args
     if dynamic:
         kwargs["dynamic"] = dynamic
+    if args_param != "args":
+        kwargs["args_param"] = args_param
 
     cfg = _prepare_config(None, True, **kwargs)
     cfg._target = func
@@ -239,6 +249,11 @@ def serve_apps(
                     "function": admin_function,
                     "title": "Admin Terminal",
                     "preview_image": "admin.png"
+                },
+                "/cli": {
+                    "script": "cli.py",
+                    "dynamic": True,
+                    "args_param": "with"  # Use ?with=arg1,arg2 instead of ?args=arg1,arg2
                 }
             }, log_level="debug")
 

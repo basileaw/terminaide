@@ -215,6 +215,7 @@ class TTYDManager:
                         static_args=cfg.args,
                         route_path=cfg.route_path,
                         python_executable=python_executable,
+                        args_param=cfg.args_param,
                     )
                     cfg.set_dynamic_wrapper_path(wrapper_path)
                     logger.debug(f"Created dynamic wrapper for route {cfg.route_path}")

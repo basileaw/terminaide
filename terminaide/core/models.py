@@ -147,6 +147,7 @@ class ScriptConfig(RouteConfigBase):
     function_object: Optional[Callable] = None
     _function_wrapper_path: Optional[Path] = None
     dynamic: bool = False  # Enable dynamic argument passing via query parameters
+    args_param: str = "args"  # Query parameter name for dynamic arguments
     _dynamic_wrapper_path: Optional[Path] = None
 
     @field_validator("script")
@@ -564,6 +565,9 @@ def create_route_configs(
             
             if "dynamic" in route_spec:
                 cfg_data["dynamic"] = route_spec["dynamic"]
+            
+            if "args_param" in route_spec:
+                cfg_data["args_param"] = route_spec["args_param"]
 
             route_configs.append(ScriptConfig(**cfg_data))
             continue
@@ -600,6 +604,9 @@ def create_route_configs(
                 
                 if "dynamic" in route_spec:
                     cfg_data["dynamic"] = route_spec["dynamic"]
+                
+                if "args_param" in route_spec:
+                    cfg_data["args_param"] = route_spec["args_param"]
                 
                 route_configs.append(ScriptConfig(**cfg_data))
                 continue
@@ -638,6 +645,9 @@ def create_route_configs(
             
             if "dynamic" in route_spec:
                 cfg_data["dynamic"] = route_spec["dynamic"]
+            
+            if "args_param" in route_spec:
+                cfg_data["args_param"] = route_spec["args_param"]
 
             route_configs.append(ScriptConfig(**cfg_data))
             continue

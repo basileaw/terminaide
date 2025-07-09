@@ -272,6 +272,7 @@ def generate_dynamic_wrapper_script(
     script_path: Path,
     static_args: List[str],
     python_executable: str = "python",
+    args_param: str = "args",
 ) -> str:
     """
     Generate a Python wrapper script that waits for dynamic arguments from a temp file.
@@ -280,6 +281,7 @@ def generate_dynamic_wrapper_script(
         script_path: Path to the actual script to run
         static_args: List of static arguments always passed to the script
         python_executable: Python executable to use
+        args_param: Name of the query parameter containing arguments
 
     Returns:
         The wrapper script content as a string
@@ -329,7 +331,7 @@ while waited_time < max_wait_time:
             # Extract query parameters
             if data.get("type") == "query_params":
                 params = data.get("params", {{}})
-                args_str = params.get("args", "")
+                args_str = params.get("{args_param}", "")
                 
                 # Parse comma-separated args
                 if args_str:
@@ -377,6 +379,7 @@ def create_dynamic_wrapper_file(
     route_path: str,
     wrapper_dir: Optional[Path] = None,
     python_executable: str = "python",
+    args_param: str = "args",
 ) -> Path:
     """
     Create a dynamic wrapper script file for a given script.
@@ -387,13 +390,14 @@ def create_dynamic_wrapper_file(
         route_path: The route path this wrapper is for (used in filename)
         wrapper_dir: Directory to create wrapper in (defaults to temp dir)
         python_executable: Python executable to use
+        args_param: Name of the query parameter containing arguments
 
     Returns:
         Path to the created wrapper script
     """
     # Generate wrapper content
     wrapper_content = generate_dynamic_wrapper_script(
-        script_path, static_args, python_executable
+        script_path, static_args, python_executable, args_param
     )
 
     # Determine wrapper directory
@@ -416,12 +420,13 @@ def create_dynamic_wrapper_file(
     return wrapper_path
 
 
-def parse_args_query_param(args_str: str) -> List[str]:
+def parse_args_query_param(args_str: str, args_param: str = "args") -> List[str]:
     """
-    Parse the 'args' query parameter into a list of arguments.
+    Parse the query parameter into a list of arguments.
 
     Args:
         args_str: Comma-separated string of arguments, e.g., "--verbose,--mode,production"
+        args_param: Name of the query parameter (for documentation purposes)
 
     Returns:
         List of parsed arguments, e.g., ["--verbose", "--mode", "production"]

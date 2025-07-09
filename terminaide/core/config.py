@@ -135,6 +135,7 @@ class TerminaideConfig:
     # Script/function arguments
     args: Optional[List[str]] = None
     dynamic: bool = False
+    args_param: str = "args"
 
     # Proxy settings
     ttyd_port: int = 7681  # Base port for ttyd processes
@@ -461,6 +462,7 @@ def convert_terminaide_config_to_ttyd_config(
                 "script": script_path,
                 "args": config.args or [],
                 "dynamic": config.dynamic,
+                "args_param": config.args_param,
             }}
         else:
             terminal_routes = {"/": script_path}
@@ -471,6 +473,7 @@ def convert_terminaide_config_to_ttyd_config(
                 "function": config._target,
                 "args": config.args or [],
                 "dynamic": config.dynamic,
+                "args_param": config.args_param,
             }}
         else:
             terminal_routes = {"/": config._target}

@@ -117,7 +117,8 @@ serve_apps(
         "/hello": hello,              # Function-based terminal
         "/tool": {                    # Dynamic terminal with query params
             "script": "tool.py", 
-            "dynamic": True
+            "dynamic": True,
+            "args_param": "with"          # Use ?with=arg1,arg2 instead of ?args=arg1,arg2
         }
     }
 )
@@ -128,7 +129,7 @@ if __name__ == "__main__":
 
 #### Config
 
-All three serving functions accept the same configuration options, including command-line arguments via the `args` parameter and dynamic URL query parameters via `dynamic: True`:
+All three serving functions accept the same configuration options, including command-line arguments via the `args` parameter and dynamic URL query parameters via `dynamic: True`. When `dynamic: True`, arguments can be passed via URL query parameters (e.g., `?args=--verbose,--output,file.txt`), with the parameter name customizable via `args_param`:
 
 
 ```python
@@ -138,6 +139,7 @@ All three serving functions accept the same configuration options, including com
     "log_level": "info",             # Logging level: "debug", "info", "warning", "error", None (default: "info")
     "args": ["--verbose", "file.txt"], # Command-line arguments (default: None)
     "dynamic": True,                 # Enable URL query parameter arguments (default: False)
+    "args_param": "args",            # Query parameter name for dynamic arguments (default: "args")
     "theme": {                       # Terminal appearance
         "background": "black",       # Background color (default: "black")
         "foreground": "white",       # Text color (default: "white")  
@@ -148,6 +150,27 @@ All three serving functions accept the same configuration options, including com
         "font_size": 14              # Font size in pixels (default: None)
     }
 }
+```
+
+**Dynamic Arguments Usage Examples:**
+
+```python
+# Default parameter name (uses ?args=...)
+serve_script("cli.py", dynamic=True)
+# Visit: http://localhost:8000?args=--verbose,--output,result.txt
+
+# Custom parameter name (uses ?with=...)
+serve_script("cli.py", dynamic=True, args_param="with")
+# Visit: http://localhost:8000?with=--verbose,--output,result.txt
+
+# In Apps Server
+serve_apps(app, {
+    "/tool": {
+        "script": "tool.py",
+        "dynamic": True,
+        "args_param": "params"  # Uses ?params=...
+    }
+})
 ```
 
 Additionally, the Apps Server accepts several options for managing multiple terminals, routing, and FastAPI integration. You can pass these as keyword arguments to `serve_apps()` or bundle them in a `TerminaideConfig` object for reusability.
