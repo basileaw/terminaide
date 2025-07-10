@@ -47,15 +47,59 @@ class BaseMenuItem:
         return {"path": self.path, "title": self.title}
 
 
-class BaseMenuGroup:
-    """Base group of menu items with a label."""
+class BaseIndex:
+    """Base configuration for index/menu pages."""
 
-    __slots__ = ("label", "menu_items", "_dict_cache")
+    __slots__ = (
+        "menu_items",
+        "subtitle",
+        "epititle",
+        "title",
+        "supertitle",
+        "preview_image",
+        "instructions",
+        "_all_items_cache",
+    )
 
-    def __init__(self, label: str, options: List[Dict[str, Any]]):
-        self.label = label
-        self.menu_items = [self._create_menu_item(item) for item in options]
-        self._dict_cache = None
+    def __init__(
+        self,
+        menu: Union[List[Dict[str, Any]], Dict[str, Any]],
+        subtitle: Optional[str] = None,
+        epititle: Optional[str] = None,
+        title: Optional[str] = None,
+        supertitle: Optional[str] = None,
+        preview_image: Optional[Union[str, Path]] = None,
+        instructions: Optional[str] = None,
+    ):
+        self._all_items_cache = None
+        self._parse_and_validate_menu(menu)
+        self.subtitle = subtitle
+        self.epititle = epititle
+        self.title = title or "Index"
+        self.supertitle = supertitle
+        self.preview_image = Path(preview_image) if preview_image else None
+        self.instructions = instructions
+
+    def _parse_and_validate_menu(self, menu):
+        """Parse and validate the menu structure."""
+        if not isinstance(menu, list):
+            raise ValueError("Menu must be a list of menu items")
+        
+        if not menu:
+            raise ValueError("Menu must contain at least one item")
+        
+        for i, item in enumerate(menu):
+            if not isinstance(item, dict):
+                raise ValueError(f"Menu item at index {i} must be a dictionary")
+            if "title" not in item:
+                raise ValueError(f"Menu item at index {i} missing required 'title' key")
+            
+            # Must have one of: path, function, or script
+            if not any(key in item for key in ["path", "function", "script"]):
+                raise ValueError(f"Menu item at index {i} must have 'path', 'function', or 'script'")
+        
+        # Create menu items directly
+        self.menu_items = [self._create_menu_item(item) for item in menu]
 
     def _create_menu_item(self, item):
         """Create a menu item from dict. Override in subclasses for specialized items."""
@@ -69,125 +113,17 @@ class BaseMenuGroup:
             launcher_args=item.get("launcher_args", {}),
         )
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        if self._dict_cache is None:
-            self._dict_cache = {
-                "label": self.label,
-                "options": [item.to_dict() for item in self.menu_items],
-            }
-        return self._dict_cache
-
-
-class BaseIndex:
-    """Base configuration for index/menu pages."""
-
-    __slots__ = (
-        "groups",
-        "cycle_key",
-        "subtitle",
-        "epititle",
-        "title",
-        "supertitle",
-        "preview_image",
-        "_all_items_cache",
-    )
-
-    def __init__(
-        self,
-        menu: Union[List[Dict[str, Any]], Dict[str, Any]],
-        subtitle: Optional[str] = None,
-        epititle: Optional[str] = None,
-        title: Optional[str] = None,
-        supertitle: Optional[str] = None,
-        preview_image: Optional[Union[str, Path]] = None,
-    ):
-        self._all_items_cache = None
-        self._parse_and_validate_menu(menu)
-        self.subtitle = subtitle
-        self.epititle = epititle
-        self.title = title or "Index"
-        self.supertitle = supertitle
-        self.preview_image = Path(preview_image) if preview_image else None
-
-    def _parse_and_validate_menu(self, menu):
-        """Parse and validate the menu structure."""
-        if isinstance(menu, dict):
-            if "groups" not in menu:
-                raise ValueError("Menu dict must contain 'groups' key")
-            if "cycle_key" not in menu:
-                raise ValueError("Menu dict must contain 'cycle_key' key")
-            menu_groups = menu["groups"]
-            self.cycle_key = menu["cycle_key"]
-            self._validate_cycle_key()
-        else:
-            menu_groups = menu
-            self.cycle_key = "shift+g"
-
-        if not menu_groups:
-            raise ValueError("Menu must contain at least one group")
-
-        for i, group in enumerate(menu_groups):
-            if not isinstance(group, dict):
-                raise ValueError(f"Menu group at index {i} must be a dictionary")
-            if "label" not in group:
-                raise ValueError(
-                    f"Menu group at index {i} missing required 'label' key"
-                )
-            if "options" not in group:
-                raise ValueError(
-                    f"Menu group at index {i} missing required 'options' key"
-                )
-            if not isinstance(group["options"], list):
-                raise ValueError(f"Menu group at index {i} 'options' must be a list")
-            if not group["options"]:
-                raise ValueError(
-                    f"Menu group at index {i} must have at least one option"
-                )
-
-        self.groups = [
-            self._create_menu_group(g["label"], g["options"]) for g in menu_groups
-        ]
-
-    def _create_menu_group(self, label: str, options: List[Dict[str, Any]]):
-        """Create a menu group. Override in subclasses for specialized groups."""
-        return BaseMenuGroup(label, options)
-
-    def _validate_cycle_key(self) -> None:
-        """Validate the cycle key format."""
-        valid_modifiers = {"shift", "ctrl", "alt", "meta"}
-        parts = self.cycle_key.lower().split("+")
-
-        if len(parts) != 2:
-            raise ValueError(
-                f"cycle_key must be in format 'modifier+key', got: {self.cycle_key}"
-            )
-
-        modifier, key = parts
-        if modifier not in valid_modifiers:
-            raise ValueError(
-                f"Invalid modifier in cycle_key. Must be one of: {valid_modifiers}"
-            )
-
-        if not key or len(key) != 1:
-            raise ValueError(
-                f"Invalid key in cycle_key. Must be a single character, got: {key}"
-            )
-
     def get_all_menu_items(self) -> List[BaseMenuItem]:
         """Get all menu items as a flat list."""
         if self._all_items_cache is None:
-            self._all_items_cache = [
-                item for group in self.groups for item in group.menu_items
-            ]
+            self._all_items_cache = self.menu_items
         return self._all_items_cache
 
     def __repr__(self) -> str:
         """String representation for debugging."""
         item_count = len(self.get_all_menu_items())
-        group_count = len(self.groups)
         class_name = self.__class__.__name__
-        return f"{class_name}(title='{self.title}', items={item_count}, groups={group_count})"
+        return f"{class_name}(title='{self.title}', items={item_count})"
 
 
 # Auto Classes
@@ -201,24 +137,6 @@ class AutoMenuItem(BaseMenuItem):
     def launch(self) -> bool:
         """Launch this menu item (Curses mode only)."""
         return launch_menu_item(self)
-
-
-class AutoMenuGroup(BaseMenuGroup):
-    """Group of AutoMenuItem objects with a label."""
-
-    __slots__ = ()
-
-    def _create_menu_item(self, item):
-        """Create an AutoMenuItem from dict or existing item."""
-        if isinstance(item, AutoMenuItem):
-            return item
-        return AutoMenuItem(
-            path=item.get("path", ""),
-            title=item.get("title", ""),
-            function=item.get("function"),
-            script=item.get("script"),
-            launcher_args=item.get("launcher_args", {}),
-        )
 
 
 class AutoIndex(BaseIndex):
@@ -235,6 +153,7 @@ class AutoIndex(BaseIndex):
         title: Optional[str] = None,
         supertitle: Optional[str] = None,
         preview_image: Optional[Union[str, Path]] = None,
+        instructions: Optional[str] = None,
     ):
         if type not in ("html", "curses"):  # Use tuple for faster membership test
             raise ValueError(f"type must be 'html' or 'curses', got: {type}")
@@ -248,22 +167,26 @@ class AutoIndex(BaseIndex):
             title=title,
             supertitle=supertitle,
             preview_image=preview_image,
+            instructions=instructions,
         )
 
-        # Set default cycle_key for HTML
-        if self.index_type == "html" and getattr(self, "cycle_key", None) == "shift+g":
-            self.cycle_key = "shift+p"
 
-    def _create_menu_group(self, label: str, options: List[Dict[str, Any]]):
-        """Create appropriate menu group based on index type."""
-        return AutoMenuGroup(label, options)
+    def _create_menu_item(self, item):
+        """Create an AutoMenuItem from dict or existing item."""
+        if isinstance(item, AutoMenuItem):
+            return item
+        return AutoMenuItem(
+            path=item.get("path", ""),
+            title=item.get("title", ""),
+            function=item.get("function"),
+            script=item.get("script"),
+            launcher_args=item.get("launcher_args", {}),
+        )
 
     def get_all_menu_items(self) -> List[AutoMenuItem]:
         """Get all menu items as a flat list."""
         if self._all_items_cache is None:
-            self._all_items_cache = [
-                item for group in self.groups for item in group.menu_items
-            ]
+            self._all_items_cache = self.menu_items
         return self._all_items_cache
 
     def to_template_context(self) -> Dict[str, Any]:
@@ -281,8 +204,7 @@ class AutoIndex(BaseIndex):
     def __repr__(self) -> str:
         """String representation for debugging."""
         item_count = len(self.get_all_menu_items())
-        group_count = len(self.groups)
-        return f"AutoIndex(type='{self.index_type}', title='{self.title}', items={item_count}, groups={group_count})"
+        return f"AutoIndex(type='{self.index_type}', title='{self.title}', items={item_count})"
 
 
 # Curses Implementation
@@ -458,7 +380,6 @@ def _index_menu_loop(stdscr_param, auto_index: AutoIndex):
     stdscr.clear()
 
     # Current state
-    current_group = 0
     current_option = 0
     previous_option = 0
 
@@ -519,7 +440,7 @@ def _index_menu_loop(stdscr_param, auto_index: AutoIndex):
     menu_start_y = current_y
 
     def draw_menu():
-        """Draw the current menu group."""
+        """Draw the menu."""
         nonlocal current_y
         y_pos = menu_start_y
 
@@ -527,21 +448,20 @@ def _index_menu_loop(stdscr_param, auto_index: AutoIndex):
         for clear_y in range(menu_start_y, my - 3):
             safe_addstr(stdscr, clear_y, 0, " " * mx)
 
-        current_menu = auto_index.groups[current_group]
-
-        # Draw group label
-        group_label = current_menu.label
-        safe_addstr(
-            stdscr,
-            y_pos,
-            (mx - len(group_label)) // 2,
-            group_label,
-            curses.color_pair(6) | curses.A_BOLD,
-        )
-        y_pos += 2
+        # Draw instructions if provided
+        if auto_index.instructions:
+            safe_addstr(
+                stdscr,
+                y_pos,
+                (mx - len(auto_index.instructions)) // 2,
+                auto_index.instructions,
+                curses.color_pair(6) | curses.A_BOLD,
+            )
+            y_pos += 2
 
         # Calculate button layout
-        options = [item.title for item in current_menu.menu_items]
+        menu_items = auto_index.get_all_menu_items()
+        options = [item.title for item in menu_items]
         button_padding = 4
         button_width = max(len(o) for o in options) + 6
         num_options = len(options)
@@ -614,38 +534,16 @@ def _index_menu_loop(stdscr_param, auto_index: AutoIndex):
                 current_option -= 1
             elif (
                 k in [curses.KEY_RIGHT, ord("d"), ord("D")]
-                and current_option
-                < len(auto_index.groups[current_group].menu_items) - 1
+                and current_option < len(auto_index.get_all_menu_items()) - 1
             ):
                 current_option += 1
             elif k in [curses.KEY_ENTER, ord("\n"), ord("\r")]:
-                selected_item = auto_index.groups[current_group].menu_items[
-                    current_option
-                ]
+                selected_item = auto_index.get_all_menu_items()[current_option]
                 return selected_item
-            elif len(auto_index.groups) > 1 and _check_cycle_key(k, auto_index):
-                current_group = (current_group + 1) % len(auto_index.groups)
-                current_option = 0
-                previous_option = -1  # Force redraw
-                draw_menu()
         except KeyboardInterrupt:
             break
 
     return "exit"
-
-
-def _check_cycle_key(key, auto_index: AutoIndex) -> bool:
-    """Check if the pressed key matches the cycle key combination."""
-    if not hasattr(auto_index, "cycle_key"):
-        return False
-
-    try:
-        _, cycle_char = auto_index.cycle_key.lower().split("+", 1)
-        char_lower = ord(cycle_char.lower())
-        char_upper = ord(cycle_char.upper())
-        return key == char_lower or key == char_upper
-    except (ValueError, IndexError):
-        return False
 
 
 # HTML Implementation
@@ -673,12 +571,9 @@ def get_template_context(auto_index: AutoIndex) -> Dict[str, Any]:
             else terminascii(auto_index.title)
         )
 
-    # Prepare groups data for JavaScript (use cached to_dict)
-    groups_data = [group.to_dict() for group in auto_index.groups]
-    has_multiple_groups = len(auto_index.groups) > 1
-
-    # Use cached menu items
-    total_items = len(auto_index.get_all_menu_items())
+    # Prepare menu items data for JavaScript
+    menu_items = [item.to_dict() for item in auto_index.get_all_menu_items()]
+    total_items = len(menu_items)
 
     return {
         "page_title": auto_index.title,
@@ -686,9 +581,8 @@ def get_template_context(auto_index: AutoIndex) -> Dict[str, Any]:
         "supertitle": auto_index.supertitle,
         "subtitle": auto_index.subtitle,
         "epititle": auto_index.epititle,
-        "has_multiple_groups": has_multiple_groups,
-        "groups_json": groups_data,
-        "cycle_key": auto_index.cycle_key,
+        "instructions": auto_index.instructions,
+        "menu_items": menu_items,
         "total_items": total_items,
         "title": auto_index.title,
     }

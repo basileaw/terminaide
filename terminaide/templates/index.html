@@ -556,9 +556,8 @@
     <!-- Store template data as JSON in a script tag to avoid JS syntax errors -->
     <script type="application/json" id="template-data">
     {
-        "groups": {{ groups_json | tojson | safe }},
-        "cycleKey": {{ cycle_key | tojson | safe }},
-        "hasMultipleGroups": {{ has_multiple_groups | tojson | safe }}
+        "menuItems": {{ menu_items | tojson | safe }},
+        "instructions": {{ instructions | tojson | safe }}
     }
     </script>
 
@@ -567,14 +566,12 @@
         const templateData = JSON.parse(document.getElementById('template-data').textContent);
 
         // Extract data from parsed JSON
-        const groups = templateData.groups;
-        const cycleKey = templateData.cycleKey;
-        const hasMultipleGroups = templateData.hasMultipleGroups;
+        const menuItems = templateData.menuItems;
+        const instructions = templateData.instructions;
 
         // Navigation state
         let selectedIndex = 0;
-        let currentGroupIndex = 0;
-        let currentMenuItems = [];
+        let currentMenuItems = menuItems;
         let gridCols = 1;
         let gridRows = 1;
 
@@ -645,7 +642,7 @@
             }
 
             // Initialize with first group
-            renderMenuForGroup(0);
+            renderMenu();
 
             // Handle window resize
             window.addEventListener('resize', function () {
@@ -654,20 +651,6 @@
 
             // Handle keyboard navigation
             document.addEventListener('keydown', function (e) {
-                // Check for group cycling if multiple groups exist
-                if (hasMultipleGroups) {
-                    const keyCombo = (e.shiftKey ? 'shift+' : '') +
-                        (e.ctrlKey ? 'ctrl+' : '') +
-                        (e.altKey ? 'alt+' : '') +
-                        (e.metaKey ? 'meta+' : '') +
-                        e.key.toLowerCase();
-
-                    if (keyCombo === cycleKey) {
-                        e.preventDefault();
-                        cycleGroup();
-                        return;
-                    }
-                }
 
                 const currentRow = Math.floor(selectedIndex / gridCols);
                 const currentCol = selectedIndex % gridCols;
@@ -744,15 +727,8 @@
             }
         }
 
-        function cycleGroup() {
-            currentGroupIndex = (currentGroupIndex + 1) % groups.length;
-            renderMenuForGroup(currentGroupIndex);
-        }
-
-        function renderMenuForGroup(groupIndex) {
-            const group = groups[groupIndex];
+        function renderMenu() {
             const menu = document.querySelector('.menu');
-            currentMenuItems = group.options;
 
             // Calculate grid dimensions
             calculateGrid(currentMenuItems.length);
@@ -766,17 +742,12 @@
             // Reset selection
             selectedIndex = 0;
 
-            // Update menu label
+            // Update menu label with instructions
             const menuLabelElement = document.getElementById('menu-label-text');
-            const menuLabelContainer = document.querySelector('.menu-label');
-
-            // Always show the group's label
-            menuLabelElement.textContent = group.label;
-
-            // Add highlight animation when changing groups
-            if (hasMultipleGroups) {
-                menuLabelContainer.classList.add('highlight');
-                setTimeout(() => menuLabelContainer.classList.remove('highlight'), 300);
+            if (instructions) {
+                menuLabelElement.textContent = instructions;
+            } else {
+                menuLabelElement.textContent = '';
             }
 
             // Add new menu items

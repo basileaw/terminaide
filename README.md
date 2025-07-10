@@ -209,9 +209,10 @@ AutoIndex creates navigable menu pages with ASCII art titles and keyboard naviga
 ```python
 {
     "type": "html" | "curses",  # Required: rendering mode
-    "menu": [...],              # Required: menu structure (groups and options)
+    "menu": [...],              # Required: flat list of menu items
     "title": "MY APP",          # Title text (default: 'Index')
     "subtitle": "Welcome!",     # Text below title
+    "instructions": "Navigate", # Menu instruction text
     "epititle": "Press Enter",  # Text below menu
     "supertitle": "v1.0",       # Text above title
     "preview_image": "img.png"  # Preview image path (HTML only)
@@ -227,13 +228,11 @@ from terminaide import AutoIndex
 html_index = AutoIndex(
     type="html",
     title="MY APP",
-    menu=[{
-        "label": "Resources",
-        "options": [
-            {"path": "/terminal", "title": "Terminal App"},
-            {"path": "https://docs.python.org", "title": "Python Docs"}
-        ]
-    }]
+    menu=[
+        {"path": "/terminal", "title": "Terminal App"},
+        {"path": "https://docs.python.org", "title": "Python Docs"}
+    ],
+    instructions="Resources"
 )
 
 # Curses mode - creates terminal menu that executes functions/scripts
@@ -243,13 +242,11 @@ def calculator():
 curses_index = AutoIndex(
     type="curses", 
     title="MY APP",
-    menu=[{
-        "label": "Tools",
-        "options": [
-            {"function": calculator, "title": "Calculator"},
-            {"script": "editor.py", "title": "Text Editor"}
-        ]
-    }]
+    menu=[
+        {"function": calculator, "title": "Calculator"},
+        {"script": "editor.py", "title": "Text Editor"}
+    ],
+    instructions="Tools"
 )
 
 # Use in Apps Mode

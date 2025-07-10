@@ -25,16 +25,12 @@ def create_index_page() -> AutoIndex:
         title="TERMIN-ARCADE",
         subtitle="This demo shows HTML pages and terminal applications combined in one server, running a separate terminal for each game.",
         menu=[
-            {
-                "label": "Available Games",
-                "options": [
-                    {"path": "/snake", "title": "Snake"},
-                    {"path": "/tetris", "title": "Tetris"},
-                    {"path": "/pong", "title": "Pong"},
-                    {"path": "/asteroids", "title": "Asteroids"},
-                ],
-            }
+            {"path": "/snake", "title": "Snake"},
+            {"path": "/tetris", "title": "Tetris"},
+            {"path": "/pong", "title": "Pong"},
+            {"path": "/asteroids", "title": "Asteroids"},
         ],
+        instructions="Available Games",
         epititle="Server Monitor:\nhttp://localhost:8000/monitor",
     )
 
