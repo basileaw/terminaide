@@ -25,6 +25,7 @@ from .config import (
 )
 from .wrappers import (
     generate_function_wrapper,
+    get_or_ensure_function_wrapper,
 )
 
 logger = logging.getLogger("terminaide")
@@ -167,9 +168,9 @@ class ServeWithConfig:
     @classmethod
     def serve_function(cls, config) -> None:
         """Implementation for serving a function."""
-        # Direct mode - use local generate_function_wrapper
+        # Direct mode - use lazy validation for reliable wrapper access
         func = config._target
-        ephemeral_path = generate_function_wrapper(func, args=config.args)
+        ephemeral_path = get_or_ensure_function_wrapper(func, args=config.args, config=config)
 
         # Import from factory to avoid circular dependency
         from .factory import copy_config_attributes
@@ -247,7 +248,7 @@ class ServeWithConfig:
                     logger.debug(
                         f"Generating wrapper script for function '{func.__name__}' at route {script_config.route_path}"
                     )
-                    wrapper_path = generate_function_wrapper(func, args=script_config.args)
+                    wrapper_path = get_or_ensure_function_wrapper(func, args=script_config.args, config=config)
                     script_config.set_function_wrapper_path(wrapper_path)
                     logger.debug(
                         f"Function '{func.__name__}' will use wrapper script at {wrapper_path}"

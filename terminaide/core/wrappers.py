@@ -16,7 +16,10 @@ import tempfile
 from functools import lru_cache
 from pathlib import Path
 from textwrap import dedent
-from typing import Callable, Optional, List
+from typing import Callable, Optional, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .config import TerminaideConfig
 
 logger = logging.getLogger("terminaide")
 _ephemeral_files_registry = set()
@@ -25,12 +28,104 @@ _function_signature_cache = {}
 
 
 # Common Utilities
-def get_ephemeral_dir() -> Path:
-    """Get the standard ephemeral directory path (cached)."""
+def _test_directory_writable(directory: Path) -> None:
+    """Test if directory is writable by creating and removing a test file."""
+    test_file = directory / f".write_test_{os.getpid()}"
+    test_file.touch()
+    test_file.unlink()
+
+
+def _get_package_cache_dir() -> Path:
+    """Get package-based cache directory."""
+    package_root = Path(__file__).parent.parent  # terminaide/
+    return package_root / "cache" / "ephemeral"
+
+
+def _get_user_cache_dir() -> Path:
+    """Get user-specific cache directory."""
+    return Path.home() / ".cache" / "terminaide" / "ephemeral"
+
+
+def _get_fallback_cache_dir() -> Path:
+    """Get fallback temp directory cache."""
+    return Path(tempfile.gettempdir()) / "terminaide_ephemeral"
+
+
+def _resolve_cache_directory(config: Optional["TerminaideConfig"] = None) -> Path:
+    """Resolve cache directory in priority order."""
+    
+    # 1. Explicit config parameter (highest priority)
+    if config and config.ephemeral_cache_dir:
+        cache_dir = config.ephemeral_cache_dir
+        logger.debug(f"Using configured cache directory: {cache_dir}")
+        try:
+            cache_dir.mkdir(exist_ok=True, parents=True)
+            _test_directory_writable(cache_dir)
+            return cache_dir
+        except (PermissionError, OSError) as e:
+            raise RuntimeError(f"Configured cache directory not writable: {cache_dir}") from e
+    
+    # 2. Environment variable override
+    if env_dir := os.environ.get("TERMINAIDE_CACHE_DIR"):
+        cache_dir = Path(env_dir)
+        logger.debug(f"Using environment cache directory: {cache_dir}")
+        try:
+            cache_dir.mkdir(exist_ok=True, parents=True)
+            _test_directory_writable(cache_dir)
+            return cache_dir
+        except (PermissionError, OSError) as e:
+            logger.warning(f"Environment cache directory not writable, falling back: {e}")
+    
+    # 3. Package cache (preferred default)
+    try:
+        cache_dir = _get_package_cache_dir()
+        cache_dir.mkdir(exist_ok=True, parents=True)
+        _test_directory_writable(cache_dir)
+        logger.debug(f"Using package cache directory: {cache_dir}")
+        return cache_dir
+    except (PermissionError, OSError) as e:
+        logger.debug(f"Package cache not available: {e}")
+    
+    # 4. User cache directory
+    try:
+        cache_dir = _get_user_cache_dir()
+        cache_dir.mkdir(exist_ok=True, parents=True)
+        _test_directory_writable(cache_dir)
+        logger.debug(f"Using user cache directory: {cache_dir}")
+        return cache_dir
+    except (PermissionError, OSError) as e:
+        logger.debug(f"User cache not available: {e}")
+    
+    # 5. Fallback to temp directory (last resort)
+    cache_dir = _get_fallback_cache_dir()
+    cache_dir.mkdir(exist_ok=True, parents=True)
+    logger.warning(f"Using fallback temp directory cache (not persistent): {cache_dir}")
+    return cache_dir
+
+
+def get_ephemeral_dir(config: Optional["TerminaideConfig"] = None, force_refresh: bool = False) -> Path:
+    """Get the ephemeral directory path with configurable cache support.
+    
+    Args:
+        config: Optional configuration object with cache directory override
+        force_refresh: If True, bypass cache and resolve directory fresh
+    
+    Returns:
+        Path to the ephemeral directory
+    """
     global _ephemeral_dir_cache
-    if _ephemeral_dir_cache is None:
-        _ephemeral_dir_cache = Path(tempfile.gettempdir()) / "terminaide_ephemeral"
-        _ephemeral_dir_cache.mkdir(exist_ok=True, parents=True)
+    
+    # If config provided or force refresh, resolve fresh
+    if config or force_refresh or _ephemeral_dir_cache is None:
+        resolved_dir = _resolve_cache_directory(config)
+        
+        # Only cache if no config override (to avoid config bleeding between calls)
+        if not config:
+            _ephemeral_dir_cache = resolved_dir
+        
+        return resolved_dir
+    
+    # Use cached directory for simple calls
     return _ephemeral_dir_cache
 
 
@@ -141,7 +236,7 @@ def extract_module_imports(source_file: str) -> str:
                     in_multiline = False
             elif stripped.startswith(import_prefixes):
                 # Only extract top-level imports (not indented ones inside functions)
-                if not line.startswith(' ') and not line.startswith('\t'):
+                if not line.startswith(" ") and not line.startswith("\t"):
                     imports.append(stripped)
                     if "(" in line and ")" not in line:
                         in_multiline = True
@@ -163,10 +258,65 @@ def get_module_imports_for_func(func: Callable) -> str:
         return "import sys\nimport os\n"
 
 
-def generate_function_wrapper(func: Callable, args: Optional[List[str]] = None) -> Path:
-    """Generate an ephemeral script for the given function (optimized)."""
+def ensure_script_exists(script_path: Path, regenerate_func: Callable[[], Path]) -> Path:
+    """Ensure script exists, regenerating if missing (lazy validation).
+    
+    Args:
+        script_path: Expected path to the script
+        regenerate_func: Function to call to regenerate the script
+    
+    Returns:
+        Path to the verified script
+    """
+    if script_path.exists():
+        return script_path
+    
+    logger.info(f"Ephemeral script missing, regenerating: {script_path}")
+    return regenerate_func()
+
+
+def get_or_ensure_function_wrapper(
+    func: Callable, 
+    args: Optional[List[str]] = None, 
+    config: Optional["TerminaideConfig"] = None
+) -> Path:
+    """Get function wrapper script, regenerating if missing (lazy validation + configurable cache).
+    
+    Args:
+        func: The function to wrap
+        args: Optional arguments to pass to the function
+        config: Optional configuration with cache directory override
+    
+    Returns:
+        Path to the verified wrapper script
+    """
+    func_name = func.__name__
+    temp_dir = get_ephemeral_dir(config)
+    expected_path = temp_dir / f"{func_name}.py"
+    
+    def regenerate():
+        return generate_function_wrapper(func, args=args, config=config)
+    
+    return ensure_script_exists(expected_path, regenerate)
+
+
+def generate_function_wrapper(
+    func: Callable, 
+    args: Optional[List[str]] = None, 
+    config: Optional["TerminaideConfig"] = None
+) -> Path:
+    """Generate an ephemeral script for the given function (optimized with configurable cache).
+    
+    Args:
+        func: The function to wrap
+        args: Optional arguments to pass to the function
+        config: Optional configuration with cache directory override
+    
+    Returns:
+        Path to the generated script
+    """
     func_name, module_name = func.__name__, getattr(func, "__module__", None)
-    temp_dir = get_ephemeral_dir()
+    temp_dir = get_ephemeral_dir(config)
     script_path = temp_dir / f"{func_name}.py"
 
     # Get source directory (optimized path operations)
@@ -175,7 +325,9 @@ def generate_function_wrapper(func: Callable, args: Optional[List[str]] = None) 
         source_dir = str(Path(source_file).parent.resolve())
     except Exception as e:
         source_dir = os.getcwd()
-        logger.debug(f"Could not get source directory, using cwd: {source_dir}, error: {e}")
+        logger.debug(
+            f"Could not get source directory, using cwd: {source_dir}, error: {e}"
+        )
 
     requires_curses = detect_curses_requirement(func)
     bootstrap = generate_bootstrap_code(source_dir)
@@ -230,9 +382,15 @@ def generate_function_wrapper(func: Callable, args: Optional[List[str]] = None) 
         return write_wrapper_file(script_path, error_content)
 
 
-def cleanup_stale_ephemeral_files(temp_dir: Path) -> None:
-    """Clean up all ephemeral files on startup (safety net, optimized)."""
+def cleanup_stale_ephemeral_files(config: Optional["TerminaideConfig"] = None) -> None:
+    """Clean up all ephemeral files on startup (safety net, optimized).
+    
+    Args:
+        config: Optional configuration to determine cache directory
+    """
     try:
+        temp_dir = get_ephemeral_dir(config)
+        
         # Use glob pattern matching for better performance
         py_files = list(temp_dir.glob("*.py"))
         if not py_files:
@@ -245,7 +403,7 @@ def cleanup_stale_ephemeral_files(temp_dir: Path) -> None:
         )
         if cleaned_count > 0:
             logger.debug(
-                f"Startup cleanup: removed {cleaned_count} stale ephemeral files"
+                f"Startup cleanup: removed {cleaned_count} stale ephemeral files from {temp_dir}"
             )
     except Exception as e:
         logger.debug(f"Startup cleanup failed (non-critical): {e}")
@@ -380,6 +538,7 @@ def create_dynamic_wrapper_file(
     wrapper_dir: Optional[Path] = None,
     python_executable: str = "python",
     args_param: str = "args",
+    config: Optional["TerminaideConfig"] = None,
 ) -> Path:
     """
     Create a dynamic wrapper script file for a given script.
@@ -388,9 +547,10 @@ def create_dynamic_wrapper_file(
         script_path: Path to the actual script to run
         static_args: List of static arguments always passed to the script
         route_path: The route path this wrapper is for (used in filename)
-        wrapper_dir: Directory to create wrapper in (defaults to temp dir)
+        wrapper_dir: Directory to create wrapper in (defaults to ephemeral cache dir)
         python_executable: Python executable to use
         args_param: Name of the query parameter containing arguments
+        config: Optional configuration with cache directory override
 
     Returns:
         Path to the created wrapper script
@@ -402,7 +562,7 @@ def create_dynamic_wrapper_file(
 
     # Determine wrapper directory
     if wrapper_dir is None:
-        wrapper_dir = get_ephemeral_dir()
+        wrapper_dir = get_ephemeral_dir(config)
     else:
         wrapper_dir.mkdir(exist_ok=True, parents=True)
 

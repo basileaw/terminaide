@@ -20,7 +20,7 @@ from .exceptions import TTYDStartupError, TTYDProcessError, PortAllocationError
 from .installer import setup_ttyd
 from .models import TTYDConfig, ScriptConfig, IndexPageConfig
 from .logger import route_color_manager
-from .wrappers import create_dynamic_wrapper_file, cleanup_stale_param_files
+from .wrappers import create_dynamic_wrapper_file, cleanup_stale_param_files, cleanup_stale_ephemeral_files
 
 logger = logging.getLogger("terminaide")
 
@@ -139,6 +139,9 @@ class TTYDManager:
         
         # Clean up any stale parameter files
         cleanup_stale_param_files()
+        
+        # Clean up any stale ephemeral script files
+        cleanup_stale_ephemeral_files()
 
     def _setup_ttyd(self, force_reinstall: bool = None) -> None:
         """

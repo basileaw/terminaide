@@ -139,6 +139,9 @@ class TerminaideConfig:
 
     # Proxy settings
     ttyd_port: int = 7681  # Base port for ttyd processes
+    
+    # Cache configuration
+    ephemeral_cache_dir: Optional[Path] = None  # Override for ephemeral script storage
 
     # Internal fields (not exposed directly)
     _target: Optional[Union[Callable, Path, Dict[str, Any]]] = None
