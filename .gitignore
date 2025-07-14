@@ -12,6 +12,7 @@ test.py
 
 terminaide/bin/*
 !terminaide/bin/.gitkeep
+terminaide/cache/ephemeral/*
 
 CLAUDE.md
 .claude/
