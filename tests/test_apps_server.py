@@ -737,23 +737,39 @@ def test_argument_parsing_logic():
 def test_parameter_file_utilities():
     """Test parameter file utility functions."""
     from terminaide.core.wrappers import write_query_params_file, cleanup_stale_param_files
+    from terminaide.core.config import TerminaideConfig
     
-    # Create a test parameter file
-    test_params = {"args": "--test"}
-    param_file = write_query_params_file("/test-utils", test_params)
+    # Create a test config with explicit cache directory
+    temp_dir = Path(tempfile.gettempdir())
+    test_cache_dir = temp_dir / "terminaide_test_cache"
+    test_cache_dir.mkdir(exist_ok=True)
     
-    assert param_file.exists(), "Parameter file should exist"
+    config = TerminaideConfig(ephemeral_cache_dir=test_cache_dir)
     
-    # Verify file content
-    data = json.loads(param_file.read_text())
-    assert data["type"] == "query_params"
-    assert data["params"] == test_params
+    try:
+        # Create a test parameter file
+        test_params = {"args": "--test"}
+        param_file = write_query_params_file("/test-utils", test_params, config)
+        
+        assert param_file.exists(), "Parameter file should exist"
+        assert test_cache_dir in param_file.parents, "Parameter file should be in test cache directory"
+        
+        # Verify file content
+        data = json.loads(param_file.read_text())
+        assert data["type"] == "query_params"
+        assert data["params"] == test_params
+        
+        # Clean up stale files (with very short max age for testing)
+        cleanup_stale_param_files(max_age_seconds=0, config=config)
+        
+        # File should be gone (since max_age_seconds=0 makes it immediately stale)
+        assert not param_file.exists(), "Parameter file should be cleaned up"
     
-    # Clean up stale files (with very short max age for testing)
-    cleanup_stale_param_files(max_age_seconds=0)
-    
-    # File should be gone (since max_age_seconds=0 makes it immediately stale)
-    assert not param_file.exists(), "Parameter file should be cleaned up"
+    finally:
+        # Clean up test directory
+        import shutil
+        if test_cache_dir.exists():
+            shutil.rmtree(test_cache_dir, ignore_errors=True)
 
 
 def test_configuration_models():

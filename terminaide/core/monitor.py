@@ -7,6 +7,60 @@ import threading
 import tempfile
 import signal
 import json
+from pathlib import Path
+from typing import Optional
+
+
+def _get_package_cache_dir() -> Path:
+    """Get package-based cache directory for monitor logs."""
+    package_root = Path(__file__).parent.parent  # terminaide/
+    return package_root / "cache"
+
+
+def _resolve_monitor_log_path(config_path: Optional[Path] = None) -> Path:
+    """Resolve monitor log path in priority order."""
+    
+    # 1. Explicit config parameter (highest priority)
+    if config_path:
+        try:
+            config_path.parent.mkdir(exist_ok=True, parents=True)
+            # Test if we can write to the directory
+            test_file = config_path.parent / f".write_test_{os.getpid()}"
+            test_file.touch()
+            test_file.unlink()
+            return config_path
+        except (PermissionError, OSError) as e:
+            raise RuntimeError(f"Configured monitor log path not writable: {config_path}") from e
+    
+    # 2. Environment variable override
+    if env_path := os.environ.get("TERMINAIDE_MONITOR_LOG"):
+        log_path = Path(env_path)
+        try:
+            log_path.parent.mkdir(exist_ok=True, parents=True)
+            # Test if we can write to the directory
+            test_file = log_path.parent / f".write_test_{os.getpid()}"
+            test_file.touch()
+            test_file.unlink()
+            return log_path
+        except (PermissionError, OSError) as e:
+            raise RuntimeError(f"Environment monitor log path not writable: {log_path}") from e
+    
+    # 3. Package cache (only fallback)
+    try:
+        cache_dir = _get_package_cache_dir()
+        cache_dir.mkdir(exist_ok=True, parents=True)
+        log_path = cache_dir / "monitor.log"
+        # Test if we can write to the directory
+        test_file = cache_dir / f".write_test_{os.getpid()}"
+        test_file.touch()
+        test_file.unlink()
+        return log_path
+    except (PermissionError, OSError) as e:
+        raise RuntimeError(
+            f"Package cache directory not writable and no explicit monitor log configured: {cache_dir}. "
+            "To use external directories, set monitor_log_path in TerminaideConfig or "
+            "set the TERMINAIDE_MONITOR_LOG environment variable."
+        ) from e
 
 
 class ServerMonitor:
@@ -14,17 +68,21 @@ class ServerMonitor:
     A reusable, object-oriented monitor for logging and displaying process output.
     """
 
-    def __init__(self, output_file=None, title=None):
+    def __init__(self, output_file=None, title=None, config=None):
         """
         Initialize Monitor instance.
 
         Args:
-            output_file: Path to the log file (optional, defaults to temp directory)
+            output_file: Path to the log file (optional, defaults to package cache)
             title: Main title for monitor display (triggers auto-write if provided)
+            config: Optional TerminaideConfig with monitor_log_path setting
         """
-        self.output_file = output_file or os.path.join(
-            tempfile.gettempdir(), "monitor.log"
-        )
+        if output_file is None:
+            # Use config.monitor_log_path if available
+            config_path = getattr(config, 'monitor_log_path', None) if config else None
+            self.output_file = str(_resolve_monitor_log_path(config_path))
+        else:
+            self.output_file = output_file
 
         # Always start monitoring (with default title if none provided)
         self.write(title=title or "MONITOR")
@@ -59,7 +117,7 @@ def monitor_read_standalone(output_file=None, use_curses=True):
 
     # Set default output file
     if output_file is None:
-        output_file = os.path.join(tempfile.gettempdir(), "monitor.log")
+        output_file = str(_resolve_monitor_log_path())
 
     # Extract config from log file, fallback to defaults
     title = "MONITOR"
@@ -729,9 +787,9 @@ def _monitor_write(output_file=None, title="MONITOR"):
         # Just return - monitoring is already active
         return
 
-    # Set default output file to temp directory
+    # Set default output file to package cache
     if output_file is None:
-        output_file = os.path.join(tempfile.gettempdir(), "monitor.log")
+        output_file = str(_resolve_monitor_log_path())
 
     # Write config header to log file
     os.makedirs(os.path.dirname(output_file), exist_ok=True)

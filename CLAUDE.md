@@ -50,9 +50,10 @@ Terminaide uses a reverse proxy architecture where each terminal runs as a separ
 
 7. **Wrapper System** (`terminaide/core/wrappers.py`): Unified wrapper script generation
    - Function wrappers: Generate ephemeral Python scripts for wrapping functions and scripts
-   - Dynamic wrappers: Generate scripts that accept runtime arguments via temp files
+   - Dynamic wrappers: Generate scripts that accept runtime arguments via parameter files
    - Performance optimized with intelligent caching (LRU cache, directory caching, signature caching)
    - Unified cleanup and file management for all wrapper types
+   - Security: Requires explicit configuration for external file creation
 
 ### Request Flow
 ```
@@ -73,6 +74,10 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
 6. **Dynamic Arguments**: Routes can accept command-line arguments via query parameters when configured with `dynamic: true`
    - Configurable parameter names via `args_param` (default: "args")
    - Custom parameter names enable semantic URLs (e.g., `?with=data.json` instead of `?args=data.json`)
+7. **Security-First File Management**: Files created only within package cache by default
+   - External file creation requires explicit configuration (`ephemeral_cache_dir`, `monitor_log_path`)
+   - Environment variable overrides: `TERMINAIDE_CACHE_DIR`, `TERMINAIDE_MONITOR_LOG`
+   - Clear error messages guide users when configuration is needed
 
 ### Testing Strategy
 - Tests verify all three serving modes

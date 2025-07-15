@@ -12,11 +12,10 @@ import json
 import time
 import inspect
 import logging
-import tempfile
 from functools import lru_cache
 from pathlib import Path
 from textwrap import dedent
-from typing import Callable, Optional, List, TYPE_CHECKING
+from typing import Callable, Optional, List, TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .config import TerminaideConfig
@@ -41,21 +40,13 @@ def _get_package_cache_dir() -> Path:
     return package_root / "cache" / "ephemeral"
 
 
-def _get_user_cache_dir() -> Path:
-    """Get user-specific cache directory."""
-    return Path.home() / ".cache" / "terminaide" / "ephemeral"
 
 
-def _get_fallback_cache_dir() -> Path:
-    """Get fallback temp directory cache."""
-    return Path(tempfile.gettempdir()) / "terminaide_ephemeral"
-
-
-def _resolve_cache_directory(config: Optional["TerminaideConfig"] = None) -> Path:
+def _resolve_cache_directory(config: Optional[Any] = None) -> Path:
     """Resolve cache directory in priority order."""
     
     # 1. Explicit config parameter (highest priority)
-    if config and config.ephemeral_cache_dir:
+    if config and hasattr(config, 'ephemeral_cache_dir') and config.ephemeral_cache_dir:
         cache_dir = config.ephemeral_cache_dir
         logger.debug(f"Using configured cache directory: {cache_dir}")
         try:
@@ -74,9 +65,9 @@ def _resolve_cache_directory(config: Optional["TerminaideConfig"] = None) -> Pat
             _test_directory_writable(cache_dir)
             return cache_dir
         except (PermissionError, OSError) as e:
-            logger.warning(f"Environment cache directory not writable, falling back: {e}")
+            raise RuntimeError(f"Environment cache directory not writable: {cache_dir}") from e
     
-    # 3. Package cache (preferred default)
+    # 3. Package cache (only fallback)
     try:
         cache_dir = _get_package_cache_dir()
         cache_dir.mkdir(exist_ok=True, parents=True)
@@ -85,25 +76,14 @@ def _resolve_cache_directory(config: Optional["TerminaideConfig"] = None) -> Pat
         return cache_dir
     except (PermissionError, OSError) as e:
         logger.debug(f"Package cache not available: {e}")
-    
-    # 4. User cache directory
-    try:
-        cache_dir = _get_user_cache_dir()
-        cache_dir.mkdir(exist_ok=True, parents=True)
-        _test_directory_writable(cache_dir)
-        logger.debug(f"Using user cache directory: {cache_dir}")
-        return cache_dir
-    except (PermissionError, OSError) as e:
-        logger.debug(f"User cache not available: {e}")
-    
-    # 5. Fallback to temp directory (last resort)
-    cache_dir = _get_fallback_cache_dir()
-    cache_dir.mkdir(exist_ok=True, parents=True)
-    logger.warning(f"Using fallback temp directory cache (not persistent): {cache_dir}")
-    return cache_dir
+        raise RuntimeError(
+            f"Package cache directory not writable and no explicit cache configured: {cache_dir}. "
+            "To use external directories, set ephemeral_cache_dir in TerminaideConfig or "
+            "set the TERMINAIDE_CACHE_DIR environment variable."
+        ) from e
 
 
-def get_ephemeral_dir(config: Optional["TerminaideConfig"] = None, force_refresh: bool = False) -> Path:
+def get_ephemeral_dir(config: Optional[Any] = None, force_refresh: bool = False) -> Path:
     """Get the ephemeral directory path with configurable cache support.
     
     Args:
@@ -278,7 +258,7 @@ def ensure_script_exists(script_path: Path, regenerate_func: Callable[[], Path])
 def get_or_ensure_function_wrapper(
     func: Callable, 
     args: Optional[List[str]] = None, 
-    config: Optional["TerminaideConfig"] = None
+    config: Optional[Any] = None
 ) -> Path:
     """Get function wrapper script, regenerating if missing (lazy validation + configurable cache).
     
@@ -303,7 +283,7 @@ def get_or_ensure_function_wrapper(
 def generate_function_wrapper(
     func: Callable, 
     args: Optional[List[str]] = None, 
-    config: Optional["TerminaideConfig"] = None
+    config: Optional[Any] = None
 ) -> Path:
     """Generate an ephemeral script for the given function (optimized with configurable cache).
     
@@ -382,7 +362,7 @@ def generate_function_wrapper(
         return write_wrapper_file(script_path, error_content)
 
 
-def cleanup_stale_ephemeral_files(config: Optional["TerminaideConfig"] = None) -> None:
+def cleanup_stale_ephemeral_files(config: Optional[Any] = None) -> None:
     """Clean up all ephemeral files on startup (safety net, optimized).
     
     Args:
@@ -431,6 +411,7 @@ def generate_dynamic_wrapper_script(
     static_args: List[str],
     python_executable: str = "python",
     args_param: str = "args",
+    cache_dir: Optional[Path] = None,
 ) -> str:
     """
     Generate a Python wrapper script that waits for dynamic arguments from a temp file.
@@ -440,6 +421,7 @@ def generate_dynamic_wrapper_script(
         static_args: List of static arguments always passed to the script
         python_executable: Python executable to use
         args_param: Name of the query parameter containing arguments
+        cache_dir: Cache directory for parameter files (if None, uses ephemeral cache)
 
     Returns:
         The wrapper script content as a string
@@ -447,6 +429,11 @@ def generate_dynamic_wrapper_script(
     # Escape arguments for safe inclusion in the script
     static_args_repr = repr(static_args)
     script_path_str = str(script_path)
+
+    # Get cache directory for parameter files
+    if cache_dir is None:
+        cache_dir = get_ephemeral_dir()
+    cache_dir_str = str(cache_dir)
 
     wrapper_content = dedent(
         f"""
@@ -466,8 +453,9 @@ sanitized_route = route_path.replace("/", "_")
 if sanitized_route == "_":
     sanitized_route = "_root"
 
-# Construct temp file path
-param_file = f"/tmp/terminaide_params_{{sanitized_route}}.json"
+# Construct parameter file path in cache directory
+cache_dir = Path({repr(cache_dir_str)})
+param_file = cache_dir / f"terminaide_params_{{sanitized_route}}.json"
 
 # Static configuration
 script_path = {repr(script_path_str)}
@@ -538,7 +526,7 @@ def create_dynamic_wrapper_file(
     wrapper_dir: Optional[Path] = None,
     python_executable: str = "python",
     args_param: str = "args",
-    config: Optional["TerminaideConfig"] = None,
+    config: Optional[Any] = None,
 ) -> Path:
     """
     Create a dynamic wrapper script file for a given script.
@@ -555,9 +543,12 @@ def create_dynamic_wrapper_file(
     Returns:
         Path to the created wrapper script
     """
+    # Determine cache directory for parameter files
+    cache_dir = get_ephemeral_dir(config)
+    
     # Generate wrapper content
     wrapper_content = generate_dynamic_wrapper_script(
-        script_path, static_args, python_executable, args_param
+        script_path, static_args, python_executable, args_param, cache_dir
     )
 
     # Determine wrapper directory
@@ -597,22 +588,24 @@ def parse_args_query_param(args_str: str, args_param: str = "args") -> List[str]
     return [arg.strip() for arg in args_str.split(",") if arg.strip()]
 
 
-def write_query_params_file(route_path: str, query_params: dict) -> Path:
+def write_query_params_file(route_path: str, query_params: dict, config: Optional[Any] = None) -> Path:
     """
-    Write query parameters to a temp file for the dynamic wrapper to read.
+    Write query parameters to a file for the dynamic wrapper to read.
 
     Args:
         route_path: The route path (used to generate filename)
         query_params: Dictionary of query parameters
+        config: Optional configuration with cache directory override
 
     Returns:
-        Path to the created temp file
+        Path to the created parameter file
     """
     # Sanitize route path for filename
     sanitized_route = sanitize_route_path(route_path)
 
-    # Create temp file path
-    param_file = Path(f"/tmp/terminaide_params_{sanitized_route}.json")
+    # Create parameter file path in cache directory
+    cache_dir = get_ephemeral_dir(config)
+    param_file = cache_dir / f"terminaide_params_{sanitized_route}.json"
 
     # Write parameters
     data = {"type": "query_params", "params": query_params, "timestamp": time.time()}
@@ -631,18 +624,19 @@ def write_query_params_file(route_path: str, query_params: dict) -> Path:
         raise
 
 
-def cleanup_stale_param_files(max_age_seconds: int = 300) -> None:
+def cleanup_stale_param_files(max_age_seconds: int = 300, config: Optional[Any] = None) -> None:
     """
     Clean up old parameter files that may have been left behind.
 
     Args:
         max_age_seconds: Remove files older than this many seconds
+        config: Optional configuration with cache directory override
     """
     try:
         current_time = time.time()
-        temp_dir = Path("/tmp")
+        cache_dir = get_ephemeral_dir(config)
 
-        for param_file in temp_dir.glob("terminaide_params_*.json"):
+        for param_file in cache_dir.glob("terminaide_params_*.json"):
             try:
                 # Check file age
                 file_age = current_time - param_file.stat().st_mtime

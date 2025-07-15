@@ -43,6 +43,27 @@ When you serve a Python function or script(s) with Terminaide, several things ha
 
 Terminaide is designed for rapid prototyping with small user bases, not high-traffic production. It provides basic security via TTYD authentication. For deployments, implement proper authentication, network isolation, and access controls.
 
+### Security Notes
+
+By default, Terminaide creates temporary files only within the package directory (`terminaide/cache/`). To use external directories for file storage, you must explicitly configure cache directories:
+
+```python
+# Set explicit cache directories for security compliance
+from terminaide import serve_function, TerminaideConfig
+
+config = TerminaideConfig(
+    ephemeral_cache_dir="/secure/cache",     # For temporary scripts
+    monitor_log_path="/secure/logs/app.log"  # For monitor logs
+)
+
+serve_function(my_function, config=config)
+
+# Or use environment variables
+import os
+os.environ["TERMINAIDE_CACHE_DIR"] = "/secure/cache"
+os.environ["TERMINAIDE_MONITOR_LOG"] = "/secure/logs/app.log"
+```
+
 ## Installation
 
 Install it from PyPI via your favorite package manager:
@@ -183,6 +204,10 @@ Additionally, the Apps Server accepts several options for managing multiple term
     "preview_image": "default.png",        # Default preview image for social media
     "template_override": "custom.html",    # Custom HTML template file
     "trust_proxy_headers": True,           # Trust proxy headers for authentication
+    
+    # Cache Configuration (Security)
+    "ephemeral_cache_dir": "/custom/cache", # Override for ephemeral script storage (default: package cache)
+    "monitor_log_path": "/custom/logs/monitor.log", # Override for monitor log file location (default: package cache)
     
     # TTYD Process Options
     "ttyd_options": {

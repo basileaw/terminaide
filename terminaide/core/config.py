@@ -142,6 +142,7 @@ class TerminaideConfig:
     
     # Cache configuration
     ephemeral_cache_dir: Optional[Path] = None  # Override for ephemeral script storage
+    monitor_log_path: Optional[Path] = None  # Override for monitor log file location
 
     # Internal fields (not exposed directly)
     _target: Optional[Union[Callable, Path, Dict[str, Any]]] = None

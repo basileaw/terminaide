@@ -229,7 +229,7 @@ class ProxyManager:
         if script_config.dynamic:
             query_params = dict(websocket.query_params)
             try:
-                write_query_params_file(route_path, query_params)
+                write_query_params_file(route_path, query_params, self.config)
                 log_msg = f"Wrote {'empty ' if not query_params else ''}query params for dynamic route {route_path}"
                 if query_params:
                     log_msg += f": {query_params}"
