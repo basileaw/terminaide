@@ -517,7 +517,7 @@ if not dynamic_args and waited_time >= max_wait_time:
 all_args = static_args + dynamic_args
 
 # Launch the actual script
-cmd = [sys.executable, script_path] + all_args
+cmd = [{repr(python_executable)}, script_path] + all_args
 
 # Execute the script, forwarding all I/O
 try:
