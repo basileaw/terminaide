@@ -552,9 +552,9 @@ class TTYDManager:
                         logger.warning(f"Failed to clean up dynamic wrapper: {e}")
                     
                     # Also clean up any lingering parameter file
-                    from .wrappers import get_ephemeral_dir, sanitize_route_path
+                    from .wrappers import get_params_dir, sanitize_route_path
                     sanitized_route = sanitize_route_path(route_path)
-                    cache_dir = get_ephemeral_dir(self.config)
+                    cache_dir = get_params_dir(self.config)
                     param_file = cache_dir / f"terminaide_params_{sanitized_route}.json"
                     if param_file.exists():
                         try:

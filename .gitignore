@@ -1,4 +1,12 @@
+terminaide/cache/scripts/*
+terminaide/cache/params/*
+terminaide/cache/logs/*
+terminaide/cache/assets/*
+terminaide/cache/binaries/*
+**.pytest_cache/
 **/__pycache__
+CLAUDE.md
+.claude/
 **/*.pyc
 **/*.pyo
 **/*.pyd
@@ -9,12 +17,3 @@
 dist/
 test.py
 .env
-
-terminaide/bin/*
-!terminaide/bin/.gitkeep
-terminaide/cache/ephemeral/*
-
-CLAUDE.md
-.claude/
-
-**.pytest_cache/

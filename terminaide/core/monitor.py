@@ -14,7 +14,9 @@ from typing import Optional
 def _get_package_cache_dir() -> Path:
     """Get package-based cache directory for monitor logs."""
     package_root = Path(__file__).parent.parent  # terminaide/
-    return package_root / "cache"
+    logs_dir = package_root / "cache" / "logs"
+    logs_dir.mkdir(exist_ok=True, parents=True)  # Ensure directory exists
+    return logs_dir
 
 
 def _resolve_monitor_log_path(config_path: Optional[Path] = None) -> Path:
@@ -114,10 +116,19 @@ def monitor_read_standalone(output_file=None, use_curses=True):
     import json
     from collections import deque
     import queue
+    from pathlib import Path
 
     # Set default output file
     if output_file is None:
         output_file = str(_resolve_monitor_log_path())
+
+    # Ensure the log file exists - create empty one if not
+    output_path = Path(output_file)
+    if not output_path.exists():
+        output_path.parent.mkdir(exist_ok=True, parents=True)
+        config_header = f"MONITOR_CONFIG: {json.dumps({'title': 'MONITOR'})}\n--- LOG START ---\n"
+        with open(output_path, "w") as f:
+            f.write(config_header)
 
     # Extract config from log file, fallback to defaults
     title = "MONITOR"

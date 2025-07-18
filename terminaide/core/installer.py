@@ -184,10 +184,10 @@ def get_binary_dir() -> Path:
     Get the directory where the ttyd binary should be installed.
 
     Returns:
-        Path to the bin directory within the terminaide package
+        Path to the binaries directory within the terminaide cache
     """
     package_dir = Path(__file__).parent.parent  # Go up from core to terminaide
-    bin_dir = package_dir / "bin"
+    bin_dir = package_dir / "cache" / "binaries"
     bin_dir.mkdir(parents=True, exist_ok=True)
     return bin_dir
 

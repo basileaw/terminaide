@@ -12,6 +12,7 @@ import json
 import time
 import inspect
 import logging
+import shutil
 from functools import lru_cache
 from pathlib import Path
 from textwrap import dedent
@@ -35,19 +36,30 @@ def _test_directory_writable(directory: Path) -> None:
 
 
 def _get_package_cache_dir() -> Path:
-    """Get package-based cache directory."""
+    """Get package-based cache directory for scripts."""
     package_root = Path(__file__).parent.parent  # terminaide/
-    return package_root / "cache" / "ephemeral"
+    return package_root / "cache" / "scripts"
+
+
+def _get_package_params_cache_dir() -> Path:
+    """Get package-based cache directory for parameter files."""
+    package_root = Path(__file__).parent.parent  # terminaide/
+    return package_root / "cache" / "params"
 
 
 
 
-def _resolve_cache_directory(config: Optional[Any] = None) -> Path:
-    """Resolve cache directory in priority order."""
+def _resolve_cache_directory(config: Optional[Any] = None, cache_type: str = "scripts") -> Path:
+    """Resolve cache directory in priority order.
+    
+    Args:
+        config: Optional configuration object with cache directory override
+        cache_type: Type of cache ("scripts" or "params")
+    """
     
     # 1. Explicit config parameter (highest priority)
     if config and hasattr(config, 'ephemeral_cache_dir') and config.ephemeral_cache_dir:
-        cache_dir = config.ephemeral_cache_dir
+        cache_dir = config.ephemeral_cache_dir / cache_type
         logger.debug(f"Using configured cache directory: {cache_dir}")
         try:
             cache_dir.mkdir(exist_ok=True, parents=True)
@@ -58,7 +70,7 @@ def _resolve_cache_directory(config: Optional[Any] = None) -> Path:
     
     # 2. Environment variable override
     if env_dir := os.environ.get("TERMINAIDE_CACHE_DIR"):
-        cache_dir = Path(env_dir)
+        cache_dir = Path(env_dir) / cache_type
         logger.debug(f"Using environment cache directory: {cache_dir}")
         try:
             cache_dir.mkdir(exist_ok=True, parents=True)
@@ -69,7 +81,10 @@ def _resolve_cache_directory(config: Optional[Any] = None) -> Path:
     
     # 3. Package cache (only fallback)
     try:
-        cache_dir = _get_package_cache_dir()
+        if cache_type == "params":
+            cache_dir = _get_package_params_cache_dir()
+        else:
+            cache_dir = _get_package_cache_dir()
         cache_dir.mkdir(exist_ok=True, parents=True)
         _test_directory_writable(cache_dir)
         logger.debug(f"Using package cache directory: {cache_dir}")
@@ -91,13 +106,13 @@ def get_ephemeral_dir(config: Optional[Any] = None, force_refresh: bool = False)
         force_refresh: If True, bypass cache and resolve directory fresh
     
     Returns:
-        Path to the ephemeral directory
+        Path to the scripts directory (for backward compatibility)
     """
     global _ephemeral_dir_cache
     
     # If config provided or force refresh, resolve fresh
     if config or force_refresh or _ephemeral_dir_cache is None:
-        resolved_dir = _resolve_cache_directory(config)
+        resolved_dir = _resolve_cache_directory(config, "scripts")
         
         # Only cache if no config override (to avoid config bleeding between calls)
         if not config:
@@ -107,6 +122,18 @@ def get_ephemeral_dir(config: Optional[Any] = None, force_refresh: bool = False)
     
     # Use cached directory for simple calls
     return _ephemeral_dir_cache
+
+
+def get_params_dir(config: Optional[Any] = None) -> Path:
+    """Get the parameter files directory path.
+    
+    Args:
+        config: Optional configuration object with cache directory override
+    
+    Returns:
+        Path to the params directory
+    """
+    return _resolve_cache_directory(config, "params")
 
 
 @lru_cache(maxsize=256)
@@ -368,8 +395,11 @@ def cleanup_stale_ephemeral_files(config: Optional[Any] = None) -> None:
     Args:
         config: Optional configuration to determine cache directory
     """
+    # Run cache migration first, before cleaning up
+    migrate_cache_structure()
+    
     try:
-        temp_dir = get_ephemeral_dir(config)
+        temp_dir = get_ephemeral_dir(config)  # This now points to scripts directory
         
         # Use glob pattern matching for better performance
         py_files = list(temp_dir.glob("*.py"))
@@ -432,7 +462,7 @@ def generate_dynamic_wrapper_script(
 
     # Get cache directory for parameter files
     if cache_dir is None:
-        cache_dir = get_ephemeral_dir()
+        cache_dir = get_params_dir()
     cache_dir_str = str(cache_dir)
 
     wrapper_content = dedent(
@@ -544,11 +574,11 @@ def create_dynamic_wrapper_file(
         Path to the created wrapper script
     """
     # Determine cache directory for parameter files
-    cache_dir = get_ephemeral_dir(config)
+    params_cache_dir = get_params_dir(config)
     
     # Generate wrapper content
     wrapper_content = generate_dynamic_wrapper_script(
-        script_path, static_args, python_executable, args_param, cache_dir
+        script_path, static_args, python_executable, args_param, params_cache_dir
     )
 
     # Determine wrapper directory
@@ -603,8 +633,8 @@ def write_query_params_file(route_path: str, query_params: dict, config: Optiona
     # Sanitize route path for filename
     sanitized_route = sanitize_route_path(route_path)
 
-    # Create parameter file path in cache directory
-    cache_dir = get_ephemeral_dir(config)
+    # Create parameter file path in params cache directory
+    cache_dir = get_params_dir(config)
     param_file = cache_dir / f"terminaide_params_{sanitized_route}.json"
 
     # Write parameters
@@ -634,7 +664,7 @@ def cleanup_stale_param_files(max_age_seconds: int = 300, config: Optional[Any] 
     """
     try:
         current_time = time.time()
-        cache_dir = get_ephemeral_dir(config)
+        cache_dir = get_params_dir(config)
 
         for param_file in cache_dir.glob("terminaide_params_*.json"):
             try:
@@ -647,3 +677,105 @@ def cleanup_stale_param_files(max_age_seconds: int = 300, config: Optional[Any] 
                 logger.debug(f"Error checking age of {param_file}: {e}")
     except Exception as e:
         logger.debug(f"Error during param file cleanup: {e}")
+
+
+def migrate_cache_structure() -> None:
+    """
+    Migrate existing cache files to the new directory structure.
+    
+    This function is called on startup to move files from the old structure:
+    - cache/ephemeral/ -> cache/scripts/ and cache/params/  
+    - cache/monitor.log -> cache/logs/monitor.log
+    - bin/ttyd -> cache/binaries/ttyd
+    - custom preview images in static/ -> cache/assets/ (copies)
+    """
+    try:
+        package_root = Path(__file__).parent.parent  # terminaide/
+        
+        # 1. Migrate ephemeral files to scripts and params directories
+        old_ephemeral_dir = package_root / "cache" / "ephemeral"
+        if old_ephemeral_dir.exists():
+            scripts_dir = package_root / "cache" / "scripts"
+            params_dir = package_root / "cache" / "params"
+            scripts_dir.mkdir(exist_ok=True, parents=True)
+            params_dir.mkdir(exist_ok=True, parents=True)
+            
+            moved_count = 0
+            for file_path in old_ephemeral_dir.iterdir():
+                if file_path.is_file():
+                    if file_path.name.startswith("terminaide_params_") and file_path.suffix == ".json":
+                        # Move parameter files to params directory
+                        new_path = params_dir / file_path.name
+                        if not new_path.exists():
+                            file_path.rename(new_path)
+                            moved_count += 1
+                            logger.debug(f"Migrated parameter file: {file_path} -> {new_path}")
+                    elif file_path.suffix == ".py":
+                        # Move Python scripts to scripts directory
+                        new_path = scripts_dir / file_path.name
+                        if not new_path.exists():
+                            file_path.rename(new_path)
+                            moved_count += 1
+                            logger.debug(f"Migrated script file: {file_path} -> {new_path}")
+            
+            # Remove old ephemeral directory if empty
+            try:
+                if not any(old_ephemeral_dir.iterdir()):
+                    old_ephemeral_dir.rmdir()
+                    logger.debug(f"Removed empty ephemeral directory: {old_ephemeral_dir}")
+            except OSError:
+                pass  # Directory not empty or other issue
+            
+            if moved_count > 0:
+                logger.info(f"Migrated {moved_count} files from ephemeral directory to new structure")
+        
+        # 2. Migrate monitor log
+        old_monitor_log = package_root / "cache" / "monitor.log"
+        if old_monitor_log.exists():
+            logs_dir = package_root / "cache" / "logs"
+            logs_dir.mkdir(exist_ok=True, parents=True)
+            new_monitor_log = logs_dir / "monitor.log"
+            if not new_monitor_log.exists():
+                old_monitor_log.rename(new_monitor_log)
+                logger.info(f"Migrated monitor log: {old_monitor_log} -> {new_monitor_log}")
+        
+        # 3. Migrate ttyd binary
+        old_ttyd_binary = package_root / "bin" / "ttyd"
+        if old_ttyd_binary.exists():
+            binaries_dir = package_root / "cache" / "binaries"
+            binaries_dir.mkdir(exist_ok=True, parents=True)
+            new_ttyd_binary = binaries_dir / "ttyd"
+            if not new_ttyd_binary.exists():
+                old_ttyd_binary.rename(new_ttyd_binary)
+                logger.info(f"Migrated ttyd binary: {old_ttyd_binary} -> {new_ttyd_binary}")
+                
+                # Remove old bin directory if empty
+                try:
+                    old_bin_dir = package_root / "bin"
+                    if not any(old_bin_dir.iterdir()):
+                        old_bin_dir.rmdir()
+                        logger.debug(f"Removed empty bin directory: {old_bin_dir}")
+                except OSError:
+                    pass  # Directory not empty or other issue
+        
+        # 4. Copy custom preview images from static/ to cache/assets/
+        static_dir = package_root / "static"
+        if static_dir.exists():
+            assets_dir = package_root / "cache" / "assets"
+            assets_dir.mkdir(exist_ok=True, parents=True)
+            
+            copied_count = 0
+            for file_path in static_dir.iterdir():
+                if file_path.is_file() and file_path.name.startswith("preview_") and file_path.name != "preview.png":
+                    # This is a custom preview image (not the default one)
+                    assets_path = assets_dir / file_path.name
+                    if not assets_path.exists():
+                        shutil.copy2(file_path, assets_path)
+                        copied_count += 1
+                        logger.debug(f"Copied custom preview image to assets: {file_path} -> {assets_path}")
+            
+            if copied_count > 0:
+                logger.info(f"Copied {copied_count} custom preview images to assets directory")
+    
+    except Exception as e:
+        logger.warning(f"Cache migration encountered errors (non-critical): {e}")

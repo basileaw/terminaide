@@ -70,7 +70,7 @@ def smart_resolve_path(path: Union[str, Path, Callable]) -> Union[Path, Callable
 
 def copy_preview_image_to_static(preview_image: Path) -> str:
     """
-    Copy a preview image to the static directory with a unique name based on its content.
+    Copy a preview image to the cache assets directory and then to static directory.
     Returns the filename of the copied image in the static directory.
     """
     logger.debug(f"copy_preview_image_to_static called with: {preview_image}")
@@ -79,8 +79,13 @@ def copy_preview_image_to_static(preview_image: Path) -> str:
         logger.debug(f"Preview image doesn't exist, using default: {preview_image}")
         return "preview.png"  # Use default
 
-    # Get the static directory
-    static_dir = Path(__file__).parent.parent / "static"
+    # Get both directories
+    package_dir = Path(__file__).parent.parent
+    assets_dir = package_dir / "cache" / "assets"
+    static_dir = package_dir / "static"
+    
+    # Ensure both directories exist
+    assets_dir.mkdir(exist_ok=True, parents=True)
     static_dir.mkdir(exist_ok=True)
 
     # Generate a unique filename based on the image content hash
@@ -97,11 +102,16 @@ def copy_preview_image_to_static(preview_image: Path) -> str:
             return "preview.png"
 
         new_filename = f"preview_{file_hash}{extension}"
-        new_path = static_dir / new_filename
+        assets_path = assets_dir / new_filename
+        static_path = static_dir / new_filename
 
-        # Copy the file
-        shutil.copy2(preview_image, new_path)
-        logger.debug(f"Copied preview image from {preview_image} to {new_path}")
+        # Copy to assets directory first (source of truth)
+        shutil.copy2(preview_image, assets_path)
+        logger.debug(f"Copied preview image from {preview_image} to {assets_path}")
+        
+        # Then copy to static directory for serving
+        shutil.copy2(assets_path, static_path)
+        logger.debug(f"Copied preview image from {assets_path} to {static_path}")
 
         return new_filename
     except Exception as e:
