@@ -140,10 +140,15 @@ class TTYDManager:
         # Clean up any stale parameter files
         cleanup_stale_param_files()
         
-        # Only clean up stale ephemeral script files if we're NOT in apps mode with function-based routes
-        # In apps mode, serve_apps() creates wrapper scripts before TTYDManager init, so we shouldn't delete them
+        # Only clean up stale ephemeral script files if we don't have function-based routes
+        # Function-based routes create wrapper scripts that shouldn't be deleted
         has_function_routes = any(cfg.is_function_based for cfg in self.terminal_configs)
-        if not (config.is_multi_script and has_function_routes):
+        entry_mode = getattr(self.config, '_mode', 'script')
+        
+        # Never cleanup in function mode - the wrapper was just created
+        if entry_mode == 'function' or has_function_routes:
+            logger.debug(f"Skipping ephemeral cleanup (function mode or function routes detected)")
+        else:
             cleanup_stale_ephemeral_files()
 
     def _setup_ttyd(self, force_reinstall: bool = None) -> None:

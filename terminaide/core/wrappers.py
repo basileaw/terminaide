@@ -143,8 +143,11 @@ def sanitize_route_path(route_path: str) -> str:
     return "_root" if sanitized == "_" else sanitized
 
 
-def write_wrapper_file(file_path: Path, content: str, executable: bool = False) -> Path:
-    """Write wrapper file and track it for cleanup (optimized I/O)."""
+def write_wrapper_file(file_path: Path, content: str, executable: bool = False, register_for_cleanup: bool = True) -> Path:
+    """Write wrapper file and optionally track it for cleanup (optimized I/O)."""
+    # Ensure parent directory exists
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    
     # Write content in one operation
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
@@ -153,8 +156,14 @@ def write_wrapper_file(file_path: Path, content: str, executable: bool = False) 
     if executable:
         file_path.chmod(0o755)
 
-    # Track for cleanup
-    _ephemeral_files_registry.add(file_path)
+    # Track for cleanup only if requested
+    if register_for_cleanup:
+        _ephemeral_files_registry.add(file_path)
+        logger.debug(f"File added to cleanup registry: {file_path}")
+    else:
+        logger.debug(f"File NOT registered for cleanup: {file_path}")
+    
+    logger.debug(f"Successfully wrote wrapper file: {file_path}")
     return file_path
 
 
@@ -325,11 +334,15 @@ def generate_function_wrapper(
     func_name, module_name = func.__name__, getattr(func, "__module__", None)
     temp_dir = get_ephemeral_dir(config)
     script_path = temp_dir / f"{func_name}.py"
+    
+    logger.debug(f"Generating wrapper for function {func_name} from module {module_name}")
+    logger.debug(f"Target script path: {script_path}")
 
     # Get source directory (optimized path operations)
     try:
         source_file = inspect.getsourcefile(func) or inspect.getfile(func)
         source_dir = str(Path(source_file).parent.resolve())
+        logger.debug(f"Source file: {source_file}, source dir: {source_dir}")
     except Exception as e:
         source_dir = os.getcwd()
         logger.debug(
@@ -345,6 +358,7 @@ def generate_function_wrapper(
 
     # Import approach for normal modules
     if module_name and module_name not in ("__main__", "__mp_main__", "main"):
+        logger.debug(f"Using import approach for module {module_name}")
         # Use string concatenation for better performance than f-strings in loops
         wrapper_code = (
             "# Ephemeral script for "
@@ -359,11 +373,14 @@ def generate_function_wrapper(
             + "\nif __name__ == '__main__':\n"
             + call_line
         )
-        return write_wrapper_file(script_path, wrapper_code)
+        # Don't register function wrappers for cleanup - they need to persist for ttyd
+        return write_wrapper_file(script_path, wrapper_code, register_for_cleanup=False)
 
     # Inline fallback
+    logger.debug(f"Using inline approach for function {func_name}")
     try:
         source_code = inspect.getsource(func)
+        logger.debug(f"Got source code for {func_name}: {len(source_code)} chars")
         module_imports = get_module_imports_for_func(func)
         wrapper_code = (
             "# Inline wrapper for "
@@ -376,8 +393,11 @@ def generate_function_wrapper(
             + "\nif __name__ == '__main__':\n"
             + call_line
         )
-        return write_wrapper_file(script_path, wrapper_code)
+        logger.debug(f"Generated wrapper code: {len(wrapper_code)} chars")
+        # Don't register function wrappers for cleanup - they need to persist for ttyd
+        return write_wrapper_file(script_path, wrapper_code, register_for_cleanup=False)
     except Exception as e:
+        logger.error(f"Failed to inline function source for {func_name}: {e}")
         logger.warning(f"Failed to inline function source, creating error wrapper: {e}")
         error_content = (
             'print("ERROR: cannot reload function '
@@ -386,7 +406,8 @@ def generate_function_wrapper(
             + str(module_name)
             + '")\n'
         )
-        return write_wrapper_file(script_path, error_content)
+        # Error wrappers should be cleaned up
+        return write_wrapper_file(script_path, error_content, register_for_cleanup=True)
 
 
 def cleanup_stale_ephemeral_files(config: Optional[Any] = None) -> None:
