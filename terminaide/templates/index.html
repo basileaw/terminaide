@@ -692,9 +692,20 @@
                         e.preventDefault();
                         const menuElements = document.querySelectorAll('.menu-item');
                         if (menuElements[selectedIndex]) {
+                            const item = currentMenuItems[selectedIndex];
                             const href = menuElements[selectedIndex].getAttribute('href');
-                            const isExternal = href.startsWith('http://') || href.startsWith('https://');
-                            if (isExternal) {
+                            
+                            // Determine whether to open in new tab
+                            let openInNewTab = false;
+                            if (item.new_tab !== undefined) {
+                                // Use explicit new_tab setting if provided
+                                openInNewTab = item.new_tab;
+                            } else {
+                                // Fall back to default behavior (external links in new tab)
+                                openInNewTab = href.startsWith('http://') || href.startsWith('https://');
+                            }
+                            
+                            if (openInNewTab) {
                                 window.open(href, '_blank');
                             } else {
                                 window.location.href = href;
@@ -754,8 +765,11 @@
             currentMenuItems.forEach((item, index) => {
                 const link = document.createElement('a');
                 link.href = item.path;
-                const isExternal = item.path.startsWith('http://') || item.path.startsWith('https://');
-                link.className = 'menu-item' + (index === 0 ? ' selected' : '') + (isExternal ? ' external' : '');
+                
+                // Only show external indicator for actual external URLs
+                const isExternalUrl = item.path.startsWith('http://') || item.path.startsWith('https://');
+                
+                link.className = 'menu-item' + (index === 0 ? ' selected' : '') + (isExternalUrl ? ' external' : '');
                 link.textContent = item.title;
 
                 // Add event listeners
@@ -764,7 +778,15 @@
                     selectedIndex = index;
                     updateSelection();
                     setTimeout(() => {
-                        if (isExternal) {
+                        // Determine whether to open in new tab
+                        let openInNewTab = false;
+                        if (item.new_tab !== undefined) {
+                            openInNewTab = item.new_tab;
+                        } else {
+                            openInNewTab = item.path.startsWith('http://') || item.path.startsWith('https://');
+                        }
+                        
+                        if (openInNewTab) {
                             window.open(this.getAttribute('href'), '_blank');
                         } else {
                             window.location.href = this.getAttribute('href');

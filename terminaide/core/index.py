@@ -27,24 +27,28 @@ exit_requested = False
 class BaseMenuItem:
     """Base menu item with path, title, and optional execution parameters."""
 
-    __slots__ = ("path", "title", "function", "script", "launcher_args")
+    __slots__ = ("path", "title", "function", "script", "launcher_args", "new_tab")
 
     def __init__(
-        self, path: str, title: str, function=None, script=None, launcher_args=None
+        self, path: str, title: str, function=None, script=None, launcher_args=None, new_tab=None
     ):
         self.path = path
         self.title = title
         self.function = function
         self.script = script
         self.launcher_args = launcher_args or {}
+        self.new_tab = new_tab
 
     def is_external(self) -> bool:
         """Check if this is an external URL."""
         return self.path.startswith(("http://", "https://"))
 
-    def to_dict(self) -> Dict[str, str]:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        return {"path": self.path, "title": self.title}
+        result = {"path": self.path, "title": self.title}
+        if self.new_tab is not None:
+            result["new_tab"] = self.new_tab
+        return result
 
 
 class BaseIndex:
@@ -111,6 +115,7 @@ class BaseIndex:
             function=item.get("function"),
             script=item.get("script"),
             launcher_args=item.get("launcher_args", {}),
+            new_tab=item.get("new_tab"),
         )
 
     def get_all_menu_items(self) -> List[BaseMenuItem]:
@@ -181,6 +186,7 @@ class AutoIndex(BaseIndex):
             function=item.get("function"),
             script=item.get("script"),
             launcher_args=item.get("launcher_args", {}),
+            new_tab=item.get("new_tab"),
         )
 
     def get_all_menu_items(self) -> List[AutoMenuItem]:
