@@ -12,21 +12,33 @@
 # - Colored output - Labels displayed in their GitHub colors
 #
 # INSTALLATION:
-# 1. Copy Makefile.issue-manager to your project root
+# 1. Copy Makefile.issue-manager to your project's tools/ directory
 # 2. Add this line to your main Makefile:
 #    -include Makefile.issue-manager
 # 3. Set up your GitHub token (see below)
 #
 # REQUIREMENTS:
 # - Tools: git, curl, jq, bash
+# - GNU Make (standard on most systems; won't work with BSD make)
 # - GitHub token: Set GITHUB_TOKEN in environment or .env file
 # - Git repository: Must have GitHub remote origin
+#
+# INSTALLING DEPENDENCIES:
+# - macOS: brew install jq
+# - Ubuntu/Debian: apt-get install jq  
+# - CentOS/RHEL: yum install jq
+# - Alpine: apk add jq
 #
 # SETUP GITHUB TOKEN:
 # Create a .env file in your project root:
 #   GITHUB_TOKEN=your_github_personal_access_token
 # Or export it in your shell:
 #   export GITHUB_TOKEN=your_github_personal_access_token
+#
+# GITHUB TOKEN PERMISSIONS:
+# Your personal access token needs these scopes:
+# - repo (for private repos) or public_repo (for public repos only)
+# - No additional scopes required for basic issue management
 #
 # COMMANDS:
 #   make list               - List all open issues
@@ -51,8 +63,9 @@
 # TROUBLESHOOTING:
 # - "GITHUB_TOKEN not set": Create .env file or export the token
 # - "Not a git repository": Ensure you're in a git repo with GitHub remote
-# - "Missing required tools": Install git, curl, and jq
+# - "Missing required tools": Install git, curl, and jq (see INSTALLING DEPENDENCIES above)
 # - Rate limiting: GitHub API has rate limits; use a personal access token
+# - Colors not working: Some CI/CD environments don't support ANSI colors
 #
 # NOTES:
 # - The -include directive means make won't error if the file is missing
@@ -67,7 +80,7 @@ REQUIRED_TOOLS := git curl jq
 check_tool = $(shell command -v $(1) 2>/dev/null || echo "")
 MISSING_TOOLS := $(foreach tool,$(REQUIRED_TOOLS),$(if $(call check_tool,$(tool)),,$(tool)))
 ifneq ($(strip $(MISSING_TOOLS)),)
-$(error Missing required tools: $(MISSING_TOOLS). Please install them first)
+$(error Missing required tools: $(MISSING_TOOLS). Install with: brew install $(MISSING_TOOLS) (macOS) or apt install $(MISSING_TOOLS) (Ubuntu))
 endif
 
 # Shell settings

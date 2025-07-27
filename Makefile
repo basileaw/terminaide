@@ -13,7 +13,7 @@ TASK_RUNNER := python -m tools.tasks
 # =============================================================================
 
 # Include standalone issue management functionality
--include Makefile.issue-manager
+-include tools/Makefile.issue-manager
 
 # =============================================================================
 # DEMONSTRATIONS
