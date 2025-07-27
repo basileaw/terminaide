@@ -16,6 +16,13 @@ TASK_RUNNER := python -m tools.tasks
 -include tools/Makefile.issue-manager
 
 # =============================================================================
+# PYPI PUBLISHING
+# =============================================================================
+
+# Include standalone PyPI publishing functionality
+-include tools/Makefile.pypi-publisher
+
+# =============================================================================
 # DEMONSTRATIONS
 # =============================================================================
 
@@ -50,9 +57,14 @@ test:
 # PUBLICATION
 # =============================================================================
 
-# Release new version
+# Release new version (show usage - use specific targets)
 release:
-	@$(TASK_RUNNER) "python tools/publisher.py" $(ARGS)
+	@echo "Usage: Use specific release targets:"
+	@echo "  make release-patch        - Bump patch version and publish (1.0.0 → 1.0.1)"
+	@echo "  make release-minor        - Bump minor version and publish (1.0.0 → 1.1.0)"
+	@echo "  make release-major        - Bump major version and publish (1.0.0 → 2.0.0)"
+	@echo "  make release-dry-run-*    - Simulate any release type"
+	@echo "  make release-help         - Show detailed help"
 
 # =============================================================================
 # 
