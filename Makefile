@@ -12,23 +12,8 @@ TASK_RUNNER := python -m tools.tasks
 # ISSUE MANAGEMENT
 # =============================================================================
 
-list:
-	@$(TASK_RUNNER) "python tools/issues.py list"
-
-bug:
-	@$(TASK_RUNNER) "python tools/issues.py create bug"
-
-task:
-	@$(TASK_RUNNER) "python tools/issues.py create task"
-
-idea:
-	@$(TASK_RUNNER) "python tools/issues.py create idea"
-
-resolve:
-	@$(TASK_RUNNER) "python tools/issues.py resolve $(ARGS)"
-
-delete:
-	@$(TASK_RUNNER) "python tools/issues.py delete $(ARGS)"
+# Include standalone issue management functionality
+-include Makefile.issue-manager
 
 # =============================================================================
 # DEMONSTRATIONS

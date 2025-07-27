@@ -1,0 +1,326 @@
+# Makefile.issue-manager - Portable GitHub Issue Management
+#
+# A standalone Makefile that provides GitHub issue management functionality 
+# for any project type (Python, Node.js, etc.).
+#
+# FEATURES:
+# - List issues - Display all open issues with colored labels
+# - Create issues - Create bug, task, or idea issues interactively
+# - Resolve issues - Close one or multiple issues
+# - Delete issues - Permanently delete issues (uses GraphQL API)
+# - Auto-detection - Automatically detects repository from git remote
+# - Colored output - Labels displayed in their GitHub colors
+#
+# INSTALLATION:
+# 1. Copy Makefile.issue-manager to your project root
+# 2. Add this line to your main Makefile:
+#    -include Makefile.issue-manager
+# 3. Set up your GitHub token (see below)
+#
+# REQUIREMENTS:
+# - Tools: git, curl, jq, bash
+# - GitHub token: Set GITHUB_TOKEN in environment or .env file
+# - Git repository: Must have GitHub remote origin
+#
+# SETUP GITHUB TOKEN:
+# Create a .env file in your project root:
+#   GITHUB_TOKEN=your_github_personal_access_token
+# Or export it in your shell:
+#   export GITHUB_TOKEN=your_github_personal_access_token
+#
+# COMMANDS:
+#   make list               - List all open issues
+#   make bug                - Create a new bug issue (prompts for title)
+#   make task               - Create a new task issue (prompts for title)
+#   make idea               - Create a new idea issue (prompts for title)
+#   make resolve 1 2 3      - Resolve (close) issues by number
+#   make delete 1 2 3       - Delete issues permanently by number
+#   make issues-help        - Show help
+#
+# HOW IT WORKS:
+# - Uses curl for GitHub REST API and GraphQL calls
+# - Parses JSON responses with jq
+# - Detects repository from git remote get-url origin
+# - Converts GitHub label colors to terminal ANSI codes
+# - Supports batch operations on multiple issues
+#
+# PORTABILITY:
+# This Makefile is completely self-contained and can be used in:
+# - Python projects, Node.js projects, Go projects, Any project with git and make
+#
+# TROUBLESHOOTING:
+# - "GITHUB_TOKEN not set": Create .env file or export the token
+# - "Not a git repository": Ensure you're in a git repo with GitHub remote
+# - "Missing required tools": Install git, curl, and jq
+# - Rate limiting: GitHub API has rate limits; use a personal access token
+#
+# NOTES:
+# - The -include directive means make won't error if the file is missing
+# - All functionality is contained in shell functions within the Makefile
+# - No Python or other language runtime required
+# - GraphQL is only used for the delete operation (REST API can't delete issues)
+#
+# =============================================================================
+
+# Check for required tools
+REQUIRED_TOOLS := git curl jq
+check_tool = $(shell command -v $(1) 2>/dev/null || echo "")
+MISSING_TOOLS := $(foreach tool,$(REQUIRED_TOOLS),$(if $(call check_tool,$(tool)),,$(tool)))
+ifneq ($(strip $(MISSING_TOOLS)),)
+$(error Missing required tools: $(MISSING_TOOLS). Please install them first)
+endif
+
+# Shell settings
+SHELL := /bin/bash
+.SHELLFLAGS := -euo pipefail -c
+
+# Color definitions
+GREEN := \033[32m
+BRIGHT_GREEN := \033[1;32m
+RED := \033[31m
+BRIGHT_RED := \033[1;31m
+BLUE := \033[34m
+BRIGHT_BLUE := \033[1;34m
+CYAN := \033[36m
+GRAY := \033[90m
+BOLD := \033[1m
+RESET := \033[0m
+
+# GitHub API endpoints
+GITHUB_API := https://api.github.com
+GITHUB_GRAPHQL := https://api.github.com/graphql
+
+# Load environment variables from .env if it exists
+ifneq (,$(wildcard .env))
+include .env
+export
+endif
+
+# Get GitHub token
+define get_github_token
+	@if [ -z "$$GITHUB_TOKEN" ]; then \
+		echo -e "$(RED)Error: GITHUB_TOKEN environment variable not set$(RESET)" >&2; \
+		echo "Please set your GitHub token in .env file or environment" >&2; \
+		exit 1; \
+	fi
+endef
+
+# Get repository info from git remote
+define get_repo_info
+	REPO_URL=$$(git remote get-url origin 2>/dev/null || echo ""); \
+	if [ -z "$$REPO_URL" ]; then \
+		echo -e "$(RED)Error: Not a git repository or no remote origin found$(RESET)" >&2; \
+		exit 1; \
+	fi; \
+	if [[ "$$REPO_URL" =~ ^git@github.com:(.+)/(.+)\.git$$ ]]; then \
+		echo "$${BASH_REMATCH[1]}/$${BASH_REMATCH[2]}"; \
+	elif [[ "$$REPO_URL" =~ ^git@github.com:(.+)/(.+)$$ ]]; then \
+		echo "$${BASH_REMATCH[1]}/$${BASH_REMATCH[2]}"; \
+	elif [[ "$$REPO_URL" =~ ^https://github.com/(.+)/(.+)\.git$$ ]]; then \
+		echo "$${BASH_REMATCH[1]}/$${BASH_REMATCH[2]}"; \
+	elif [[ "$$REPO_URL" =~ ^https://github.com/(.+)/(.+)$$ ]]; then \
+		echo "$${BASH_REMATCH[1]}/$${BASH_REMATCH[2]}"; \
+	else \
+		echo -e "$(RED)Error: Unsupported git remote URL format: $$REPO_URL$(RESET)" >&2; \
+		exit 1; \
+	fi
+endef
+
+# GitHub API request function
+define github_request
+	RESPONSE=$$(curl -s -w "\n%{http_code}" \
+		-H "Authorization: token $$GITHUB_TOKEN" \
+		-H "Accept: application/vnd.github.v3+json" \
+		$(1)); \
+	HTTP_CODE=$$(echo "$$RESPONSE" | tail -n1); \
+	BODY=$$(echo "$$RESPONSE" | sed '$$d'); \
+	if [ -n "$$HTTP_CODE" ] && [ "$$HTTP_CODE" -ge 400 ]; then \
+		ERROR_MSG=$$(echo "$$BODY" | jq -r '.message // "Unknown error"' 2>/dev/null || echo "Unknown error"); \
+		echo -e "$(RED)GitHub API error ($$HTTP_CODE): $$ERROR_MSG$(RESET)" >&2; \
+		exit 1; \
+	fi; \
+	echo "$$BODY"
+endef
+
+# GitHub GraphQL request function
+define github_graphql
+	RESPONSE=$$(curl -s -w "\n%{http_code}" \
+		-H "Authorization: Bearer $$GITHUB_TOKEN" \
+		-H "Content-Type: application/json" \
+		-X POST \
+		-d '$(1)' \
+		$(GITHUB_GRAPHQL)); \
+	HTTP_CODE=$$(echo "$$RESPONSE" | tail -n1); \
+	BODY=$$(echo "$$RESPONSE" | sed '$$d'); \
+	if [ -n "$$HTTP_CODE" ] && [ "$$HTTP_CODE" -ge 400 ]; then \
+		echo -e "$(RED)GraphQL API error ($$HTTP_CODE)$(RESET)" >&2; \
+		exit 1; \
+	fi; \
+	ERRORS=$$(echo "$$BODY" | jq -r '.errors[]?.message' 2>/dev/null || echo ""); \
+	if [ -n "$$ERRORS" ]; then \
+		echo -e "$(RED)GraphQL error: $$ERRORS$(RESET)" >&2; \
+		exit 1; \
+	fi; \
+	echo "$$BODY"
+endef
+
+# Convert hex color to RGB ANSI escape code
+define hex_to_ansi
+	HEX=$(1); \
+	if [ -n "$$HEX" ] && [ "$${#HEX}" -eq 6 ]; then \
+		R=$$((16#$${HEX:0:2})); \
+		G=$$((16#$${HEX:2:2})); \
+		B=$$((16#$${HEX:4:2})); \
+		echo "\033[38;2;$$R;$$G;$${B}m"; \
+	else \
+		echo ""; \
+	fi
+endef
+
+# =============================================================================
+# ISSUE MANAGEMENT TARGETS
+# =============================================================================
+
+# List all open issues
+.PHONY: list
+list:
+	@$(call get_github_token)
+	@REPO=$$($(call get_repo_info)); \
+	echo -e "$(BRIGHT_BLUE)Fetching open issues for $$REPO...$(RESET)"; \
+	ISSUES=$$($(call github_request, "$(GITHUB_API)/repos/$$REPO/issues?state=open")); \
+	LABELS=$$($(call github_request, "$(GITHUB_API)/repos/$$REPO/labels")); \
+	if [ "$$(echo "$$ISSUES" | jq '. | length')" -eq 0 ]; then \
+		echo -e "$(GRAY)No open issues found$(RESET)"; \
+		exit 0; \
+	fi; \
+	printf "%-6s %-50s %-10s %-12s %-10s\n" "ID" "TITLE" "LABEL" "AUTHOR" "CREATED"; \
+	printf "%-6s %-50s %-10s %-12s %-10s\n" "------" "--------------------------------------------------" "----------" "------------" "----------"; \
+	echo "$$ISSUES" | jq -r '.[] | @json' | while IFS= read -r issue; do \
+		NUMBER=$$(echo "$$issue" | jq -r '.number'); \
+		TITLE=$$(echo "$$issue" | jq -r '.title' | cut -c1-50); \
+		AUTHOR=$$(echo "$$issue" | jq -r '.user.login'); \
+		CREATED=$$(echo "$$issue" | jq -r '.created_at' | cut -c1-10); \
+		LABEL_NAME=$$(echo "$$issue" | jq -r '.labels[0].name // ""'); \
+		if [ -n "$$LABEL_NAME" ]; then \
+			LABEL_COLOR=$$(echo "$$LABELS" | jq -r ".[] | select(.name == \"$$LABEL_NAME\") | .color"); \
+			COLOR_CODE=$$($(call hex_to_ansi,$$LABEL_COLOR)); \
+			printf "$(GREEN)%-6s$(RESET) %-50s $${COLOR_CODE}%-10s$(RESET) %-12s %-10s\n" \
+				"$$NUMBER" "$$TITLE" "$$LABEL_NAME" "$$AUTHOR" "$$CREATED"; \
+		else \
+			printf "$(GREEN)%-6s$(RESET) %-50s %-10s %-12s %-10s\n" \
+				"$$NUMBER" "$$TITLE" "" "$$AUTHOR" "$$CREATED"; \
+		fi; \
+	done
+
+# Create a bug issue
+.PHONY: bug
+bug:
+	@$(MAKE) -s _create_issue LABEL=bug
+
+# Create a task issue
+.PHONY: task
+task:
+	@$(MAKE) -s _create_issue LABEL=task
+
+# Create an idea issue
+.PHONY: idea
+idea:
+	@$(MAKE) -s _create_issue LABEL=idea
+
+# Internal target for creating issues
+.PHONY: _create_issue
+_create_issue:
+	@$(call get_github_token)
+	@REPO=$$($(call get_repo_info)); \
+	echo -ne "$(BRIGHT_BLUE)?$(RESET) Title: "; \
+	read -r TITLE; \
+	if [ -z "$$TITLE" ]; then \
+		echo -e "$(RED)Error:$(RESET) Title cannot be empty"; \
+		exit 1; \
+	fi; \
+	JSON_PAYLOAD=$$(jq -n --arg title "$$TITLE" --arg label "$(LABEL)" '{title: $$title, labels: [$$label]}'); \
+	ISSUE=$$(curl -s -H "Authorization: token $$GITHUB_TOKEN" -H "Accept: application/vnd.github.v3+json" -X POST -d "$$JSON_PAYLOAD" "$(GITHUB_API)/repos/$$REPO/issues") || exit 1; \
+	NUMBER=$$(echo "$$ISSUE" | jq -r '.number // empty'); \
+	URL=$$(echo "$$ISSUE" | jq -r '.html_url // empty'); \
+	LABELS=$$($(call github_request, "$(GITHUB_API)/repos/$$REPO/labels")) || exit 1; \
+	LABEL_COLOR=$$(echo "$$LABELS" | jq -r ".[] | select(.name == \"$(LABEL)\") | .color"); \
+	COLOR_CODE=$$($(call hex_to_ansi,$$LABEL_COLOR)); \
+	echo -e "$(GREEN)✓$(RESET) Created $${COLOR_CODE}$(LABEL)$(RESET) $(GREEN)$$NUMBER$(RESET) → $(GRAY)$$URL$(RESET)"
+
+# Resolve (close) issues
+.PHONY: resolve
+resolve:
+	@$(call get_github_token)
+	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then \
+		echo -e "$(RED)Error:$(RESET) Please provide issue numbers: make resolve 1 2 3"; \
+		exit 1; \
+	fi; \
+	REPO=$$($(call get_repo_info)); \
+	for NUM in $(filter-out $@,$(MAKECMDGOALS)); do \
+		ISSUE=$$($(call github_request, "$(GITHUB_API)/repos/$$REPO/issues/$$NUM")) || continue; \
+		RESULT=$$($(call github_request, "$(GITHUB_API)/repos/$$REPO/issues/$$NUM -X PATCH -d '{\"state\": \"closed\"}'")) || continue; \
+		URL=$$(echo "$$ISSUE" | jq -r '.html_url'); \
+		LABEL_NAME=$$(echo "$$ISSUE" | jq -r '.labels[0].name // "issue"'); \
+		if [ "$$LABEL_NAME" != "issue" ]; then \
+			LABELS=$$($(call github_request, "$(GITHUB_API)/repos/$$REPO/labels")) || exit 1; \
+			LABEL_COLOR=$$(echo "$$LABELS" | jq -r ".[] | select(.name == \"$$LABEL_NAME\") | .color"); \
+			COLOR_CODE=$$($(call hex_to_ansi,$$LABEL_COLOR)); \
+		else \
+			COLOR_CODE=""; \
+		fi; \
+		echo -e "$(GREEN)✓$(RESET) Resolved $${COLOR_CODE}$$LABEL_NAME$(RESET) $(GREEN)$$NUM$(RESET) → $(GRAY)$$URL$(RESET)"; \
+	done
+
+# Delete issues (requires GraphQL)
+.PHONY: delete
+delete:
+	@$(call get_github_token)
+	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then \
+		echo -e "$(RED)Error:$(RESET) Please provide issue numbers: make delete 1 2 3"; \
+		exit 1; \
+	fi; \
+	REPO=$$($(call get_repo_info)); \
+	OWNER=$$(echo "$$REPO" | cut -d'/' -f1); \
+	NAME=$$(echo "$$REPO" | cut -d'/' -f2); \
+	for NUM in $(filter-out $@,$(MAKECMDGOALS)); do \
+		ISSUE=$$($(call github_request, "$(GITHUB_API)/repos/$$REPO/issues/$$NUM")) || continue; \
+		TITLE=$$(echo "$$ISSUE" | jq -r '.title'); \
+		LABEL_NAME=$$(echo "$$ISSUE" | jq -r '.labels[0].name // "issue"'); \
+		QUERY=$$(jq -n --arg owner "$$OWNER" --arg name "$$NAME" --argjson num "$$NUM" \
+			'{"query": "query { repository(owner: \"\($$owner)\", name: \"\($$name)\") { issue(number: \($$num)) { id } } }"}'); \
+		ID_RESULT=$$(curl -s -H "Authorization: Bearer $$GITHUB_TOKEN" -H "Content-Type: application/json" \
+			-X POST -d "$$QUERY" "$(GITHUB_GRAPHQL)") || continue; \
+		ISSUE_ID=$$(echo "$$ID_RESULT" | jq -r '.data.repository.issue.id'); \
+		DELETE_QUERY=$$(jq -n --arg id "$$ISSUE_ID" \
+			'{"query": "mutation { deleteIssue(input: {issueId: \"\($$id)\"}) { repository { id } } }"}'); \
+		DELETE_RESULT=$$(curl -s -H "Authorization: Bearer $$GITHUB_TOKEN" -H "Content-Type: application/json" \
+			-X POST -d "$$DELETE_QUERY" "$(GITHUB_GRAPHQL)") || continue; \
+		if [ "$$LABEL_NAME" != "issue" ]; then \
+			LABELS=$$($(call github_request, "$(GITHUB_API)/repos/$$REPO/labels")) || exit 1; \
+			LABEL_COLOR=$$(echo "$$LABELS" | jq -r ".[] | select(.name == \"$$LABEL_NAME\") | .color"); \
+			COLOR_CODE=$$($(call hex_to_ansi,$$LABEL_COLOR)); \
+		else \
+			COLOR_CODE=""; \
+		fi; \
+		echo -e "$(GREEN)✓$(RESET) Deleted $${COLOR_CODE}$$LABEL_NAME$(RESET) $(GREEN)$$NUM$(RESET): $(BOLD)$$TITLE$(RESET)"; \
+	done
+
+# Help target
+.PHONY: issues-help
+issues-help:
+	@echo -e "$(BOLD)GitHub Issue Management Commands:$(RESET)"
+	@echo -e "  $(CYAN)make list$(RESET)        - List all open issues"
+	@echo -e "  $(CYAN)make bug$(RESET)         - Create a new bug issue"
+	@echo -e "  $(CYAN)make task$(RESET)        - Create a new task issue"
+	@echo -e "  $(CYAN)make idea$(RESET)        - Create a new idea issue"
+	@echo -e "  $(CYAN)make resolve$(RESET) 1 2 - Close issues by number"
+	@echo -e "  $(CYAN)make delete$(RESET) 1 2  - Delete issues by number"
+	@echo ""
+	@echo -e "$(BOLD)Requirements:$(RESET)"
+	@echo -e "  - Set GITHUB_TOKEN in environment or .env file"
+	@echo -e "  - Tools: git, curl, jq"
+	@echo -e "  - Repository must have GitHub remote origin"
+
+# Prevent "Nothing to be done" message for issue numbers
+%:
+	@:
