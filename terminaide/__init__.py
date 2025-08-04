@@ -222,7 +222,7 @@ def serve_apps(
         Each value in terminal_routes can be:
         - String/Path: Script file path
         - Callable: Python function
-        - AutoIndex: Navigable menu page (HTML or Curses)
+        - AutoIndex: Navigable menu page (HTML or Curses) that can also define routes
         - List: [script_path, arg1, arg2, ...] for scripts with arguments
         - Dict: Advanced configuration with "script"/"function" key plus options
 
@@ -240,6 +240,20 @@ def serve_apps(
                 "/script": "my_script.py",
                 "/hello": my_function,
                 "/": AutoIndex(type="html", title="MENU", menu=[...])
+            })
+
+        AutoIndex with embedded route definitions (no duplication):
+            serve_apps(app, {
+                "/": AutoIndex(
+                    type="html",
+                    title="My Tools",
+                    menu=[
+                        {"path": "/calculator", "title": "Calculator", "function": calc_fn},
+                        {"path": "/logs", "title": "View Logs", "script": "logs.py"},
+                        {"path": "/admin", "title": "Admin", "function": admin_fn, 
+                         "launcher_args": {"preview_image": "admin.png"}}
+                    ]
+                )
             })
 
         Advanced configuration:

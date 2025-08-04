@@ -207,6 +207,38 @@ class AutoIndex(BaseIndex):
             raise AttributeError("show() is only available for Curses indexes")
         return show_curses_menu(self)
 
+    def extract_routes(self) -> Dict[str, Any]:
+        """Extract terminal route definitions from menu items.
+        
+        Returns a dictionary mapping paths to route configurations for any
+        menu items that have function or script definitions.
+        """
+        routes = {}
+        
+        for item in self.get_all_menu_items():
+            # Skip external URLs and items without function/script
+            if item.is_external() or (not item.function and not item.script):
+                continue
+                
+            # Build route specification
+            route_spec = {}
+            
+            if item.function:
+                route_spec["function"] = item.function
+            elif item.script:
+                route_spec["script"] = item.script
+                
+            # Always include title
+            route_spec["title"] = item.title
+            
+            # Include launcher_args if present (for dynamic routes, args_param, etc.)
+            if item.launcher_args:
+                route_spec.update(item.launcher_args)
+                
+            routes[item.path] = route_spec
+            
+        return routes
+
     def __repr__(self) -> str:
         """String representation for debugging."""
         item_count = len(self.get_all_menu_items())

@@ -511,13 +511,18 @@ def create_route_configs(
     - Lists with script path and args
     - Dictionaries with advanced config for scripts or functions
     - IndexPage instances
+    - AutoIndex instances with embedded route definitions
     """
     # Import here to avoid circular import
     from .index import AutoIndex
+    from ..core.config import extract_routes_from_autoindex
+    
+    # Extract routes from AutoIndex instances first
+    expanded_routes = extract_routes_from_autoindex(terminal_routes)
 
     route_configs = []
 
-    for route_path, route_spec in terminal_routes.items():
+    for route_path, route_spec in expanded_routes.items():
         # Handle AutoIndex instances
         if isinstance(route_spec, AutoIndex):
             route_configs.append(

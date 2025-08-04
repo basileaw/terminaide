@@ -456,6 +456,45 @@ async def terminaide_lifespan(app: FastAPI, config: TTYDConfig):
         await proxy_manager.cleanup()
 
 
+def extract_routes_from_autoindex(terminal_routes: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract and merge routes defined in AutoIndex instances.
+    
+    Searches through terminal_routes for AutoIndex instances and extracts
+    their menu items as route definitions. Explicit routes in terminal_routes
+    take precedence over extracted routes.
+    
+    Args:
+        terminal_routes: Dictionary mapping paths to route specifications
+        
+    Returns:
+        Merged dictionary with both explicit and extracted routes
+    """
+    # Import here to avoid circular import
+    from .index import AutoIndex
+    
+    merged_routes = {}
+    
+    # Find all AutoIndex instances and extract their routes
+    for path, spec in terminal_routes.items():
+        if isinstance(spec, AutoIndex):
+            extracted = spec.extract_routes()
+            
+            # Add extracted routes that don't conflict with explicit routes
+            for route_path, route_spec in extracted.items():
+                if route_path not in terminal_routes:
+                    merged_routes[route_path] = route_spec
+                else:
+                    logger.debug(
+                        f"Skipping AutoIndex route {route_path} - explicitly defined in terminal_routes"
+                    )
+    
+    # Merge with original routes (explicit routes preserved)
+    result = terminal_routes.copy()
+    result.update(merged_routes)
+    
+    return result
+
+
 def convert_terminaide_config_to_ttyd_config(
     config: TerminaideConfig, script_path: Path = None
 ) -> TTYDConfig:
