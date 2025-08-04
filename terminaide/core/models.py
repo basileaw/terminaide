@@ -293,7 +293,19 @@ class TTYDConfig(BaseModel):
             return None
         path = Path(v)
         if not path.exists():
-            raise ConfigurationError(f"Path does not exist: {path}")
+            # Check if we're in a reload context
+            import os
+            if os.environ.get("TERMINAIDE_MODE") and os.environ.get("TERMINAIDE_PORT"):
+                # We're in a reload context - log warning but don't crash
+                logger.warning(
+                    f"Path does not exist during hot reload: {path}. "
+                    "This may cause route failures."
+                )
+                # Return None to allow graceful degradation
+                return None
+            else:
+                # Initial startup - strict validation
+                raise ConfigurationError(f"Path does not exist: {path}")
         return path.absolute()
 
     @field_validator("preview_image")

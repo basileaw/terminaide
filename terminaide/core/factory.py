@@ -286,6 +286,49 @@ class AppFactory:
         mode = os.environ.get("TERMINAIDE_MODE", "script")
         
         def ephemeral_path_generator():
-            return Path(script_path_str)
+            script_path = Path(script_path_str)
+            
+            # Check if script exists during reload
+            if not script_path.exists():
+                logger.error(f"Script not found during reload: {script_path}")
+                # Create a temporary error script
+                temp_dir = Path(tempfile.gettempdir()) / "terminaide_reload_errors"
+                temp_dir.mkdir(exist_ok=True)
+                error_script = temp_dir / f"{script_path.stem}_missing.py"
+                
+                error_content = f'''#!/usr/bin/env python3
+# Hot reload error script
+
+print("\\033[91m✗ Script Not Found During Hot Reload\\033[0m")
+print()
+print(f"The script at the following path could not be found:")
+print(f"  {script_path}")
+print()
+print("This can happen if:")
+print("- The file was moved or renamed")
+print("- The file was deleted")
+print("- There's a configuration mismatch")
+print()
+print("Please check your server configuration and restart if needed.")
+'''
+                error_script.write_text(error_content, encoding="utf-8")
+                return error_script
+                
+            return script_path
         
-        return cls._create_app_from_env(mode, ephemeral_path_generator)
+        try:
+            return cls._create_app_from_env(mode, ephemeral_path_generator)
+        except Exception as e:
+            logger.error(f"Failed to create app during reload: {e}")
+            # Return a minimal error app
+            app = FastAPI(title="Terminaide - Reload Error")
+            
+            @app.get("/")
+            async def error_page():
+                return {
+                    "error": "Failed to reload application",
+                    "details": str(e),
+                    "recommendation": "Check server logs and restart if needed"
+                }
+                
+            return app

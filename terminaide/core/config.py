@@ -29,6 +29,7 @@ from .models import (
     IndexPageConfig,
     create_route_configs,
 )
+from .validator import validate_and_recover_routes
 
 logger = logging.getLogger("terminaide")
 
@@ -494,6 +495,20 @@ def convert_terminaide_config_to_ttyd_config(
 
     # Use create_route_configs instead of create_script_configs
     route_configs = create_route_configs(terminal_routes)
+    
+    # Check if we're in reload mode and validate/recover routes
+    import os
+    is_reload = bool(os.environ.get("TERMINAIDE_MODE") and os.environ.get("TERMINAIDE_PORT"))
+    if is_reload and route_configs:
+        # Filter only ScriptConfig instances for validation
+        script_configs = [cfg for cfg in route_configs if isinstance(cfg, ScriptConfig)]
+        if script_configs:
+            validated_scripts, errors = validate_and_recover_routes(script_configs, is_reload=True)
+            # Replace script configs in route_configs with validated ones
+            other_configs = [cfg for cfg in route_configs if not isinstance(cfg, ScriptConfig)]
+            route_configs = other_configs + validated_scripts
+            if errors:
+                logger.warning(f"Route validation errors during reload: {'; '.join(errors)}")
 
     # If we have route configs and a custom title is set, apply it to the first script config
     if route_configs and config.title != "Terminal":
