@@ -58,6 +58,7 @@ class BaseIndex:
         "menu_items",
         "subtitle",
         "epititle",
+        "epititle_item",
         "title",
         "supertitle",
         "preview_image",
@@ -69,7 +70,7 @@ class BaseIndex:
         self,
         menu: Union[List[Dict[str, Any]], Dict[str, Any]],
         subtitle: Optional[str] = None,
-        epititle: Optional[str] = None,
+        epititle: Optional[Union[str, Dict[str, Any]]] = None,
         title: Optional[str] = None,
         supertitle: Optional[str] = None,
         preview_image: Optional[Union[str, Path]] = None,
@@ -78,7 +79,7 @@ class BaseIndex:
         self._all_items_cache = None
         self._parse_and_validate_menu(menu)
         self.subtitle = subtitle
-        self.epititle = epititle
+        self._parse_epititle(epititle)
         self.title = title or "Index"
         self.supertitle = supertitle
         self.preview_image = Path(preview_image) if preview_image else None
@@ -104,6 +105,42 @@ class BaseIndex:
         
         # Create menu items directly
         self.menu_items = [self._create_menu_item(item) for item in menu]
+    
+    def _parse_epititle(self, epititle):
+        """Parse and validate epititle - can be string or dict."""
+        if epititle is None:
+            self.epititle = None
+            self.epititle_item = None
+        elif isinstance(epititle, str):
+            # Backward compatibility - simple string
+            self.epititle = epititle
+            self.epititle_item = None
+        elif isinstance(epititle, dict):
+            # New format - structured like menu item
+            # Validate required fields
+            if "title" not in epititle:
+                raise ValueError("Epititle dict must have 'title' key")
+            
+            # Check if it's an external URL
+            if "url" in epititle:
+                # External link - no function/script needed
+                self.epititle = None  # Will be handled as epititle_item
+                self.epititle_item = BaseMenuItem(
+                    path=epititle.get("url", ""),
+                    title=epititle.get("title", ""),
+                    new_tab=epititle.get("new_tab", True)
+                )
+            else:
+                # Terminal route - must have path and either function or script
+                if "path" not in epititle:
+                    raise ValueError("Epititle dict must have 'path' key for terminal routes")
+                if not any(key in epititle for key in ["function", "script"]):
+                    raise ValueError("Epititle dict must have 'function' or 'script' for terminal routes")
+                
+                self.epititle = None  # Will be handled as epititle_item
+                self.epititle_item = self._create_menu_item(epititle)
+        else:
+            raise ValueError("Epititle must be a string or dict")
 
     def _create_menu_item(self, item):
         """Create a menu item from dict. Override in subclasses for specialized items."""
@@ -208,13 +245,14 @@ class AutoIndex(BaseIndex):
         return show_curses_menu(self)
 
     def extract_routes(self) -> Dict[str, Any]:
-        """Extract terminal route definitions from menu items.
+        """Extract terminal route definitions from menu items and epititle.
         
         Returns a dictionary mapping paths to route configurations for any
-        menu items that have function or script definitions.
+        menu items or epititle that have function or script definitions.
         """
         routes = {}
         
+        # Extract routes from menu items
         for item in self.get_all_menu_items():
             # Skip external URLs and items without function/script
             if item.is_external() or (not item.function and not item.script):
@@ -236,6 +274,23 @@ class AutoIndex(BaseIndex):
                 route_spec.update(item.launcher_args)
                 
             routes[item.path] = route_spec
+        
+        # Extract route from epititle if it has function/script
+        if self.epititle_item and not self.epititle_item.is_external():
+            if self.epititle_item.function or self.epititle_item.script:
+                route_spec = {}
+                
+                if self.epititle_item.function:
+                    route_spec["function"] = self.epititle_item.function
+                elif self.epititle_item.script:
+                    route_spec["script"] = self.epititle_item.script
+                    
+                route_spec["title"] = self.epititle_item.title
+                
+                if self.epititle_item.launcher_args:
+                    route_spec.update(self.epititle_item.launcher_args)
+                    
+                routes[self.epititle_item.path] = route_spec
             
         return routes
 
@@ -612,13 +667,28 @@ def get_template_context(auto_index: AutoIndex) -> Dict[str, Any]:
     # Prepare menu items data for JavaScript
     menu_items = [item.to_dict() for item in auto_index.get_all_menu_items()]
     total_items = len(menu_items)
+    
+    # Prepare epititle data - either string or structured data
+    epititle_data = None
+    if auto_index.epititle:
+        # Simple string format (backward compatibility)
+        epititle_data = {"type": "text", "content": auto_index.epititle}
+    elif auto_index.epititle_item:
+        # Structured format - could be link or terminal route
+        epititle_data = {
+            "type": "link",
+            "title": auto_index.epititle_item.title,
+            "path": auto_index.epititle_item.path,
+            "is_external": auto_index.epititle_item.is_external(),
+            "new_tab": auto_index.epititle_item.new_tab if auto_index.epititle_item.new_tab is not None else True
+        }
 
     return {
         "page_title": auto_index.title,
         "title_ascii": title_ascii,
         "supertitle": auto_index.supertitle,
         "subtitle": auto_index.subtitle,
-        "epititle": auto_index.epititle,
+        "epititle": epititle_data,  # Now structured data instead of just string
         "instructions": auto_index.instructions,
         "menu_items": menu_items,
         "total_items": total_items,

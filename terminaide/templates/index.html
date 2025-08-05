@@ -549,7 +549,17 @@
         </div>
 
         {% if epititle %}
-        <div class="epititle">{{ epititle | replace('\n', '<br>') | safe }}</div>
+        <div class="epititle">
+            {% if epititle.type == 'text' %}
+                {{ epititle.content | replace('\n', '<br>') | safe }}
+            {% elif epititle.type == 'link' %}
+                {% if epititle.is_external %}
+                    <a href="{{ epititle.path }}" {% if epititle.new_tab %}target="_blank"{% endif %}>{{ epititle.title }}</a>
+                {% else %}
+                    <a href="{{ epititle.path }}">{{ epititle.title }}</a>
+                {% endif %}
+            {% endif %}
+        </div>
         {% endif %}
     </div>
 
@@ -629,16 +639,19 @@
             // Scale ASCII art to fit container
             scaleAsciiArt();
 
-            // Make URLs clickable in subtitle and epititle
+            // Make URLs clickable in subtitle
             const subtitle = document.querySelector('.subtitle');
-            const epititle = document.querySelector('.epititle');
-
             if (subtitle) {
                 makeUrlsClickable(subtitle);
             }
 
+            // For epititle with type='text', make URLs clickable
+            const epititle = document.querySelector('.epititle');
             if (epititle) {
-                makeUrlsClickable(epititle);
+                // Only apply makeUrlsClickable if epititle doesn't already contain a link
+                if (!epititle.querySelector('a')) {
+                    makeUrlsClickable(epititle);
+                }
             }
 
             // Initialize with first group

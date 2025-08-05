@@ -238,11 +238,16 @@ AutoIndex creates navigable menu pages with ASCII art titles and keyboard naviga
     "title": "MY APP",          # Title text (default: 'Index')
     "subtitle": "Welcome!",     # Text below title
     "instructions": "Navigate", # Menu instruction text
-    "epititle": "Press Enter",  # Text below menu
+    "epititle": "...",          # Text/link below menu (see below)
     "supertitle": "v1.0",       # Text above title
     "preview_image": "img.png"  # Preview image path (HTML only)
 }
 ```
+
+The `epititle` parameter can be configured in three ways:
+- **Plain text**: `epititle="Server status: OK"`
+- **Terminal route**: `epititle={"path": "/monitor", "title": "Server Monitor", "function": monitor_func}`
+- **External link**: `epititle={"url": "https://github.com", "title": "View on GitHub", "new_tab": True}`
 
 In HTML mode, AutoIndex can automatically create terminal routes from menu items that contain functions or scripts, eliminating the need to define routes twice:
 
@@ -266,10 +271,12 @@ serve_apps(app, {
             {"path": "/edit", "title": "Editor", "function": editor},
             {"path": "/logs", "title": "View Logs", "script": "logs.py"},
             {"path": "https://docs.python.org", "title": "Python Docs", "new_tab": True}
-        ]
+        ],
+        # Epititle can also define a terminal route
+        epititle={"path": "/monitor", "title": "Server Monitor", "function": monitor_func}
     )
 })
-# Creates: index page at "/" plus terminals at "/calc", "/edit", and "/logs"
+# Creates: index page at "/" plus terminals at "/calc", "/edit", "/logs", and "/monitor"
 ```
 
 In Curses mode, AutoIndex creates an interactive terminal menu that directly executes functions or scripts when selected. Menu items can reference functions, scripts, or Python module paths:
