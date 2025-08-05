@@ -229,7 +229,7 @@ Terminaide also includes a few utilities for turning your Apps Server into a ful
 
 #### Auto Index
 
-AutoIndex creates navigable menu pages with ASCII art titles and keyboard navigation using pure Python instead of HTML templates. It provides a unified API that can render either as a web page or terminal interface based on the `type` parameter.
+AutoIndex creates navigable menu pages with ASCII art titles and keyboard navigation using pure Python. It provides a unified API that renders as either a web page or terminal interface based on the `type` parameter.
 
 ```python
 {
@@ -244,41 +244,55 @@ AutoIndex creates navigable menu pages with ASCII art titles and keyboard naviga
 }
 ```
 
-The key difference is how the `path` field in menu options is interpreted: HTML mode expects URLs or routes, while Curses mode expects functions, scripts, or module paths for direct execution.
+In HTML mode, AutoIndex can automatically create terminal routes from menu items that contain functions or scripts, eliminating the need to define routes twice:
 
 ```python
-from terminaide import AutoIndex
+from terminaide import AutoIndex, serve_apps
 
-# HTML mode - creates web page with clickable links
-html_index = AutoIndex(
-    type="html",
-    title="MY APP",
-    menu=[
-        {"path": "/terminal", "title": "Terminal App"},
-        {"path": "https://docs.python.org", "title": "Python Docs"}
-    ],
-    instructions="Resources"
-)
-
-# Curses mode - creates terminal menu that executes functions/scripts
 def calculator():
-    print("Calculator app running...")
+    print("Calculator running...")
 
-curses_index = AutoIndex(
+def editor():
+    print("Editor running...")
+
+# HTML mode with automatic route extraction
+serve_apps(app, {
+    "/": AutoIndex(
+        type="html",
+        title="Developer Tools",
+        menu=[
+            # These create both menu items AND terminal routes
+            {"path": "/calc", "title": "Calculator", "function": calculator},
+            {"path": "/edit", "title": "Editor", "function": editor},
+            {"path": "/logs", "title": "View Logs", "script": "logs.py"},
+            {"path": "https://docs.python.org", "title": "Python Docs", "new_tab": True}
+        ]
+    )
+})
+# Creates: index page at "/" plus terminals at "/calc", "/edit", and "/logs"
+```
+
+In Curses mode, AutoIndex creates an interactive terminal menu that directly executes functions or scripts when selected. Menu items can reference functions, scripts, or Python module paths:
+
+```python
+# Curses mode for direct terminal execution
+curses_menu = AutoIndex(
     type="curses", 
-    title="MY APP",
+    title="CLI TOOLS",
     menu=[
         {"function": calculator, "title": "Calculator"},
         {"script": "editor.py", "title": "Text Editor"}
     ],
-    instructions="Tools"
+    instructions="Arrow keys to navigate"
 )
 
-# Use in Apps Mode
-serve_apps(app, {"/": html_index, "/cli": curses_index})
+# Serve the curses menu as a terminal route
+serve_apps(app, {
+    "/": curses_menu,  # Interactive menu accessible at root
+})
 
-# Or run Curses mode directly
-curses_index.show()
+# Or run directly in terminal
+curses_menu.show()
 ```
 
 #### Server Monitor
