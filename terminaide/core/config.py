@@ -354,6 +354,7 @@ def configure_routes(
                             "theme": config.theme.model_dump(),
                             "title": title,
                             "preview_image": preview_image,
+                            "keyboard_mapping": route_config.keyboard_mapping.model_dump(),
                         },
                     )
                 except Exception as e:

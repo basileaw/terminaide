@@ -161,6 +161,16 @@ All three serving functions accept the same configuration options, including com
     "args": ["--verbose", "file.txt"], # Command-line arguments (default: None)
     "dynamic": True,                 # Enable URL query parameter arguments (default: False)
     "args_param": "args",            # Query parameter name for dynamic arguments (default: "args")
+    
+    # Keyboard mapping (CMD to CTRL on Mac)
+    "keyboard_mapping": {
+        "mode": "smart",             # "none" (default), "smart", "all", or "custom"
+        "custom_mappings": {         # Override mappings when mode is "custom"
+            "z": True,               # Map CMD+Z to CTRL+Z
+            "c": False,              # Don't map CMD+C (leave as system shortcut)
+        }
+    },
+    
     "theme": {                       # Terminal appearance
         "background": "black",       # Background color (default: "black")
         "foreground": "white",       # Text color (default: "white")  
@@ -171,6 +181,38 @@ All three serving functions accept the same configuration options, including com
         "font_size": 14              # Font size in pixels (default: None)
     }
 }
+```
+
+**Keyboard Mapping (Mac CMD → CTRL):**
+
+On Mac, terminal applications expect CTRL+key shortcuts, but Mac users naturally use CMD+key. Terminaide can automatically map CMD shortcuts to CTRL for a more intuitive experience:
+
+```python
+# Smart mode: Maps common editing shortcuts only
+serve_script("my_app.py", keyboard_mapping={"mode": "smart"})
+# Maps: CMD+Z/Y/X/C/V/A/S/F → CTRL+Z/Y/X/C/V/A/S/F
+# Leaves system shortcuts alone: CMD+W/R/T (close/refresh/new tab)
+
+# All mode: Maps all CMD combinations to CTRL
+serve_script("my_app.py", keyboard_mapping={"mode": "all"})
+
+# Custom mode: Fine-grained control
+serve_script("my_app.py", keyboard_mapping={
+    "mode": "custom",
+    "custom_mappings": {
+        "c": True,   # Map CMD+C to CTRL+C
+        "v": True,   # Map CMD+V to CTRL+V
+        "w": False,  # Don't map CMD+W (keep as close tab)
+    }
+})
+
+# In Apps Server with per-route configuration
+serve_apps(app, {
+    "/editor": {
+        "script": "editor.py",
+        "keyboard_mapping": {"mode": "smart"}
+    }
+})
 ```
 
 **Dynamic Arguments Usage Examples:**
@@ -268,7 +310,7 @@ serve_apps(app, {
         menu=[
             # These create both menu items AND terminal routes
             {"path": "/calc", "title": "Calculator", "function": calculator},
-            {"path": "/edit", "title": "Editor", "function": editor},
+            {"path": "/edit", "title": "Editor", "function": editor, "keyboard_mapping": {"mode": "smart"}},
             {"path": "/logs", "title": "View Logs", "script": "logs.py"},
             {"path": "https://docs.python.org", "title": "Python Docs", "new_tab": True}
         ],

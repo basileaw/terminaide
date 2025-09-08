@@ -146,12 +146,22 @@ class BaseIndex:
         """Create a menu item from dict. Override in subclasses for specialized items."""
         if isinstance(item, BaseMenuItem):
             return item
+            
+        # Start with existing launcher_args
+        launcher_args = item.get("launcher_args", {}).copy()
+        
+        # Move route-specific configs into launcher_args if they exist
+        route_configs = ["keyboard_mapping", "dynamic", "args_param", "preview_image", "port"]
+        for config_key in route_configs:
+            if config_key in item:
+                launcher_args[config_key] = item[config_key]
+        
         return BaseMenuItem(
             path=item.get("path", ""),
             title=item.get("title", ""),
             function=item.get("function"),
             script=item.get("script"),
-            launcher_args=item.get("launcher_args", {}),
+            launcher_args=launcher_args,
             new_tab=item.get("new_tab"),
         )
 
@@ -217,12 +227,24 @@ class AutoIndex(BaseIndex):
         """Create an AutoMenuItem from dict or existing item."""
         if isinstance(item, AutoMenuItem):
             return item
+            
+        # Extract explicit fields
+        explicit_fields = {"path", "title", "function", "script", "launcher_args", "new_tab"}
+        
+        # Collect launcher_args from explicit launcher_args plus any extra fields
+        launcher_args = item.get("launcher_args", {}).copy()
+        
+        # Add any extra fields (like keyboard_mapping, dynamic, args_param, etc.) to launcher_args
+        for key, value in item.items():
+            if key not in explicit_fields:
+                launcher_args[key] = value
+        
         return AutoMenuItem(
             path=item.get("path", ""),
             title=item.get("title", ""),
             function=item.get("function"),
             script=item.get("script"),
-            launcher_args=item.get("launcher_args", {}),
+            launcher_args=launcher_args,
             new_tab=item.get("new_tab"),
         )
 

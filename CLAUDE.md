@@ -55,6 +55,14 @@ Terminaide uses a reverse proxy architecture where each terminal runs as a separ
    - Unified cleanup and file management for all wrapper types
    - Security: Requires explicit configuration for external file creation
 
+8. **Keyboard Mapping System** (`terminaide/core/models.py`, `terminaide/templates/terminal.html`): CMD→CTRL mapping for Mac users
+   - **Configuration Model**: `KeyboardMappingConfig` with mode (none/smart/all/custom) and custom mappings
+   - **AutoIndex Integration**: Menu items can specify keyboard mapping that gets extracted to route configs
+   - **Client-Side Implementation**: JavaScript injected into ttyd iframe intercepts CMD+key events
+   - **Event Translation**: Prevents original CMD events and synthesizes CTRL events for xterm.js
+   - **Precise Targeting**: Events dispatched to `.xterm-helper-textarea` (primary input handler) or fallback elements
+   - **Smart Defaults**: Maps common editing shortcuts (Z/Y/X/C/V/A/S/F) while preserving system shortcuts (W/R/T)
+
 ### Request Flow
 ```
 Client → FastAPI → ProxyManager → TTYd Process → Python Script
@@ -78,6 +86,15 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
    - External file creation requires explicit configuration (`ephemeral_cache_dir`, `monitor_log_path`)
    - Environment variable overrides: `TERMINAIDE_CACHE_DIR`, `TERMINAIDE_MONITOR_LOG`
    - Clear error messages guide users when configuration is needed
+
+8. **Keyboard Mapping**: CMD→CTRL translation for improved Mac UX
+   - **Configuration Processing**: AutoIndex menu items extract `keyboard_mapping` to `launcher_args`
+   - **Template Integration**: Configuration passed to `terminal.html` via Jinja2 template context
+   - **Iframe Injection**: JavaScript dynamically injected into ttyd iframe document on load
+   - **Event Interception**: Document-level keydown listener with capture phase intercepts CMD+key combinations
+   - **Smart Filtering**: Only maps specified keys based on mode (smart/all/custom)
+   - **Event Synthesis**: Creates new KeyboardEvent with `ctrlKey: true, metaKey: false`
+   - **Precise Dispatch**: Targets xterm.js input handler (`.xterm-helper-textarea`) for reliable event processing
 
 ### Testing Strategy
 - Tests verify all three serving modes

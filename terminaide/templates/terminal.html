@@ -1160,6 +1160,71 @@
             terminal.onload = function () {
                 // Inject styles
                 injectStyles();
+                
+                // KEYBOARD MAPPING: Inject into iframe for CMD->CTRL mapping
+                const kbMapping = {{ keyboard_mapping | tojson }};
+                if (kbMapping.mode !== 'none') {
+                    try {
+                        const iframeDoc = terminal.contentDocument || terminal.contentWindow.document;
+                        if (iframeDoc) {
+                            // Inject keyboard mapping directly into iframe
+                            const script = iframeDoc.createElement('script');
+                            script.textContent = `
+                                document.addEventListener('keydown', function(e) {
+                                    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                                    const cmdPressed = isMac ? e.metaKey : e.ctrlKey;
+                                    
+                                    if (cmdPressed && !e.altKey && !e.shiftKey) {
+                                        const key = e.key.toLowerCase();
+                                        const mode = '${kbMapping.mode}';
+                                        let shouldMap = false;
+                                        
+                                        if (mode === 'all') {
+                                            shouldMap = true;
+                                        } else if (mode === 'smart') {
+                                            const smartKeys = ['z', 'y', 'x', 'c', 'v', 'a', 's', 'f'];
+                                            shouldMap = smartKeys.includes(key);
+                                        } else if (mode === 'custom') {
+                                            const customMappings = ${JSON.stringify(kbMapping.custom_mappings || {})};
+                                            const smartKeys = ['z', 'y', 'x', 'c', 'v', 'a', 's', 'f'];
+                                            shouldMap = customMappings.hasOwnProperty(key) 
+                                                ? customMappings[key] 
+                                                : smartKeys.includes(key);
+                                        }
+                                        
+                                        if (shouldMap) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            
+                                            setTimeout(() => {
+                                                const xtermTextarea = document.querySelector('.xterm-helper-textarea');
+                                                if (xtermTextarea) {
+                                                    xtermTextarea.dispatchEvent(new KeyboardEvent('keydown', {
+                                                        key: e.key, code: e.code, keyCode: e.keyCode, which: e.which || e.keyCode,
+                                                        ctrlKey: true, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
+                                                        bubbles: true, cancelable: true, view: window
+                                                    }));
+                                                } else {
+                                                    const terminalMain = document.querySelector('.terminal, .xterm');
+                                                    if (terminalMain) {
+                                                        terminalMain.dispatchEvent(new KeyboardEvent('keydown', {
+                                                            key: e.key, code: e.code, keyCode: e.keyCode, which: e.which || e.keyCode,
+                                                            ctrlKey: true, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
+                                                            bubbles: true, cancelable: true, view: window
+                                                        }));
+                                                    }
+                                                }
+                                            }, 10);
+                                        }
+                                    }
+                                }, true);
+                            `;
+                            iframeDoc.head.appendChild(script);
+                        }
+                    } catch (err) {
+                        // Silently fail if iframe access is blocked
+                    }
+                }
 
                 // Flag to ensure animations only run once
                 let animationComplete = false;
@@ -1215,6 +1280,8 @@
                 }
             };
         });
+
+        // Keyboard mapping functionality is injected into iframe on load
     </script>
 </body>
 

@@ -6,7 +6,7 @@ import os
 import sys
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, Union, List, Callable
+from typing import Dict, Any, Optional, Union, List, Callable, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .exceptions import ConfigurationError
@@ -47,6 +47,54 @@ class ThemeConfig(BaseModel):
     selection: Optional[str] = None
     font_family: Optional[str] = None
     font_size: Optional[int] = Field(default=None, gt=0)
+
+
+class KeyboardMappingConfig(BaseModel):
+    """Configuration for CMD to CTRL keyboard mapping in terminal interface."""
+    
+    mode: Literal["none", "smart", "all", "custom"] = "none"
+    custom_mappings: Dict[str, bool] = Field(default_factory=dict)
+    
+    @property
+    def smart_defaults(self) -> Dict[str, bool]:
+        """Smart default mappings for common editing shortcuts."""
+        return {
+            "z": True,   # Undo
+            "y": True,   # Redo
+            "x": True,   # Cut
+            "c": True,   # Copy
+            "v": True,   # Paste
+            "a": True,   # Select All
+            "s": True,   # Save
+            "f": True,   # Find
+            # System shortcuts that should NOT be mapped
+            "tab": False,  # App switching
+            "w": False,    # Close tab
+            "q": False,    # Quit
+            "r": False,    # Refresh
+            "t": False,    # New tab
+            "n": False,    # New window
+            "l": False,    # Address bar
+            ",": False,    # Preferences
+        }
+    
+    def should_map_key(self, key: str) -> bool:
+        """Determine if a given key should be mapped based on current mode and settings."""
+        key_lower = key.lower()
+        
+        if self.mode == "none":
+            return False
+        elif self.mode == "all":
+            return True
+        elif self.mode == "smart":
+            return self.smart_defaults.get(key_lower, False)
+        elif self.mode == "custom":
+            # Use custom mappings, falling back to smart defaults
+            if key_lower in self.custom_mappings:
+                return self.custom_mappings[key_lower]
+            return self.smart_defaults.get(key_lower, False)
+        
+        return False
 
 
 class RouteConfigBase(BaseModel):
@@ -149,6 +197,7 @@ class ScriptConfig(RouteConfigBase):
     dynamic: bool = False  # Enable dynamic argument passing via query parameters
     args_param: str = "args"  # Query parameter name for dynamic arguments
     _dynamic_wrapper_path: Optional[Path] = None
+    keyboard_mapping: KeyboardMappingConfig = Field(default_factory=KeyboardMappingConfig)
 
     @field_validator("script")
     @classmethod
@@ -585,6 +634,12 @@ def create_route_configs(
             
             if "args_param" in route_spec:
                 cfg_data["args_param"] = route_spec["args_param"]
+            
+            if "keyboard_mapping" in route_spec:
+                if isinstance(route_spec["keyboard_mapping"], dict):
+                    cfg_data["keyboard_mapping"] = KeyboardMappingConfig(**route_spec["keyboard_mapping"])
+                else:
+                    cfg_data["keyboard_mapping"] = route_spec["keyboard_mapping"]
 
             route_configs.append(ScriptConfig(**cfg_data))
             continue
@@ -624,6 +679,12 @@ def create_route_configs(
                 
                 if "args_param" in route_spec:
                     cfg_data["args_param"] = route_spec["args_param"]
+                
+                if "keyboard_mapping" in route_spec:
+                    if isinstance(route_spec["keyboard_mapping"], dict):
+                        cfg_data["keyboard_mapping"] = KeyboardMappingConfig(**route_spec["keyboard_mapping"])
+                    else:
+                        cfg_data["keyboard_mapping"] = route_spec["keyboard_mapping"]
                 
                 route_configs.append(ScriptConfig(**cfg_data))
                 continue
@@ -665,6 +726,12 @@ def create_route_configs(
             
             if "args_param" in route_spec:
                 cfg_data["args_param"] = route_spec["args_param"]
+            
+            if "keyboard_mapping" in route_spec:
+                if isinstance(route_spec["keyboard_mapping"], dict):
+                    cfg_data["keyboard_mapping"] = KeyboardMappingConfig(**route_spec["keyboard_mapping"])
+                else:
+                    cfg_data["keyboard_mapping"] = route_spec["keyboard_mapping"]
 
             route_configs.append(ScriptConfig(**cfg_data))
             continue
