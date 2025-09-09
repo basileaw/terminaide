@@ -59,9 +59,11 @@ Terminaide uses a reverse proxy architecture where each terminal runs as a separ
    - **Configuration Model**: `KeyboardMappingConfig` with mode (none/smart/all/custom) and custom mappings
    - **AutoIndex Integration**: Menu items can specify keyboard mapping that gets extracted to route configs
    - **Client-Side Implementation**: JavaScript injected into ttyd iframe intercepts CMD+key events
-   - **Event Translation**: Prevents original CMD events and synthesizes CTRL events for xterm.js
+   - **Dual Event Translation**: 
+     - Letter keys: CMD+key → CTRL+key events for editing shortcuts
+     - Arrow keys: CMD+Left/Right → Home/End events for line navigation
    - **Precise Targeting**: Events dispatched to `.xterm-helper-textarea` (primary input handler) or fallback elements
-   - **Smart Defaults**: Maps common editing shortcuts (Z/Y/X/C/V/A/S/F) while preserving system shortcuts (W/R/T)
+   - **Smart Defaults**: Maps editing shortcuts (Z/Y/X/C/V/A/S/F) and navigation (Left/Right→Home/End) while preserving system shortcuts (W/R/T)
 
 ### Request Flow
 ```
@@ -92,8 +94,10 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
    - **Template Integration**: Configuration passed to `terminal.html` via Jinja2 template context
    - **Iframe Injection**: JavaScript dynamically injected into ttyd iframe document on load
    - **Event Interception**: Document-level keydown listener with capture phase intercepts CMD+key combinations
-   - **Smart Filtering**: Only maps specified keys based on mode (smart/all/custom)
-   - **Event Synthesis**: Creates new KeyboardEvent with `ctrlKey: true, metaKey: false`
+   - **Smart Filtering**: Only maps specified keys based on mode (smart/all/custom), includes both letters and arrow keys
+   - **Dual Event Synthesis**: 
+     - Letter keys: Creates KeyboardEvent with `ctrlKey: true, metaKey: false` (CMD+C→CTRL+C)
+     - Arrow keys: Creates KeyboardEvent with `key: 'Home'/'End'` (CMD+Left→Home, CMD+Right→End)
    - **Precise Dispatch**: Targets xterm.js input handler (`.xterm-helper-textarea`) for reliable event processing
 
 ### Testing Strategy

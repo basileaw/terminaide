@@ -167,6 +167,7 @@ All three serving functions accept the same configuration options, including com
         "mode": "smart",             # "none" (default), "smart", "all", or "custom"
         "custom_mappings": {         # Override mappings when mode is "custom"
             "z": True,               # Map CMD+Z to CTRL+Z
+            "arrowleft": True,       # Map CMD+Left to Home (beginning of line)
             "c": False,              # Don't map CMD+C (leave as system shortcut)
         }
     },
@@ -188,9 +189,10 @@ All three serving functions accept the same configuration options, including com
 On Mac, terminal applications expect CTRL+key shortcuts, but Mac users naturally use CMD+key. Terminaide can automatically map CMD shortcuts to CTRL for a more intuitive experience:
 
 ```python
-# Smart mode: Maps common editing shortcuts only
+# Smart mode: Maps common editing and navigation shortcuts
 serve_script("my_app.py", keyboard_mapping={"mode": "smart"})
-# Maps: CMD+Z/Y/X/C/V/A/S/F → CTRL+Z/Y/X/C/V/A/S/F
+# Editing: CMD+Z/Y/X/C/V/A/S/F → CTRL+Z/Y/X/C/V/A/S/F
+# Navigation: CMD+Left/Right → Home/End (beginning/end of line)
 # Leaves system shortcuts alone: CMD+W/R/T (close/refresh/new tab)
 
 # All mode: Maps all CMD combinations to CTRL
@@ -200,9 +202,10 @@ serve_script("my_app.py", keyboard_mapping={"mode": "all"})
 serve_script("my_app.py", keyboard_mapping={
     "mode": "custom",
     "custom_mappings": {
-        "c": True,   # Map CMD+C to CTRL+C
-        "v": True,   # Map CMD+V to CTRL+V
-        "w": False,  # Don't map CMD+W (keep as close tab)
+        "c": True,         # Map CMD+C to CTRL+C
+        "v": True,         # Map CMD+V to CTRL+V
+        "arrowleft": True, # Map CMD+Left to Home
+        "w": False,        # Don't map CMD+W (keep as close tab)
     }
 })
 

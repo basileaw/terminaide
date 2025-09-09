@@ -1182,11 +1182,11 @@
                                         if (mode === 'all') {
                                             shouldMap = true;
                                         } else if (mode === 'smart') {
-                                            const smartKeys = ['z', 'y', 'x', 'c', 'v', 'a', 's', 'f'];
+                                            const smartKeys = ['z', 'y', 'x', 'c', 'v', 'a', 's', 'f', 'arrowleft', 'arrowright'];
                                             shouldMap = smartKeys.includes(key);
                                         } else if (mode === 'custom') {
                                             const customMappings = ${JSON.stringify(kbMapping.custom_mappings || {})};
-                                            const smartKeys = ['z', 'y', 'x', 'c', 'v', 'a', 's', 'f'];
+                                            const smartKeys = ['z', 'y', 'x', 'c', 'v', 'a', 's', 'f', 'arrowleft', 'arrowright'];
                                             shouldMap = customMappings.hasOwnProperty(key) 
                                                 ? customMappings[key] 
                                                 : smartKeys.includes(key);
@@ -1197,21 +1197,37 @@
                                             e.stopPropagation();
                                             
                                             setTimeout(() => {
-                                                const xtermTextarea = document.querySelector('.xterm-helper-textarea');
-                                                if (xtermTextarea) {
-                                                    xtermTextarea.dispatchEvent(new KeyboardEvent('keydown', {
+                                                let newEventConfig;
+                                                
+                                                // Handle arrow keys differently - map to Home/End
+                                                if (key === 'arrowleft') {
+                                                    newEventConfig = {
+                                                        key: 'Home', code: 'Home', keyCode: 36, which: 36,
+                                                        ctrlKey: false, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
+                                                        bubbles: true, cancelable: true, view: window
+                                                    };
+                                                } else if (key === 'arrowright') {
+                                                    newEventConfig = {
+                                                        key: 'End', code: 'End', keyCode: 35, which: 35,
+                                                        ctrlKey: false, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
+                                                        bubbles: true, cancelable: true, view: window
+                                                    };
+                                                } else {
+                                                    // Regular letter keys - map CMD to CTRL
+                                                    newEventConfig = {
                                                         key: e.key, code: e.code, keyCode: e.keyCode, which: e.which || e.keyCode,
                                                         ctrlKey: true, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
                                                         bubbles: true, cancelable: true, view: window
-                                                    }));
+                                                    };
+                                                }
+                                                
+                                                const xtermTextarea = document.querySelector('.xterm-helper-textarea');
+                                                if (xtermTextarea) {
+                                                    xtermTextarea.dispatchEvent(new KeyboardEvent('keydown', newEventConfig));
                                                 } else {
                                                     const terminalMain = document.querySelector('.terminal, .xterm');
                                                     if (terminalMain) {
-                                                        terminalMain.dispatchEvent(new KeyboardEvent('keydown', {
-                                                            key: e.key, code: e.code, keyCode: e.keyCode, which: e.which || e.keyCode,
-                                                            ctrlKey: true, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
-                                                            bubbles: true, cancelable: true, view: window
-                                                        }));
+                                                        terminalMain.dispatchEvent(new KeyboardEvent('keydown', newEventConfig));
                                                     }
                                                 }
                                             }, 10);

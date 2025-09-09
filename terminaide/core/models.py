@@ -57,8 +57,9 @@ class KeyboardMappingConfig(BaseModel):
     
     @property
     def smart_defaults(self) -> Dict[str, bool]:
-        """Smart default mappings for common editing shortcuts."""
+        """Smart default mappings for common editing and navigation shortcuts."""
         return {
+            # Editing shortcuts (CMD+key → CTRL+key)
             "z": True,   # Undo
             "y": True,   # Redo
             "x": True,   # Cut
@@ -67,6 +68,11 @@ class KeyboardMappingConfig(BaseModel):
             "a": True,   # Select All
             "s": True,   # Save
             "f": True,   # Find
+            
+            # Navigation shortcuts (CMD+Arrow → Home/End)
+            "arrowleft": True,   # CMD+Left → Home (beginning of line)
+            "arrowright": True,  # CMD+Right → End (end of line)
+            
             # System shortcuts that should NOT be mapped
             "tab": False,  # App switching
             "w": False,    # Close tab
@@ -80,19 +86,23 @@ class KeyboardMappingConfig(BaseModel):
     
     def should_map_key(self, key: str) -> bool:
         """Determine if a given key should be mapped based on current mode and settings."""
-        key_lower = key.lower()
+        # Normalize key for lookup (handle arrow keys specially)
+        if key.lower().startswith("arrow"):
+            key_normalized = key.lower()  # "ArrowLeft" → "arrowleft"
+        else:
+            key_normalized = key.lower()
         
         if self.mode == "none":
             return False
         elif self.mode == "all":
             return True
         elif self.mode == "smart":
-            return self.smart_defaults.get(key_lower, False)
+            return self.smart_defaults.get(key_normalized, False)
         elif self.mode == "custom":
             # Use custom mappings, falling back to smart defaults
-            if key_lower in self.custom_mappings:
-                return self.custom_mappings[key_lower]
-            return self.smart_defaults.get(key_lower, False)
+            if key_normalized in self.custom_mappings:
+                return self.custom_mappings[key_normalized]
+            return self.smart_defaults.get(key_normalized, False)
         
         return False
 
