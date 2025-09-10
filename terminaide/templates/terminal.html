@@ -1182,11 +1182,11 @@
                                         if (mode === 'all') {
                                             shouldMap = true;
                                         } else if (mode === 'smart') {
-                                            const smartKeys = ['z', 'y', 'x', 'c', 'v', 'a', 's', 'f', 'arrowleft', 'arrowright'];
+                                            const smartKeys = ['z', 'y', 'x', 'c', 'v', 'a', 's', 'f', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'];
                                             shouldMap = smartKeys.includes(key);
                                         } else if (mode === 'custom') {
                                             const customMappings = ${JSON.stringify(kbMapping.custom_mappings || {})};
-                                            const smartKeys = ['z', 'y', 'x', 'c', 'v', 'a', 's', 'f', 'arrowleft', 'arrowright'];
+                                            const smartKeys = ['z', 'y', 'x', 'c', 'v', 'a', 's', 'f', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'];
                                             shouldMap = customMappings.hasOwnProperty(key) 
                                                 ? customMappings[key] 
                                                 : smartKeys.includes(key);
@@ -1199,7 +1199,7 @@
                                             setTimeout(() => {
                                                 let newEventConfig;
                                                 
-                                                // Handle arrow keys differently - map to Home/End
+                                                // Handle arrow keys differently - map to Home/End/CTRL+Home/CTRL+End
                                                 if (key === 'arrowleft') {
                                                     newEventConfig = {
                                                         key: 'Home', code: 'Home', keyCode: 36, which: 36,
@@ -1210,6 +1210,18 @@
                                                     newEventConfig = {
                                                         key: 'End', code: 'End', keyCode: 35, which: 35,
                                                         ctrlKey: false, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
+                                                        bubbles: true, cancelable: true, view: window
+                                                    };
+                                                } else if (key === 'arrowup') {
+                                                    newEventConfig = {
+                                                        key: 'Home', code: 'Home', keyCode: 36, which: 36,
+                                                        ctrlKey: true, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
+                                                        bubbles: true, cancelable: true, view: window
+                                                    };
+                                                } else if (key === 'arrowdown') {
+                                                    newEventConfig = {
+                                                        key: 'End', code: 'End', keyCode: 35, which: 35,
+                                                        ctrlKey: true, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
                                                         bubbles: true, cancelable: true, view: window
                                                     };
                                                 } else {

@@ -69,9 +69,11 @@ class KeyboardMappingConfig(BaseModel):
             "s": True,   # Save
             "f": True,   # Find
             
-            # Navigation shortcuts (CMD+Arrow → Home/End)
+            # Navigation shortcuts (CMD+Arrow → Home/End/CTRL+Home/CTRL+End)
             "arrowleft": True,   # CMD+Left → Home (beginning of line)
             "arrowright": True,  # CMD+Right → End (end of line)
+            "arrowup": True,     # CMD+Up → CTRL+Home (beginning of document)
+            "arrowdown": True,   # CMD+Down → CTRL+End (end of document)
             
             # System shortcuts that should NOT be mapped
             "tab": False,  # App switching

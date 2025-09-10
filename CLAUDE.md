@@ -97,7 +97,8 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
    - **Smart Filtering**: Only maps specified keys based on mode (smart/all/custom), includes both letters and arrow keys
    - **Dual Event Synthesis**: 
      - Letter keys: Creates KeyboardEvent with `ctrlKey: true, metaKey: false` (CMD+C→CTRL+C)
-     - Arrow keys: Creates KeyboardEvent with `key: 'Home'/'End'` (CMD+Left→Home, CMD+Right→End)
+     - Horizontal arrows: Creates KeyboardEvent with `key: 'Home'/'End'` (CMD+Left→Home, CMD+Right→End)
+     - Vertical arrows: Creates KeyboardEvent with `key: 'Home'/'End', ctrlKey: true` (CMD+Up→CTRL+Home, CMD+Down→CTRL+End)
    - **Precise Dispatch**: Targets xterm.js input handler (`.xterm-helper-textarea`) for reliable event processing
 
 ### Testing Strategy

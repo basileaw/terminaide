@@ -192,7 +192,8 @@ On Mac, terminal applications expect CTRL+key shortcuts, but Mac users naturally
 # Smart mode: Maps common editing and navigation shortcuts
 serve_script("my_app.py", keyboard_mapping={"mode": "smart"})
 # Editing: CMD+Z/Y/X/C/V/A/S/F → CTRL+Z/Y/X/C/V/A/S/F
-# Navigation: CMD+Left/Right → Home/End (beginning/end of line)
+# Line navigation: CMD+Left/Right → Home/End (beginning/end of line)
+# Document navigation: CMD+Up/Down → CTRL+Home/CTRL+End (beginning/end of document)
 # Leaves system shortcuts alone: CMD+W/R/T (close/refresh/new tab)
 
 # All mode: Maps all CMD combinations to CTRL
@@ -204,7 +205,10 @@ serve_script("my_app.py", keyboard_mapping={
     "custom_mappings": {
         "c": True,         # Map CMD+C to CTRL+C
         "v": True,         # Map CMD+V to CTRL+V
-        "arrowleft": True, # Map CMD+Left to Home
+        "arrowleft": True, # Map CMD+Left to Home (beginning of line)
+        "arrowright": True,# Map CMD+Right to End (end of line)
+        "arrowup": True,   # Map CMD+Up to CTRL+Home (beginning of document)
+        "arrowdown": True, # Map CMD+Down to CTRL+End (end of document)
         "w": False,        # Don't map CMD+W (keep as close tab)
     }
 })
