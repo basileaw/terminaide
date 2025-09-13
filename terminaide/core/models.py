@@ -53,37 +53,30 @@ class KeyboardMappingConfig(BaseModel):
     """Configuration for CMD to CTRL keyboard mapping in terminal interface."""
     
     mode: Literal["none", "smart", "all", "custom"] = "none"
-    custom_mappings: Dict[str, bool] = Field(default_factory=dict)
+    custom_mappings: Dict[str, Union[bool, str]] = Field(default_factory=dict)
     
     @property
-    def smart_defaults(self) -> Dict[str, bool]:
+    def smart_defaults(self) -> Dict[str, str]:
         """Smart default mappings for common editing and navigation shortcuts."""
         return {
-            # Editing shortcuts (CMD+key → CTRL+key)
-            "z": True,   # Undo
-            "y": True,   # Redo
-            "x": True,   # Cut
-            "c": True,   # Copy
-            "v": True,   # Paste
-            "a": True,   # Select All
-            "s": True,   # Save
-            "f": True,   # Find
+            # Editing shortcuts with intelligent clipboard integration
+            "z": "terminal",  # Undo → CTRL+Z (terminal only)
+            "y": "terminal",  # Redo → CTRL+Y (terminal only)
+            "x": "terminal",  # Cut → CTRL+X (terminal only)
+            "c": "both",      # Copy → browser copy + CTRL+C (clipboard sync)
+            "v": "browser",   # Paste → browser paste only (clipboard sync)
+            "a": "terminal",  # Select All → CTRL+A (terminal select all)
+            "s": "terminal",  # Save → CTRL+S (terminal only)
+            "f": "terminal",  # Find → CTRL+F (terminal only)
             
             # Navigation shortcuts (CMD+Arrow → Home/End/CTRL+Home/CTRL+End)
-            "arrowleft": True,   # CMD+Left → Home (beginning of line)
-            "arrowright": True,  # CMD+Right → End (end of line)
-            "arrowup": True,     # CMD+Up → CTRL+Home (beginning of document)
-            "arrowdown": True,   # CMD+Down → CTRL+End (end of document)
+            "arrowleft": "terminal",   # CMD+Left → Home (beginning of line)
+            "arrowright": "terminal",  # CMD+Right → End (end of line)
+            "arrowup": "terminal",     # CMD+Up → CTRL+Home (beginning of document)
+            "arrowdown": "terminal",   # CMD+Down → CTRL+End (end of document)
             
-            # System shortcuts that should NOT be mapped
-            "tab": False,  # App switching
-            "w": False,    # Close tab
-            "q": False,    # Quit
-            "r": False,    # Refresh
-            "t": False,    # New tab
-            "n": False,    # New window
-            "l": False,    # Address bar
-            ",": False,    # Preferences
+            # System shortcuts are omitted (not mapped) to preserve browser functionality
+            # Examples: tab, w, q, r, t, n, l, comma (preferences, etc.)
         }
     
     def should_map_key(self, key: str) -> bool:
@@ -107,6 +100,44 @@ class KeyboardMappingConfig(BaseModel):
             return self.smart_defaults.get(key_normalized, False)
         
         return False
+    
+    def get_key_behavior(self, key: str) -> str:
+        """Get the behavior type for a key: 'terminal', 'browser', 'both', or 'none'."""
+        # Normalize key for lookup
+        key_normalized = key.lower()
+        
+        if self.mode == "none":
+            return "none"
+        elif self.mode == "all":
+            return "terminal"  # All mode defaults to terminal behavior
+        elif self.mode == "smart":
+            behavior = self.smart_defaults.get(key_normalized)
+            if isinstance(behavior, str):
+                return behavior
+            elif behavior is True:
+                return "terminal"  # Backward compatibility
+            else:
+                return "none"
+        elif self.mode == "custom":
+            # Use custom mappings, falling back to smart defaults
+            if key_normalized in self.custom_mappings:
+                behavior = self.custom_mappings[key_normalized]
+                if isinstance(behavior, str):
+                    return behavior
+                elif behavior is True:
+                    return "terminal"  # Backward compatibility
+                else:
+                    return "none"
+            # Fallback to smart defaults
+            behavior = self.smart_defaults.get(key_normalized)
+            if isinstance(behavior, str):
+                return behavior
+            elif behavior is True:
+                return "terminal"
+            else:
+                return "none"
+        
+        return "none"
 
 
 class RouteConfigBase(BaseModel):

@@ -186,32 +186,56 @@ All three serving functions accept the same configuration options, including com
 
 **Keyboard Mapping (Mac CMD → CTRL):**
 
-On Mac, terminal applications expect CTRL+key shortcuts, but Mac users naturally use CMD+key. Terminaide can automatically map CMD shortcuts to CTRL for a more intuitive experience:
+On Mac, terminal applications expect CTRL+key shortcuts, but Mac users naturally use CMD+key. Terminaide provides intelligent keyboard mapping with **clipboard integration** for seamless copy/paste workflow:
 
 ```python
-# Smart mode: Maps common editing and navigation shortcuts
+# Smart mode: Optimized defaults with clipboard sync
 serve_script("my_app.py", keyboard_mapping={"mode": "smart"})
-# Editing: CMD+Z/Y/X/C/V/A/S/F → CTRL+Z/Y/X/C/V/A/S/F
-# Line navigation: CMD+Left/Right → Home/End (beginning/end of line)
-# Document navigation: CMD+Up/Down → CTRL+Home/CTRL+End (beginning/end of document)
-# Leaves system shortcuts alone: CMD+W/R/T (close/refresh/new tab)
+# Clipboard sync: CMD+C → browser copy + terminal CTRL+C (copy errors/logs)
+# Paste: CMD+V → browser paste only (no double paste)
+# Editing: CMD+Z/Y/X/S/F → terminal CTRL+key
+# Navigation: CMD+arrows → terminal navigation (Home/End/CTRL+Home/CTRL+End)
+# Browser shortcuts preserved: CMD+W/R/T (close/refresh/new tab)
 
-# All mode: Maps all CMD combinations to CTRL
+# All mode: Maps all CMD combinations to terminal CTRL
 serve_script("my_app.py", keyboard_mapping={"mode": "all"})
 
-# Custom mode: Fine-grained control
+# Custom mode: Granular behavior control
 serve_script("my_app.py", keyboard_mapping={
     "mode": "custom",
     "custom_mappings": {
-        "c": True,         # Map CMD+C to CTRL+C
-        "v": True,         # Map CMD+V to CTRL+V
-        "arrowleft": True, # Map CMD+Left to Home (beginning of line)
-        "arrowright": True,# Map CMD+Right to End (end of line)
-        "arrowup": True,   # Map CMD+Up to CTRL+Home (beginning of document)
-        "arrowdown": True, # Map CMD+Down to CTRL+End (end of document)
-        "w": False,        # Don't map CMD+W (keep as close tab)
+        "c": "both",       # Copy: browser + terminal (clipboard sync)
+        "v": "browser",    # Paste: browser only (clean paste)
+        "a": "terminal",   # Select all: terminal CTRL+A (select all in terminal)
+        "z": "terminal",   # Undo: terminal only
+        "x": "both",       # Cut: browser + terminal (if desired)
+        "arrowleft": "terminal",  # Navigation: terminal only
+        # Behavior options: "both", "browser", "terminal", or omit to disable
     }
 })
+
+**Clipboard Integration Strategy:**
+
+The keyboard mapping system intelligently handles clipboard operations to provide the best user experience:
+
+- **`"both"`**: Browser action + terminal signal (ideal for CMD+C to copy terminal output AND send interrupt)
+- **`"browser"`**: Browser action only (ideal for CMD+V paste and CMD+A select all)  
+- **`"terminal"`**: Terminal signal only (traditional mapping, blocks browser action)
+- **Omitted keys**: No mapping (preserves browser shortcuts like CMD+W, CMD+T)
+
+This approach ensures clipboard sync between browser and terminal while avoiding conflicts and double actions.
+
+**Backward Compatibility:**
+
+Existing configurations using boolean values (`True`/`False`) are automatically converted:
+- `True` → `"terminal"` (terminal-only behavior)
+- `False` → `"none"` (no mapping)
+
+```python
+# Legacy format (still works)
+keyboard_mapping={"mode": "custom", "custom_mappings": {"c": True, "w": False}}
+# Equivalent to:
+keyboard_mapping={"mode": "custom", "custom_mappings": {"c": "terminal"}}
 
 # In Apps Server with per-route configuration
 serve_apps(app, {

@@ -1177,24 +1177,25 @@
                                     if (cmdPressed && !e.altKey && !e.shiftKey) {
                                         const key = e.key.toLowerCase();
                                         const mode = '${kbMapping.mode}';
-                                        let shouldMap = false;
+                                        // Get behavior for this key: 'terminal', 'browser', 'both', or 'none'
+                                        const behaviors = ${JSON.stringify(kbMapping.behaviors || {})};
+                                        const behavior = behaviors[key] || 'none';
                                         
-                                        if (mode === 'all') {
-                                            shouldMap = true;
-                                        } else if (mode === 'smart') {
-                                            const smartKeys = ['z', 'y', 'x', 'c', 'v', 'a', 's', 'f', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'];
-                                            shouldMap = smartKeys.includes(key);
-                                        } else if (mode === 'custom') {
-                                            const customMappings = ${JSON.stringify(kbMapping.custom_mappings || {})};
-                                            const smartKeys = ['z', 'y', 'x', 'c', 'v', 'a', 's', 'f', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown'];
-                                            shouldMap = customMappings.hasOwnProperty(key) 
-                                                ? customMappings[key] 
-                                                : smartKeys.includes(key);
-                                        }
-                                        
-                                        if (shouldMap) {
-                                            e.preventDefault();
-                                            e.stopPropagation();
+                                        if (behavior !== 'none') {
+                                            // Handle preventDefault based on behavior type
+                                            if (behavior === 'terminal') {
+                                                // Terminal-only: block browser, send to terminal
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                            } else if (behavior === 'browser') {
+                                                // Browser-only: allow browser, no terminal event
+                                                // (do nothing - let browser handle normally)
+                                                return;
+                                            } else if (behavior === 'both') {
+                                                // Both: allow browser + send to terminal  
+                                                // (don't prevent default, but do send synthetic event)
+                                                console.log('Keyboard mapping: CMD+' + key.toUpperCase() + ' → browser + terminal (' + behavior + ')');
+                                            }
                                             
                                             setTimeout(() => {
                                                 let newEventConfig;
@@ -1231,6 +1232,13 @@
                                                         ctrlKey: true, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
                                                         bubbles: true, cancelable: true, view: window
                                                     };
+                                                }
+                                                
+                                                // Console logging for debugging
+                                                if (behavior === 'both') {
+                                                    console.log('Dispatching synthetic CTRL+' + key.toUpperCase() + ' to terminal (behavior: ' + behavior + ')');
+                                                } else if (behavior === 'terminal') {
+                                                    console.log('Keyboard mapping: CMD+' + key.toUpperCase() + ' → terminal CTRL+' + key.toUpperCase() + ' (behavior: ' + behavior + ')');
                                                 }
                                                 
                                                 const xtermTextarea = document.querySelector('.xterm-helper-textarea');

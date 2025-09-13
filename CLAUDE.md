@@ -89,17 +89,19 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
    - Environment variable overrides: `TERMINAIDE_CACHE_DIR`, `TERMINAIDE_MONITOR_LOG`
    - Clear error messages guide users when configuration is needed
 
-8. **Keyboard Mapping**: CMD→CTRL translation for improved Mac UX
-   - **Configuration Processing**: AutoIndex menu items extract `keyboard_mapping` to `launcher_args`
-   - **Template Integration**: Configuration passed to `terminal.html` via Jinja2 template context
+8. **Keyboard Mapping with Clipboard Integration**: Intelligent CMD→CTRL translation for Mac UX
+   - **Configuration Model**: `KeyboardMappingConfig` supports Union[bool, str] for granular behavior control
+   - **Behavior Types**: Four modes per key - "terminal", "browser", "both", "none" (omitted)
+   - **Smart Defaults**: Optimized clipboard integration (CMD+C="both", CMD+V="browser", CMD+A="browser")
+   - **Template Integration**: Behavior map passed to `terminal.html` via config.behaviors JSON
    - **Iframe Injection**: JavaScript dynamically injected into ttyd iframe document on load
-   - **Event Interception**: Document-level keydown listener with capture phase intercepts CMD+key combinations
-   - **Smart Filtering**: Only maps specified keys based on mode (smart/all/custom), includes both letters and arrow keys
-   - **Dual Event Synthesis**: 
-     - Letter keys: Creates KeyboardEvent with `ctrlKey: true, metaKey: false` (CMD+C→CTRL+C)
-     - Horizontal arrows: Creates KeyboardEvent with `key: 'Home'/'End'` (CMD+Left→Home, CMD+Right→End)
-     - Vertical arrows: Creates KeyboardEvent with `key: 'Home'/'End', ctrlKey: true` (CMD+Up→CTRL+Home, CMD+Down→CTRL+End)
-   - **Precise Dispatch**: Targets xterm.js input handler (`.xterm-helper-textarea`) for reliable event processing
+   - **Intelligent Event Handling**: 
+     - "terminal": preventDefault + dispatch synthetic CTRL+key event
+     - "browser": Allow native browser behavior (no preventDefault)
+     - "both": Allow browser behavior + dispatch synthetic CTRL+key event (clipboard sync)
+     - "none": No mapping (preserves system shortcuts)
+   - **Event Synthesis**: Creates KeyboardEvent with modified modifiers and dispatches to xterm input handler
+   - **Clipboard Sync Strategy**: CMD+C copies to system clipboard AND sends terminal signal for optimal workflow
 
 ### Testing Strategy
 - Tests verify all three serving modes

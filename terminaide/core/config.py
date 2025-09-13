@@ -354,7 +354,13 @@ def configure_routes(
                             "theme": config.theme.model_dump(),
                             "title": title,
                             "preview_image": preview_image,
-                            "keyboard_mapping": route_config.keyboard_mapping.model_dump(),
+                            "keyboard_mapping": {
+                                "config": route_config.keyboard_mapping.model_dump(),
+                                "behaviors": {
+                                    key: route_config.keyboard_mapping.get_key_behavior(key)
+                                    for key in ["z", "y", "x", "c", "v", "a", "s", "f", "arrowleft", "arrowright", "arrowup", "arrowdown"]
+                                }
+                            },
                         },
                     )
                 except Exception as e:
