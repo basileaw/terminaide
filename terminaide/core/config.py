@@ -358,7 +358,7 @@ def configure_routes(
                                 "config": route_config.keyboard_mapping.model_dump(),
                                 "behaviors": {
                                     key: route_config.keyboard_mapping.get_key_behavior(key)
-                                    for key in ["z", "y", "x", "c", "v", "a", "s", "f", "arrowleft", "arrowright", "arrowup", "arrowdown"]
+                                    for key in ["z", "y", "x", "c", "v", "a", "s", "f", "k", "arrowleft", "arrowright", "arrowup", "arrowdown"]
                                 }
                             },
                         },

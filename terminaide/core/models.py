@@ -68,6 +68,7 @@ class KeyboardMappingConfig(BaseModel):
             "a": "terminal",  # Select All → CTRL+A (terminal select all)
             "s": "terminal",  # Save → CTRL+S (terminal only)
             "f": "terminal",  # Find → CTRL+F (terminal only)
+            "k": "terminal",  # Kill Line → CTRL+K (terminal only)
             
             # Navigation shortcuts (CMD+Arrow → Home/End/CTRL+Home/CTRL+End)
             "arrowleft": "terminal",   # CMD+Left → Home (beginning of line)
