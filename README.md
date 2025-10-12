@@ -407,7 +407,7 @@ print(banner)
 
 ## Terminarcade
 
-The `tryit/` directory contains working examples that demonstrate all Terminaide features. These serve as both development tests and usage examples:
+The `examples/` directory contains working examples that demonstrate all Terminaide features. These serve as both development tests and usage examples:
 
 ```
 make serve function     # Function mode - demo of serve_function()

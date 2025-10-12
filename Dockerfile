@@ -9,7 +9,7 @@ WORKDIR /app
 # Copy project directories
 COPY terminaide/ ./terminaide/
 COPY terminarcade/ ./terminarcade/
-COPY tryit/ ./tryit/
+COPY examples/ ./examples/
 COPY pyproject.toml ./
 
 # Install dependencies from pyproject.toml
@@ -17,4 +17,4 @@ RUN pip install --no-cache-dir .
 
 EXPOSE 8000
 
-CMD ["python", "tryit/apps.py"]
+CMD ["python", "examples/apps.py"]

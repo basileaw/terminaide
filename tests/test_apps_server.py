@@ -497,7 +497,7 @@ def read_parameter_file(route_path: str) -> Optional[Dict[str, Any]]:
 
 def test_apps_server_basic_routing():
     """Test basic apps server routing and proxy functionality."""
-    with DemoProcess("tryit/apps.py", port=8000) as demo:
+    with DemoProcess("examples/apps.py", port=8000) as demo:
         demo.start()
 
         # Test main page loads
@@ -518,7 +518,7 @@ def test_apps_server_basic_routing():
 
 def test_apps_server_websocket_connectivity():
     """Test WebSocket connectivity for all terminal routes."""
-    with DemoProcess("tryit/apps.py", port=8000) as demo:
+    with DemoProcess("examples/apps.py", port=8000) as demo:
         demo.start()
 
         # Verify WebSocket connectivity for all terminals
@@ -529,7 +529,7 @@ def test_apps_server_websocket_connectivity():
 def test_apps_server_port_allocation():
     """Test port allocation behavior and conflict detection."""
     # Start first server
-    with DemoProcess("tryit/apps.py", port=8000) as demo1:
+    with DemoProcess("examples/apps.py", port=8000) as demo1:
         demo1.start()
 
         # Verify ports are allocated
@@ -543,7 +543,7 @@ def test_apps_server_port_allocation():
 
 def test_apps_server_graceful_shutdown():
     """Test graceful shutdown and cleanup behavior."""
-    with DemoProcess("tryit/apps.py", port=8000) as demo:
+    with DemoProcess("examples/apps.py", port=8000) as demo:
         demo.start()
 
         # Verify server is running
@@ -572,7 +572,7 @@ def test_apps_server_graceful_shutdown():
 
 def test_apps_server_error_responses():
     """Test error handling for invalid routes and malformed requests."""
-    with DemoProcess("tryit/apps.py", port=8000) as demo:
+    with DemoProcess("examples/apps.py", port=8000) as demo:
         demo.start()
 
         # Test 404 for non-existent routes
@@ -588,7 +588,7 @@ def test_apps_server_error_responses():
 
 def test_apps_server_concurrent_connections():
     """Test handling of multiple concurrent HTTP connections."""
-    with DemoProcess("tryit/apps.py", port=8000) as demo:
+    with DemoProcess("examples/apps.py", port=8000) as demo:
         demo.start()
 
         # Make multiple concurrent requests

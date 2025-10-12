@@ -63,15 +63,15 @@ endef
 
 # Run function mode demo
 serve-function:
-	$(call run_command,python tryit/function.py)
+	$(call run_command,python examples/function.py)
 
 # Run script mode demo
 serve-script:
-	$(call run_command,python tryit/script.py)
+	$(call run_command,python examples/script.py)
 
 # Run apps mode demo (FastAPI integration)
 serve-apps:
-	$(call run_command,python tryit/apps.py)
+	$(call run_command,python examples/apps.py)
 
 # --- Docker Operations ---
 spin:

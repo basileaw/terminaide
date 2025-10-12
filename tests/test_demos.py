@@ -186,8 +186,8 @@ class DemoProcess:
 
 
 def test_serve_function():
-    """Test: python tryit/function.py starts and responds."""
-    with DemoProcess("tryit/function.py", port=8000) as demo:
+    """Test: python examples/function.py starts and responds."""
+    with DemoProcess("examples/function.py", port=8000) as demo:
         demo.start()
 
         # Verify ttyd process is running for the terminal
@@ -202,9 +202,9 @@ def test_serve_function():
 
 
 def test_serve_script():
-    """Test: python tryit/script.py starts and responds."""
+    """Test: python examples/script.py starts and responds."""
     # Script mode now uses serve_script() which creates an HTTP server
-    with DemoProcess("tryit/script.py", port=8000) as demo:
+    with DemoProcess("examples/script.py", port=8000) as demo:
         demo.start()
         
         # Verify ttyd process is running for the terminal
@@ -219,8 +219,8 @@ def test_serve_script():
 
 
 def test_serve_apps():
-    """Test: python tryit/apps.py starts and all routes respond."""
-    with DemoProcess("tryit/apps.py", port=8000) as demo:
+    """Test: python examples/apps.py starts and all routes respond."""
+    with DemoProcess("examples/apps.py", port=8000) as demo:
         demo.start()
 
         # Test main page

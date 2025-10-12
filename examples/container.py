@@ -5,7 +5,7 @@ Standalone demo of running terminaide in a Docker container.
 This example shows how to build and run the terminaide demo in Docker.
 
 Usage:
-    python tryit/container.py
+    python examples/container.py
 """
 
 import os
@@ -23,7 +23,7 @@ from terminaide import logger
 def generate_requirements_txt(pyproject_path: Path, temp_dir: Union[str, Path]) -> Path:
     """Generate requirements.txt from pyproject.toml dependencies (excludes dev deps)."""
     try:
-        logger.info("Generating requirements.txt (excluding tryit)")
+        logger.info("Generating requirements.txt (excluding examples)")
         req_path = Path(temp_dir) / "requirements.txt"
 
         # Read pyproject.toml
@@ -93,7 +93,7 @@ def build_and_run_container(port: int = 8000) -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         # Copy directories
-        for directory in ["terminaide", "terminarcade", "tryit"]:
+        for directory in ["terminaide", "terminarcade", "examples"]:
             src_dir = project_root / directory
             dst_dir = temp_path / directory
             if src_dir.exists():
@@ -115,11 +115,11 @@ ENV PYTHONPATH=/app
 WORKDIR /app
 COPY terminaide/ ./terminaide/
 COPY terminarcade/ ./terminarcade/
-COPY tryit/ ./tryit/
+COPY examples/ ./examples/
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 8000
-CMD ["python", "tryit/apps.py"]
+CMD ["python", "examples/apps.py"]
 """
         dockerfile_path = temp_path / "Dockerfile"
         with open(dockerfile_path, "w") as f:

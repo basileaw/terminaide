@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Standalone tryit of terminaide's serve_apps() API.
+Standalone example of terminaide's serve_apps() API.
 
 This example shows how to integrate multiple terminal applications into a
 single FastAPI server with HTML pages and terminal games at different routes.
 
 Usage:
-    python tryit/apps.py
+    python examples/apps.py
 """
 
 import uvicorn
@@ -76,7 +76,7 @@ app = create_app()
 
 if __name__ == "__main__":
     uvicorn.run(
-        "tryit.apps:app",
+        "examples.apps:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
