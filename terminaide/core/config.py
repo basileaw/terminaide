@@ -356,9 +356,16 @@ def configure_routes(
                             "preview_image": preview_image,
                             "keyboard_mapping": {
                                 "config": route_config.keyboard_mapping.model_dump(),
+                                "mode": route_config.keyboard_mapping.mode,
                                 "behaviors": {
-                                    key: route_config.keyboard_mapping.get_key_behavior(key)
-                                    for key in ["z", "y", "x", "c", "v", "a", "s", "f", "k", "arrowleft", "arrowright", "arrowup", "arrowdown"]
+                                    **{
+                                        key: route_config.keyboard_mapping.get_key_behavior(key)
+                                        for key in route_config.keyboard_mapping.smart_defaults.keys()
+                                    },
+                                    **{
+                                        key: route_config.keyboard_mapping.get_key_behavior(key)
+                                        for key in route_config.keyboard_mapping.custom_mappings.keys()
+                                    }
                                 }
                             },
                         },
