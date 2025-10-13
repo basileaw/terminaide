@@ -410,10 +410,10 @@ print(banner)
 The `examples/` directory contains working examples that demonstrate all Terminaide features. These serve as both development tests and usage examples:
 
 ```
-make serve function     # Function mode - demo of serve_function()
-make serve script       # Script mode - demo of serve_script()
-make serve apps         # Apps mode - HTML page at root with multiple terminals
-make serve container    # Run in Docker container (requires Docker Desktop)
+poe serve-function      # Function mode - demo of serve_function()
+poe serve-script        # Script mode - demo of serve_script()
+poe serve-apps          # Apps mode - HTML page at root with multiple terminals
+poe spin                # Run in Docker container (requires Docker Desktop)
 ```
 
 Explore the demo source code to see advanced usage patterns and implementation examples.

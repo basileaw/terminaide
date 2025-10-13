@@ -8,7 +8,7 @@ Usage, tenets and value proposition are covered in @README.md.
 
 ## Common Development Commands
 
-The development commands are defined in @Makefile.
+The development commands are defined in @tasks.yaml using poethepoet.
 
 ## Architecture Overview
 
@@ -113,7 +113,7 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
 ### Development Notes
 - Python 3.12+ required
 - Uses Poetry for dependencies
-- Custom task runner (tools/tasks.py) wraps all Make commands
+- Task runner uses poethepoet (poe) defined in @tasks.yaml
 - No linting tools configured - code formatting is manual
 - Environment variables loaded from .env if present
 - PYTHONPATH automatically includes project root

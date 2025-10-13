@@ -4,7 +4,7 @@ description = "Serve Python CLI applications in the browser using ttyd"
 license = "MIT"
 name = "terminaide"
 packages = [{ include = "terminaide" }, { include = "terminarcade" }]
-# readme = "README.md"
+readme = "README.md"
 repository = "https://github.com/basileaw/terminaide"
 version = "1.4.3"
 
@@ -15,7 +15,7 @@ httpcore = "^1.0.9"
 httpx = "^0.28.1"
 jinja2 = "^3.1.2"
 pydantic = "^2.4.2"
-python = ">=3.12"
+python = ">=3.12,<4.0"
 readchar = "^4.2.1"
 rich = "^14.0.0"
 websockets = "^12.0"
@@ -27,6 +27,7 @@ pytest = "^8.3.0"
 pytest-timeout = "^2.4.0"
 requests = "^2.32.0"
 poethepoet = "^0.37.0"
+issue-manager = { git = "https://github.com/basileaw/issue-manager.git", branch = "main" }
 
 [build-system]
 build-backend = "poetry.core.masonry.api"

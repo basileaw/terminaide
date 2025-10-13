@@ -1,52 +1,67 @@
-# tasks.yaml
+# terminaide/tasks.yaml
+
 tasks:
   # Development servers
   serve-function:
     shell: python examples/function.py
+    help: Run function mode demo
     
   serve-script:
     shell: python examples/script.py
+    help: Run script mode demo
     
   serve-apps:
     shell: python examples/apps.py
+    help: Run apps mode demo (FastAPI integration)
     
   # Testing
   test:
     cmd: pytest tests/ -v
+    help: Run pytest tests
     
-  # Docker
+  # Docker Operations
   spin:
     sequence:
       - shell: docker stop terminaide-container 2>/dev/null || true
       - shell: docker rm terminaide-container 2>/dev/null || true
       - cmd: docker build -t terminaide .
       - cmd: docker run --name terminaide-container -p 8000:8000 terminaide
+    help: Spin up Docker container
   
-  # GitHub Issue Management (delegates to Makefile)
+  # GitHub Issue Management (uses issue-manager package)
   list:
-    shell: make -f tools/Makefile.issue-manager list
+    cmd: python -m issue_manager.cli list
+    help: List all open issues
     
   bug:
-    shell: make -f tools/Makefile.issue-manager bug
+    cmd: python -m issue_manager.cli bug
+    help: Create a new bug issue
     
-  task:
-    shell: make -f tools/Makefile.issue-manager task
+  gh-task:
+    cmd: python -m issue_manager.cli task
+    help: Create a new task issue
     
   idea:
-    shell: make -f tools/Makefile.issue-manager idea
+    cmd: python -m issue_manager.cli idea
+    help: Create a new idea issue
     
   resolve:
-    shell: make -f tools/Makefile.issue-manager resolve ${ISSUE_NUMBERS}
+    cmd: python -m issue_manager.cli resolve
+    help: Resolve (close) issues by number
     
   delete:
-    shell: make -f tools/Makefile.issue-manager delete ${ISSUE_NUMBERS}
+    cmd: python -m issue_manager.cli delete
+    help: Delete issues permanently by number
   
-  # PyPI Publishing (delegates to Makefile)
+  # PyPI Publishing (still using Makefile for now)
   release-patch:
     shell: make -f tools/Makefile.pypi-publisher release-patch
+    help: Bump patch version and publish
     
   release-minor:
     shell: make -f tools/Makefile.pypi-publisher release-minor
+    help: Bump minor version and publish
     
   release-major:
     shell: make -f tools/Makefile.pypi-publisher release-major
+    help: Bump major version and publish

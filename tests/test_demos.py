@@ -249,7 +249,7 @@ def test_serve_apps():
 
 
 def test_serve_container():
-    """Test: make spin builds Docker image and runs container (requires Docker)."""
+    """Test: poe spin builds Docker image and runs container (requires Docker)."""
     # Skip if Docker not available
     try:
         subprocess.run(["docker", "--version"], check=True, capture_output=True)
@@ -263,9 +263,9 @@ def test_serve_container():
     except:
         pass
 
-    # Test make spin command - it builds and runs container
+    # Test poe spin command - it builds and runs container
     process = subprocess.Popen(
-        ["make", "spin"],
+        ["poe", "spin"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -305,7 +305,7 @@ def test_serve_container():
             # Process completed - check for errors
             stdout, stderr = process.communicate()
             if "Error" in stderr or process.returncode != 0:
-                raise RuntimeError(f"make spin failed:\nSTDOUT: {stdout}\nSTDERR: {stderr}")
+                raise RuntimeError(f"poe spin failed:\nSTDOUT: {stdout}\nSTDERR: {stderr}")
 
     finally:
         # Clean up: kill process and containers
