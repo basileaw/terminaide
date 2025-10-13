@@ -297,7 +297,7 @@ name = "issue-manager"
 version = "0.1.0"
 description = "GitHub issue management CLI tool"
 optional = false
-python-versions = "^3.12"
+python-versions = ">=3.12,<4.0"
 files = []
 develop = false
 
@@ -311,7 +311,7 @@ typer = "^0.12.0"
 type = "git"
 url = "https://github.com/basileaw/issue-manager.git"
 reference = "main"
-resolved_reference = "1cf2363f58b4630e79fc9830f3087d6974f296a4"
+resolved_reference = "4be3c6b1e8c0cce9b8e8baf2b17c9f5caa7ad1d4"
 
 [[package]]
 name = "jinja2"

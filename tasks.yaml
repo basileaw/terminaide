@@ -1,7 +1,7 @@
 # terminaide/tasks.yaml
 
 tasks:
-  # Development servers
+  # Only project-specific tasks
   serve-function:
     shell: python examples/function.py
     help: Run function mode demo
@@ -14,12 +14,10 @@ tasks:
     shell: python examples/apps.py
     help: Run apps mode demo (FastAPI integration)
     
-  # Testing
   test:
     cmd: pytest tests/ -v
     help: Run pytest tests
     
-  # Docker Operations
   spin:
     sequence:
       - shell: docker stop terminaide-container 2>/dev/null || true
@@ -27,31 +25,6 @@ tasks:
       - cmd: docker build -t terminaide .
       - cmd: docker run --name terminaide-container -p 8000:8000 terminaide
     help: Spin up Docker container
-  
-  # GitHub Issue Management (uses issue-manager package)
-  list:
-    cmd: python -m issue_manager.cli list
-    help: List all open issues
-    
-  bug:
-    cmd: python -m issue_manager.cli bug
-    help: Create a new bug issue
-    
-  gh-task:
-    cmd: python -m issue_manager.cli task
-    help: Create a new task issue
-    
-  idea:
-    cmd: python -m issue_manager.cli idea
-    help: Create a new idea issue
-    
-  resolve:
-    cmd: python -m issue_manager.cli resolve
-    help: Resolve (close) issues by number
-    
-  delete:
-    cmd: python -m issue_manager.cli delete
-    help: Delete issues permanently by number
   
   # PyPI Publishing (still using Makefile for now)
   release-patch:

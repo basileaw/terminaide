@@ -34,4 +34,4 @@ build-backend = "poetry.core.masonry.api"
 requires = ["poetry-core"]
 
 [tool.poe]
-include = "tasks.yaml"
+include = ["tasks.yaml"]
