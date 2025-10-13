@@ -1,0 +1,52 @@
+# tasks.yaml
+tasks:
+  # Development servers
+  serve-function:
+    shell: python examples/function.py
+    
+  serve-script:
+    shell: python examples/script.py
+    
+  serve-apps:
+    shell: python examples/apps.py
+    
+  # Testing
+  test:
+    cmd: pytest tests/ -v
+    
+  # Docker
+  spin:
+    sequence:
+      - shell: docker stop terminaide-container 2>/dev/null || true
+      - shell: docker rm terminaide-container 2>/dev/null || true
+      - cmd: docker build -t terminaide .
+      - cmd: docker run --name terminaide-container -p 8000:8000 terminaide
+  
+  # GitHub Issue Management (delegates to Makefile)
+  list:
+    shell: make -f tools/Makefile.issue-manager list
+    
+  bug:
+    shell: make -f tools/Makefile.issue-manager bug
+    
+  task:
+    shell: make -f tools/Makefile.issue-manager task
+    
+  idea:
+    shell: make -f tools/Makefile.issue-manager idea
+    
+  resolve:
+    shell: make -f tools/Makefile.issue-manager resolve ${ISSUE_NUMBERS}
+    
+  delete:
+    shell: make -f tools/Makefile.issue-manager delete ${ISSUE_NUMBERS}
+  
+  # PyPI Publishing (delegates to Makefile)
+  release-patch:
+    shell: make -f tools/Makefile.pypi-publisher release-patch
+    
+  release-minor:
+    shell: make -f tools/Makefile.pypi-publisher release-minor
+    
+  release-major:
+    shell: make -f tools/Makefile.pypi-publisher release-major

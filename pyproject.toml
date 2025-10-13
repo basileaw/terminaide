@@ -26,7 +26,11 @@ uvicorn = "^0.34.2"
 pytest = "^8.3.0"
 pytest-timeout = "^2.4.0"
 requests = "^2.32.0"
+poethepoet = "^0.37.0"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
 requires = ["poetry-core"]
+
+[tool.poe]
+include = "tasks.yaml"
