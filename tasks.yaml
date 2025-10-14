@@ -26,15 +26,7 @@ tasks:
       - cmd: docker run --name terminaide-container -p 8000:8000 terminaide
     help: Spin up Docker container
   
-  # PyPI Publishing (still using Makefile for now)
-  release-patch:
-    shell: make -f tools/Makefile.pypi-publisher release-patch
-    help: Bump patch version and publish
-    
-  release-minor:
-    shell: make -f tools/Makefile.pypi-publisher release-minor
-    help: Bump minor version and publish
-    
-  release-major:
-    shell: make -f tools/Makefile.pypi-publisher release-major
-    help: Bump major version and publish
+  # PyPI Publishing
+  release:
+    cmd: python tools/publisher.py
+    help: "Bump version and publish (args: patch|minor|major [--dry-run] [--yes])"
