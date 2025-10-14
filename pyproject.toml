@@ -27,7 +27,7 @@ pytest = "^8.3.0"
 pytest-timeout = "^2.4.0"
 requests = "^2.32.0"
 poethepoet = "^0.37.0"
-issue-manager = { git = "https://github.com/basileaw/issue-manager.git", branch = "main" }
+toolbox = { git = "https://github.com/basileaw/toolbox.git" }
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
