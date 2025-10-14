@@ -28,5 +28,5 @@ tasks:
   
   # PyPI Publishing
   release:
-    cmd: python tools/publisher.py
+    cmd: box release
     help: "Bump version and publish (args: patch|minor|major [--dry-run] [--yes])"
