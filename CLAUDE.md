@@ -56,14 +56,10 @@ Terminaide uses a reverse proxy architecture where each terminal runs as a separ
    - Security: Requires explicit configuration for external file creation
 
 8. **Keyboard Mapping System** (`terminaide/core/models.py`, `terminaide/templates/terminal.html`): CMD→CTRL mapping for Mac users
-   - **Configuration Model**: `KeyboardMappingConfig` with mode (none/smart/all/custom) and custom mappings
-   - **AutoIndex Integration**: Menu items can specify keyboard mapping that gets extracted to route configs
-   - **Client-Side Implementation**: JavaScript injected into ttyd iframe intercepts CMD+key events
-   - **Dual Event Translation**: 
-     - Letter keys: CMD+key → CTRL+key events for editing shortcuts
-     - Arrow keys: CMD+Left/Right → Home/End events for line navigation
-   - **Precise Targeting**: Events dispatched to `.xterm-helper-textarea` (primary input handler) or fallback elements
-   - **Smart Defaults**: Maps editing shortcuts (Z/Y/X/C/V/A/S/F) and navigation (Left/Right→Home/End) while preserving system shortcuts (W/R/T)
+   - Configuration via `KeyboardMappingConfig` model with multiple modes
+   - AutoIndex menu items can specify keyboard mapping for route extraction
+   - Client-side JavaScript injection into ttyd iframe for event interception
+   - Event dispatching to `.xterm-helper-textarea` and fallback elements
 
 ### Request Flow
 ```
@@ -82,26 +78,17 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
 4. **Single Port Architecture**: All traffic through one port, proxy handles routing
 5. **Virtual Environment Isolation**: Scripts automatically use their associated virtual environments for dependency isolation
 6. **Dynamic Arguments**: Routes can accept command-line arguments via query parameters when configured with `dynamic: true`
-   - Configurable parameter names via `args_param` (default: "args")
-   - Custom parameter names enable semantic URLs (e.g., `?with=data.json` instead of `?args=data.json`)
+   - Parameter names configurable via `args_param` for semantic URLs
 7. **Security-First File Management**: Files created only within package cache by default
    - External file creation requires explicit configuration (`ephemeral_cache_dir`, `monitor_log_path`)
    - Environment variable overrides: `TERMINAIDE_CACHE_DIR`, `TERMINAIDE_MONITOR_LOG`
    - Clear error messages guide users when configuration is needed
 
 8. **Keyboard Mapping with Clipboard Integration**: Intelligent CMD→CTRL translation for Mac UX
-   - **Configuration Model**: `KeyboardMappingConfig` supports Union[bool, str] for granular behavior control
-   - **Behavior Types**: Four modes per key - "terminal", "browser", "both", "none" (omitted)
-   - **Smart Defaults**: Optimized clipboard integration (CMD+C="both", CMD+V="browser", CMD+A="browser")
-   - **Template Integration**: Behavior map passed to `terminal.html` via config.behaviors JSON
-   - **Iframe Injection**: JavaScript dynamically injected into ttyd iframe document on load
-   - **Intelligent Event Handling**: 
-     - "terminal": preventDefault + dispatch synthetic CTRL+key event
-     - "browser": Allow native browser behavior (no preventDefault)
-     - "both": Allow browser behavior + dispatch synthetic CTRL+key event (clipboard sync)
-     - "none": No mapping (preserves system shortcuts)
-   - **Event Synthesis**: Creates KeyboardEvent with modified modifiers and dispatches to xterm input handler
-   - **Clipboard Sync Strategy**: CMD+C copies to system clipboard AND sends terminal signal for optimal workflow
+   - Configuration model supports Union[bool, str] for granular behavior control per key
+   - Four behavior types: "terminal", "browser", "both", "none"
+   - Template receives behavior map via JSON for client-side event handling
+   - JavaScript injection intercepts events and dispatches synthetic keyboard events to xterm input handler
 
 ### Testing Strategy
 - Tests verify all three serving modes
