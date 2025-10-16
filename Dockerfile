@@ -10,7 +10,7 @@ WORKDIR /app
 COPY terminaide/ ./terminaide/
 COPY terminarcade/ ./terminarcade/
 COPY examples/ ./examples/
-COPY pyproject.toml ./
+COPY pyproject.toml README.md ./
 
 # Install dependencies from pyproject.toml
 RUN pip install --no-cache-dir .
