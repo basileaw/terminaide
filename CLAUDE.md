@@ -104,3 +104,7 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
 - No linting tools configured - code formatting is manual
 - Environment variables loaded from .env if present
 - PYTHONPATH automatically includes project root
+- **Docker builds**: `.dockerignore` is symlinked to `.gitignore` to prevent architecture mismatches
+  - The `terminaide/cache/` directory contains platform-specific ttyd binaries
+  - If copied into Docker builds, Mac binaries cause "Exec format error" on Linux containers
+  - Excluding cache forces runtime download of correct Linux binary via `installer.py`
