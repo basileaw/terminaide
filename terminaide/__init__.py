@@ -250,9 +250,22 @@ def serve_apps(
                     menu=[
                         {"path": "/calculator", "title": "Calculator", "function": calc_fn},
                         {"path": "/logs", "title": "View Logs", "script": "logs.py"},
-                        {"path": "/admin", "title": "Admin", "function": admin_fn, 
+                        {"path": "/admin", "title": "Admin", "function": admin_fn,
                          "launcher_args": {"preview_image": "admin.png"}}
                     ]
+                )
+            })
+
+        Curses menu (served through ttyd in browser):
+            serve_apps(app, {
+                "/": AutoIndex(
+                    type="curses",
+                    title="GAME MENU",
+                    menu=[
+                        {"function": snake, "title": "Snake"},
+                        {"function": tetris, "title": "Tetris"},
+                    ],
+                    instructions="←/→: navigate, Enter: select, Q: quit",
                 )
             })
 

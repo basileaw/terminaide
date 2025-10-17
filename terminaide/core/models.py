@@ -617,14 +617,38 @@ def create_route_configs(
     for route_path, route_spec in expanded_routes.items():
         # Handle AutoIndex instances
         if isinstance(route_spec, AutoIndex):
-            route_configs.append(
-                IndexPageConfig(
-                    route_path=route_path,
-                    index_page=route_spec,
-                    preview_image=route_spec.preview_image,
-                    title=route_spec.title,
+            # Curses AutoIndex should be served as a terminal route
+            if route_spec.index_type == "curses":
+                # Create a wrapper function that shows the curses menu
+                def make_curses_wrapper(auto_index):
+                    """Create wrapper that captures the AutoIndex instance."""
+                    def show_curses_menu():
+                        auto_index.show()
+                    return show_curses_menu
+
+                wrapper_func = make_curses_wrapper(route_spec)
+                wrapper_func.__name__ = f"{route_spec.title.replace(' ', '_')}_menu"
+
+                route_configs.append(
+                    ScriptConfig(
+                        route_path=route_path,
+                        function_object=wrapper_func,
+                        script=None,
+                        args=[],
+                        title=route_spec.title,
+                        preview_image=route_spec.preview_image,
+                    )
                 )
-            )
+            else:
+                # HTML AutoIndex - create IndexPageConfig
+                route_configs.append(
+                    IndexPageConfig(
+                        route_path=route_path,
+                        index_page=route_spec,
+                        preview_image=route_spec.preview_image,
+                        title=route_spec.title,
+                    )
+                )
             continue
 
         # Handle direct callable function

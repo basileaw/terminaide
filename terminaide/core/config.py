@@ -491,8 +491,15 @@ def extract_routes_from_autoindex(terminal_routes: Dict[str, Any]) -> Dict[str, 
     # Find all AutoIndex instances and extract their routes
     for path, spec in terminal_routes.items():
         if isinstance(spec, AutoIndex):
+            # Skip curses AutoIndex - it will be served as a single terminal route
+            if spec.index_type == "curses":
+                logger.debug(
+                    f"Skipping route extraction for curses AutoIndex at {path} - will be served as terminal"
+                )
+                continue
+
             extracted = spec.extract_routes()
-            
+
             # Add extracted routes that don't conflict with explicit routes
             for route_path, route_spec in extracted.items():
                 if route_path not in terminal_routes:

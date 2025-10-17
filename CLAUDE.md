@@ -90,6 +90,12 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
    - Template receives behavior map via JSON for client-side event handling
    - JavaScript injection intercepts events and dispatches synthetic keyboard events to xterm input handler
 
+9. **Curses AutoIndex Support**: Curses menus served through ttyd in browser
+   - `AutoIndex(type="curses")` automatically wrapped as terminal function
+   - Menu navigation happens in single ttyd session (arrow keys, Enter to select)
+   - Games/apps launch in-place and return to menu on exit
+   - Works seamlessly in Docker containers alongside HTML menus
+
 ### Testing Strategy
 - Tests verify all three serving modes
 - Checks for HTTP errors and Python tracebacks
