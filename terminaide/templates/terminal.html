@@ -104,6 +104,7 @@
     </script>
     <!-- Apply theme immediately to reduce flash of unstyled content -->
     <script>
+        // @ts-nocheck
         (function () {
             const themeData = JSON.parse(document.getElementById('theme-data').textContent);
             Object.entries(themeData).forEach(function (entry) {
@@ -113,6 +114,9 @@
                 }
             });
         })();
+    </script>
+    <script id="keyboard-mapping-data" type="application/json">
+        {{ keyboard_mapping | tojson | safe }}
     </script>
 </head>
 
@@ -1160,9 +1164,9 @@
             terminal.onload = function () {
                 // Inject styles
                 injectStyles();
-                
+
                 // KEYBOARD MAPPING: Inject into iframe for CMD->CTRL mapping
-                const kbMapping = {{ keyboard_mapping | tojson }};
+                const kbMapping = JSON.parse(document.getElementById('keyboard-mapping-data').textContent);
                 if (kbMapping.mode !== 'none') {
                     try {
                         const iframeDoc = terminal.contentDocument || terminal.contentWindow.document;
