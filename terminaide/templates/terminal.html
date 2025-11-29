@@ -989,6 +989,97 @@
                     `;
                     doc.head.appendChild(script);
 
+                    // Mobile touch scroll handling
+                    if (isMobile) {
+                        const touchScrollScript = doc.createElement('script');
+                        touchScrollScript.id = 'mobile-touch-scroll';
+                        touchScrollScript.textContent = `
+                            (function() {
+                                var SCROLL_THRESHOLD = 25;
+                                var TAP_THRESHOLD = 10;
+                                var touchStartY = null;
+                                var touchStartX = null;
+                                var accumulatedDelta = 0;
+                                var isScrollGesture = false;
+                                
+                                function setupTouchHandlers() {
+                                    var terminalElement = document.querySelector('.xterm-screen') || 
+                                                          document.querySelector('.xterm') || 
+                                                          document.querySelector('.terminal');
+                                    
+                                    if (!terminalElement) {
+                                        setTimeout(setupTouchHandlers, 100);
+                                        return;
+                                    }
+                                    
+                                    console.log('Setting up mobile touch scroll handlers');
+                                    
+                                    terminalElement.addEventListener('touchstart', function(e) {
+                                        if (e.touches.length === 1) {
+                                            touchStartY = e.touches[0].clientY;
+                                            touchStartX = e.touches[0].clientX;
+                                            accumulatedDelta = 0;
+                                            isScrollGesture = false;
+                                        }
+                                    }, { passive: true });
+                                    
+                                    terminalElement.addEventListener('touchmove', function(e) {
+                                        if (e.touches.length !== 1 || touchStartY === null) return;
+                                        
+                                        var currentY = e.touches[0].clientY;
+                                        var currentX = e.touches[0].clientX;
+                                        var deltaY = touchStartY - currentY;
+                                        var deltaX = Math.abs(currentX - touchStartX);
+                                        var absDeltaY = Math.abs(deltaY);
+                                        
+                                        if (!isScrollGesture && absDeltaY > TAP_THRESHOLD && absDeltaY > deltaX) {
+                                            isScrollGesture = true;
+                                        }
+                                        
+                                        if (isScrollGesture) {
+                                            e.preventDefault();
+                                            accumulatedDelta += (touchStartY - currentY);
+                                            touchStartY = currentY;
+                                            
+                                            while (Math.abs(accumulatedDelta) >= SCROLL_THRESHOLD) {
+                                                if (window.term && window.term._core && window.term._core.coreService) {
+                                                    if (accumulatedDelta > 0) {
+                                                        window.term._core.coreService.triggerDataEvent('\\x1b[<65;1;1M');
+                                                        accumulatedDelta -= SCROLL_THRESHOLD;
+                                                    } else {
+                                                        window.term._core.coreService.triggerDataEvent('\\x1b[<64;1;1M');
+                                                        accumulatedDelta += SCROLL_THRESHOLD;
+                                                    }
+                                                } else {
+                                                    accumulatedDelta = 0;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }, { passive: false });
+                                    
+                                    terminalElement.addEventListener('touchend', function(e) {
+                                        touchStartY = null;
+                                        touchStartX = null;
+                                        accumulatedDelta = 0;
+                                        isScrollGesture = false;
+                                    }, { passive: true });
+                                    
+                                    terminalElement.addEventListener('touchcancel', function(e) {
+                                        touchStartY = null;
+                                        touchStartX = null;
+                                        accumulatedDelta = 0;
+                                        isScrollGesture = false;
+                                    }, { passive: true });
+                                }
+                                
+                                setTimeout(setupTouchHandlers, 500);
+                            })();
+                        `;
+                        doc.head.appendChild(touchScrollScript);
+                        console.log('Injected mobile touch scroll handler');
+                    }
+
                     // Listen for messages from iframe
                     window.addEventListener('message', function (event) {
                         if (event.data && event.data.type === 'terminal-sizing-complete') {
