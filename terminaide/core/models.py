@@ -1,4 +1,4 @@
-# data_models.py
+# models.py
 
 """Defines Pydantic-based settings for terminaide, including path handling for root/non-root mounting and multiple script routing."""
 
@@ -47,14 +47,15 @@ class ThemeConfig(BaseModel):
     selection: Optional[str] = None
     font_family: Optional[str] = None
     font_size: Optional[int] = Field(default=None, gt=0)
+    mobile_font_size: Optional[int] = Field(default=None, gt=0)
 
 
 class KeyboardMappingConfig(BaseModel):
     """Configuration for CMD to CTRL keyboard mapping in terminal interface."""
-    
+
     mode: Literal["none", "smart", "all", "custom"] = "none"
     custom_mappings: Dict[str, Union[bool, str]] = Field(default_factory=dict)
-    
+
     @property
     def smart_defaults(self) -> Dict[str, str]:
         """Smart default mappings for common editing and navigation shortcuts."""
@@ -63,22 +64,20 @@ class KeyboardMappingConfig(BaseModel):
             "z": "terminal",  # Undo → CTRL+Z (terminal only)
             "y": "terminal",  # Redo → CTRL+Y (terminal only)
             "x": "terminal",  # Cut → CTRL+X (terminal only)
-            "c": "both",      # Copy → browser copy + CTRL+C (clipboard sync)
-            "v": "browser",   # Paste → browser paste only (clipboard sync)
+            "c": "both",  # Copy → browser copy + CTRL+C (clipboard sync)
+            "v": "browser",  # Paste → browser paste only (clipboard sync)
             "a": "terminal",  # Select All → CTRL+A (terminal select all)
             "s": "terminal",  # Save → CTRL+S (terminal only)
             "f": "terminal",  # Find → CTRL+F (terminal only)
-
             # Navigation shortcuts (CMD+Arrow → Home/End/CTRL+Home/CTRL+End)
-            "arrowleft": "terminal",   # CMD+Left → Home (beginning of line)
+            "arrowleft": "terminal",  # CMD+Left → Home (beginning of line)
             "arrowright": "terminal",  # CMD+Right → End (end of line)
-            "arrowup": "terminal",     # CMD+Up → CTRL+Home (beginning of document)
-            "arrowdown": "terminal",   # CMD+Down → CTRL+End (end of document)
-
+            "arrowup": "terminal",  # CMD+Up → CTRL+Home (beginning of document)
+            "arrowdown": "terminal",  # CMD+Down → CTRL+End (end of document)
             # System shortcuts are omitted (not mapped) to preserve browser functionality
             # Examples: k (command palette), w, q, r, t, n, l, comma (preferences, etc.)
         }
-    
+
     def should_map_key(self, key: str) -> bool:
         """Determine if a given key should be mapped based on current mode and settings."""
         # Normalize key for lookup (handle arrow keys specially)
@@ -86,7 +85,7 @@ class KeyboardMappingConfig(BaseModel):
             key_normalized = key.lower()  # "ArrowLeft" → "arrowleft"
         else:
             key_normalized = key.lower()
-        
+
         if self.mode == "none":
             return False
         elif self.mode == "all":
@@ -98,14 +97,14 @@ class KeyboardMappingConfig(BaseModel):
             if key_normalized in self.custom_mappings:
                 return self.custom_mappings[key_normalized]
             return self.smart_defaults.get(key_normalized, False)
-        
+
         return False
-    
+
     def get_key_behavior(self, key: str) -> str:
         """Get the behavior type for a key: 'terminal', 'browser', 'both', or 'none'."""
         # Normalize key for lookup
         key_normalized = key.lower()
-        
+
         if self.mode == "none":
             return "none"
         elif self.mode == "all":
@@ -136,7 +135,7 @@ class KeyboardMappingConfig(BaseModel):
                 return "terminal"
             else:
                 return "none"
-        
+
         return "none"
 
 
@@ -240,7 +239,9 @@ class ScriptConfig(RouteConfigBase):
     dynamic: bool = False  # Enable dynamic argument passing via query parameters
     args_param: str = "args"  # Query parameter name for dynamic arguments
     _dynamic_wrapper_path: Optional[Path] = None
-    keyboard_mapping: KeyboardMappingConfig = Field(default_factory=KeyboardMappingConfig)
+    keyboard_mapping: KeyboardMappingConfig = Field(
+        default_factory=KeyboardMappingConfig
+    )
 
     @field_validator("script")
     @classmethod
@@ -315,7 +316,7 @@ class ScriptConfig(RouteConfigBase):
     def set_function_wrapper_path(self, path: Path) -> None:
         """Set the path to the generated wrapper script for a function."""
         self._function_wrapper_path = path
-    
+
     def set_dynamic_wrapper_path(self, path: Path) -> None:
         """Set the path to the generated dynamic wrapper script."""
         self._dynamic_wrapper_path = path
@@ -387,6 +388,7 @@ class TTYDConfig(BaseModel):
         if not path.exists():
             # Check if we're in a reload context
             import os
+
             if os.environ.get("TERMINAIDE_MODE") and os.environ.get("TERMINAIDE_PORT"):
                 # We're in a reload context - log warning but don't crash
                 logger.warning(
@@ -608,7 +610,7 @@ def create_route_configs(
     # Import here to avoid circular import
     from .index import AutoIndex
     from ..core.config import extract_routes_from_autoindex
-    
+
     # Extract routes from AutoIndex instances first
     expanded_routes = extract_routes_from_autoindex(terminal_routes)
 
@@ -622,8 +624,10 @@ def create_route_configs(
                 # Create a wrapper function that shows the curses menu
                 def make_curses_wrapper(auto_index):
                     """Create wrapper that captures the AutoIndex instance."""
+
                     def show_curses_menu():
                         auto_index.show()
+
                     return show_curses_menu
 
                 wrapper_func = make_curses_wrapper(route_spec)
@@ -695,16 +699,18 @@ def create_route_configs(
 
             if "preview_image" in route_spec:
                 cfg_data["preview_image"] = route_spec["preview_image"]
-            
+
             if "dynamic" in route_spec:
                 cfg_data["dynamic"] = route_spec["dynamic"]
-            
+
             if "args_param" in route_spec:
                 cfg_data["args_param"] = route_spec["args_param"]
-            
+
             if "keyboard_mapping" in route_spec:
                 if isinstance(route_spec["keyboard_mapping"], dict):
-                    cfg_data["keyboard_mapping"] = KeyboardMappingConfig(**route_spec["keyboard_mapping"])
+                    cfg_data["keyboard_mapping"] = KeyboardMappingConfig(
+                        **route_spec["keyboard_mapping"]
+                    )
                 else:
                     cfg_data["keyboard_mapping"] = route_spec["keyboard_mapping"]
 
@@ -713,49 +719,53 @@ def create_route_configs(
 
         # Handle script path or function in dictionary
         # Support both "script" (new) and "client_script" (backward compatibility)
-        if isinstance(route_spec, dict) and ("script" in route_spec or "client_script" in route_spec):
+        if isinstance(route_spec, dict) and (
+            "script" in route_spec or "client_script" in route_spec
+        ):
             # Use "script" if present, otherwise fall back to "client_script"
             script_value = route_spec.get("script") or route_spec.get("client_script")
-            
+
             # Check if script is actually a function
             if callable(script_value):
                 func = script_value
                 func_name = getattr(func, "__name__", "function")
-                
+
                 cfg_data = {
                     "route_path": route_path,
                     "function_object": func,
                     "script": None,
                     "args": [],
                 }
-                
+
                 # Use provided title or auto-generate
                 if "title" in route_spec:
                     cfg_data["title"] = route_spec["title"]
                 else:
                     cfg_data["title"] = f"{func_name}()"
-                
+
                 if "port" in route_spec:
                     cfg_data["port"] = route_spec["port"]
-                
+
                 if "preview_image" in route_spec:
                     cfg_data["preview_image"] = route_spec["preview_image"]
-                
+
                 if "dynamic" in route_spec:
                     cfg_data["dynamic"] = route_spec["dynamic"]
-                
+
                 if "args_param" in route_spec:
                     cfg_data["args_param"] = route_spec["args_param"]
-                
+
                 if "keyboard_mapping" in route_spec:
                     if isinstance(route_spec["keyboard_mapping"], dict):
-                        cfg_data["keyboard_mapping"] = KeyboardMappingConfig(**route_spec["keyboard_mapping"])
+                        cfg_data["keyboard_mapping"] = KeyboardMappingConfig(
+                            **route_spec["keyboard_mapping"]
+                        )
                     else:
                         cfg_data["keyboard_mapping"] = route_spec["keyboard_mapping"]
-                
+
                 route_configs.append(ScriptConfig(**cfg_data))
                 continue
-            
+
             # Handle script path (existing logic)
             if isinstance(script_value, list) and len(script_value) > 0:
                 script_path = script_value[0]
@@ -787,16 +797,18 @@ def create_route_configs(
             # Handle preview_image if provided in the script_spec
             if "preview_image" in route_spec:
                 cfg_data["preview_image"] = route_spec["preview_image"]
-            
+
             if "dynamic" in route_spec:
                 cfg_data["dynamic"] = route_spec["dynamic"]
-            
+
             if "args_param" in route_spec:
                 cfg_data["args_param"] = route_spec["args_param"]
-            
+
             if "keyboard_mapping" in route_spec:
                 if isinstance(route_spec["keyboard_mapping"], dict):
-                    cfg_data["keyboard_mapping"] = KeyboardMappingConfig(**route_spec["keyboard_mapping"])
+                    cfg_data["keyboard_mapping"] = KeyboardMappingConfig(
+                        **route_spec["keyboard_mapping"]
+                    )
                 else:
                     cfg_data["keyboard_mapping"] = route_spec["keyboard_mapping"]
 

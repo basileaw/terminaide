@@ -179,7 +179,8 @@ All three serving functions accept the same configuration options, including com
         "cursor_accent": "#ff0000",  # Secondary cursor color (default: None)
         "selection": "#333333",      # Selection highlight color (default: None)
         "font_family": "monospace",  # Terminal font (default: None)
-        "font_size": 14              # Font size in pixels (default: None)
+        "font_size": 14,             # Desktop font size in pixels (default: 18)
+        "mobile_font_size": 10       # Mobile font size in pixels (default: 16)
     }
 }
 ```
