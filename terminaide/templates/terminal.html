@@ -32,7 +32,7 @@
             margin: 0;
             background: var(--background);
             color: var(--text-color);
-            padding: clamp(.5rem, 2vw, 1rem);
+            padding: var(--padding, clamp(.5rem, 2vw, 1rem));
             width: 100%;
             height: 100%;
             display: flex;
@@ -49,7 +49,7 @@
             position: relative;
             width: 100%;
             flex: 1;
-            border-radius: 4px;
+            border-radius: var(--border-radius, 4px);
             overflow: hidden;
         }
 
@@ -59,8 +59,8 @@
             width: 100%;
             height: 100%;
             border: 0;
-            border-radius: 4px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-radius: var(--border-radius, 4px);
+            box-shadow: var(--box-shadow, 0 2px 8px rgba(0, 0, 0, 0.1));
             visibility: hidden;
         }
 
@@ -827,22 +827,24 @@
                                 // Check if term object is available directly
                                 if (window.term) {
                                     console.log("Terminal object found directly");
-                                    adjustTerminalFontSize();
+                                    // Wait for CSS layout to stabilize before sizing
+                                    setTimeout(adjustTerminalFontSize, 150);
                                     return true;
                                 }
-                                
+
                                 // Check for ttyd.terminal
                                 if (window.ttyd && window.ttyd.terminal) {
                                     console.log("Found ttyd.terminal object");
                                     window.term = window.ttyd.terminal;
-                                    adjustTerminalFontSize();
+                                    // Wait for CSS layout to stabilize before sizing
+                                    setTimeout(adjustTerminalFontSize, 150);
                                     return true;
                                 }
-                                
+
                                 // Look through global objects for terminal-like object
                                 for (const key in window) {
-                                    if (window[key] && 
-                                        typeof window[key] === 'object' && 
+                                    if (window[key] &&
+                                        typeof window[key] === 'object' &&
                                         (
                                             (window[key].options && window[key].options.fontSize) ||
                                             (typeof window[key].setOption === 'function')
@@ -850,11 +852,12 @@
                                     ) {
                                         console.log("Found potential terminal object:", key);
                                         window.term = window[key];
-                                        adjustTerminalFontSize();
+                                        // Wait for CSS layout to stabilize before sizing
+                                        setTimeout(adjustTerminalFontSize, 150);
                                         return true;
                                     }
                                 }
-                                
+
                                 return false;
                             }
                             

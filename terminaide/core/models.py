@@ -48,6 +48,9 @@ class ThemeConfig(BaseModel):
     font_family: Optional[str] = None
     font_size: Optional[int] = Field(default=None, gt=0)
     mobile_font_size: Optional[int] = Field(default=None, gt=0)
+    padding: Optional[str] = None
+    border_radius: Optional[str] = None
+    box_shadow: Optional[str] = None
 
 
 class KeyboardMappingConfig(BaseModel):
