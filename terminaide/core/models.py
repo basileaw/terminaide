@@ -69,11 +69,16 @@ class KeyboardMappingConfig(BaseModel):
             "a": "terminal",  # Select All → CTRL+A (terminal select all)
             "s": "terminal",  # Save → CTRL+S (terminal only)
             "f": "terminal",  # Find → CTRL+F (terminal only)
-            # Navigation shortcuts (CMD+Arrow → Home/End/CTRL+Home/CTRL+End)
-            "arrowleft": "terminal",  # CMD+Left → Home (beginning of line)
-            "arrowright": "terminal",  # CMD+Right → End (end of line)
-            "arrowup": "terminal",  # CMD+Up → CTRL+Home (beginning of document)
-            "arrowdown": "terminal",  # CMD+Down → CTRL+End (end of document)
+            # Navigation/selection shortcuts. Modifier decides scope (handled in terminal.html):
+            #   CMD+Arrow  → Home/End/CTRL+Home/CTRL+End (line/document)
+            #   OPTION+Arrow → CTRL+Arrow (word)
+            #   + SHIFT on either extends the selection
+            "arrowleft": "terminal",
+            "arrowright": "terminal",
+            "arrowup": "terminal",
+            "arrowdown": "terminal",
+            # Deletion: OPTION+Delete → CTRL+W (word), CMD+Delete → CTRL+U (to line start)
+            "backspace": "terminal",
             # System shortcuts are omitted (not mapped) to preserve browser functionality
             # Examples: k (command palette), w, q, r, t, n, l, comma (preferences, etc.)
         }

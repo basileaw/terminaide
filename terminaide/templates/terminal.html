@@ -1275,90 +1275,80 @@
                             // Inject keyboard mapping directly into iframe
                             const script = iframeDoc.createElement('script');
                             script.textContent = `
-                                document.addEventListener('keydown', function(e) {
+                                (function() {
+                                    const behaviors = ${JSON.stringify(kbMapping.behaviors || {})};
                                     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-                                    const cmdPressed = isMac ? e.metaKey : e.ctrlKey;
-                                    
-                                    if (cmdPressed && !e.altKey && !e.shiftKey) {
-                                        const key = e.key.toLowerCase();
-                                        const mode = '${kbMapping.mode}';
-                                        // Get behavior for this key: 'terminal', 'browser', 'both', or 'none'
-                                        const behaviors = ${JSON.stringify(kbMapping.behaviors || {})};
-                                        const behavior = behaviors[key] || 'none';
-                                        
-                                        if (behavior !== 'none') {
-                                            // Handle preventDefault based on behavior type
-                                            if (behavior === 'terminal') {
-                                                // Terminal-only: block browser, send to terminal
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                            } else if (behavior === 'browser') {
-                                                // Browser-only: allow browser, no terminal event
-                                                // (do nothing - let browser handle normally)
-                                                return;
-                                            } else if (behavior === 'both') {
-                                                // Both: allow browser + send to terminal  
-                                                // (don't prevent default, but do send synthetic event)
-                                                console.log('Keyboard mapping: CMD+' + key.toUpperCase() + ' → browser + terminal (' + behavior + ')');
-                                            }
-                                            
-                                            setTimeout(() => {
-                                                let newEventConfig;
-                                                
-                                                // Handle arrow keys differently - map to Home/End/CTRL+Home/CTRL+End
-                                                if (key === 'arrowleft') {
-                                                    newEventConfig = {
-                                                        key: 'Home', code: 'Home', keyCode: 36, which: 36,
-                                                        ctrlKey: false, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
-                                                        bubbles: true, cancelable: true, view: window
-                                                    };
-                                                } else if (key === 'arrowright') {
-                                                    newEventConfig = {
-                                                        key: 'End', code: 'End', keyCode: 35, which: 35,
-                                                        ctrlKey: false, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
-                                                        bubbles: true, cancelable: true, view: window
-                                                    };
-                                                } else if (key === 'arrowup') {
-                                                    newEventConfig = {
-                                                        key: 'Home', code: 'Home', keyCode: 36, which: 36,
-                                                        ctrlKey: true, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
-                                                        bubbles: true, cancelable: true, view: window
-                                                    };
-                                                } else if (key === 'arrowdown') {
-                                                    newEventConfig = {
-                                                        key: 'End', code: 'End', keyCode: 35, which: 35,
-                                                        ctrlKey: true, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
-                                                        bubbles: true, cancelable: true, view: window
-                                                    };
-                                                } else {
-                                                    // Regular letter keys - map CMD to CTRL
-                                                    newEventConfig = {
-                                                        key: e.key, code: e.code, keyCode: e.keyCode, which: e.which || e.keyCode,
-                                                        ctrlKey: true, metaKey: false, altKey: e.altKey, shiftKey: e.shiftKey,
-                                                        bubbles: true, cancelable: true, view: window
-                                                    };
-                                                }
-                                                
-                                                // Console logging for debugging
-                                                if (behavior === 'both') {
-                                                    console.log('Dispatching synthetic CTRL+' + key.toUpperCase() + ' to terminal (behavior: ' + behavior + ')');
-                                                } else if (behavior === 'terminal') {
-                                                    console.log('Keyboard mapping: CMD+' + key.toUpperCase() + ' → terminal CTRL+' + key.toUpperCase() + ' (behavior: ' + behavior + ')');
-                                                }
-                                                
-                                                const xtermTextarea = document.querySelector('.xterm-helper-textarea');
-                                                if (xtermTextarea) {
-                                                    xtermTextarea.dispatchEvent(new KeyboardEvent('keydown', newEventConfig));
-                                                } else {
-                                                    const terminalMain = document.querySelector('.terminal, .xterm');
-                                                    if (terminalMain) {
-                                                        terminalMain.dispatchEvent(new KeyboardEvent('keydown', newEventConfig));
-                                                    }
-                                                }
-                                            }, 10);
-                                        }
+
+                                    // Send a synthetic keydown into xterm's input target.
+                                    function dispatchSynthetic(cfg) {
+                                        const base = {
+                                            bubbles: true, cancelable: true, view: window,
+                                            ctrlKey: false, metaKey: false, altKey: false, shiftKey: false
+                                        };
+                                        const ev = new KeyboardEvent('keydown', Object.assign(base, cfg));
+                                        const target = document.querySelector('.xterm-helper-textarea')
+                                                    || document.querySelector('.terminal, .xterm');
+                                        if (target) target.dispatchEvent(ev);
                                     }
-                                }, true);
+
+                                    // Map a Mac key combo to the synthetic event xterm should receive.
+                                    // Returns null when the combo should NOT be intercepted (native passes through).
+                                    // cmd = CMD (line/document scope), opt = OPTION (word scope), shift = extend selection.
+                                    function translate(key, cmd, opt, shift) {
+                                        // Arrow keys
+                                        if (key === 'arrowleft' || key === 'arrowright' || key === 'arrowup' || key === 'arrowdown') {
+                                            if (cmd && !opt) {
+                                                // CMD+Arrow -> Home / End / CTRL+Home / CTRL+End (shift extends -> line/doc select)
+                                                if (key === 'arrowleft')  return { key: 'Home', code: 'Home', keyCode: 36, which: 36, shiftKey: shift };
+                                                if (key === 'arrowright') return { key: 'End',  code: 'End',  keyCode: 35, which: 35, shiftKey: shift };
+                                                if (key === 'arrowup')    return { key: 'Home', code: 'Home', keyCode: 36, which: 36, ctrlKey: true, shiftKey: shift };
+                                                if (key === 'arrowdown')  return { key: 'End',  code: 'End',  keyCode: 35, which: 35, ctrlKey: true, shiftKey: shift };
+                                            }
+                                            if (opt && !cmd) {
+                                                // OPTION+Arrow -> CTRL+Arrow word nav (shift extends -> word select). Left/right only.
+                                                if (key === 'arrowleft')  return { key: 'ArrowLeft',  code: 'ArrowLeft',  keyCode: 37, which: 37, ctrlKey: true, shiftKey: shift };
+                                                if (key === 'arrowright') return { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, which: 39, ctrlKey: true, shiftKey: shift };
+                                            }
+                                            return null;
+                                        }
+                                        // Backspace (the Mac "delete" key) -> word / line-start deletion
+                                        if (key === 'backspace') {
+                                            if (opt && !cmd) return { key: 'w', code: 'KeyW', keyCode: 87, which: 87, ctrlKey: true }; // delete word left
+                                            if (cmd && !opt) return { key: 'u', code: 'KeyU', keyCode: 85, which: 85, ctrlKey: true }; // delete to line start
+                                            return null;
+                                        }
+                                        // Letter keys: CMD -> CTRL (no opt, no shift). Preserves existing copy/cut/undo/etc.
+                                        if (cmd && !opt && !shift && key.length === 1) {
+                                            const upper = key.toUpperCase();
+                                            return { key: key, code: 'Key' + upper, keyCode: upper.charCodeAt(0), which: upper.charCodeAt(0), ctrlKey: true };
+                                        }
+                                        return null;
+                                    }
+
+                                    document.addEventListener('keydown', function(e) {
+                                        const cmd = isMac ? e.metaKey : e.ctrlKey;
+                                        const opt = e.altKey;
+                                        const shift = e.shiftKey;
+                                        // Only CMD- or OPTION-led combos are candidates. Synthetic events
+                                        // (dispatched below with neither modifier) fall out here -> no re-entry.
+                                        if (!cmd && !opt) return;
+
+                                        const key = e.key.toLowerCase();
+                                        // Behavior gating: 'terminal' | 'browser' | 'both' | 'none'
+                                        const behavior = behaviors[key] || 'none';
+                                        if (behavior === 'none' || behavior === 'browser') return;
+
+                                        const target = translate(key, cmd, opt, shift);
+                                        if (!target) return;
+
+                                        // 'terminal' blocks the browser; 'both' lets the browser act too (clipboard sync).
+                                        if (behavior !== 'both') {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                        }
+                                        setTimeout(function() { dispatchSynthetic(target); }, 10);
+                                    }, true);
+                                })();
                             `;
                             iframeDoc.head.appendChild(script);
                         }
