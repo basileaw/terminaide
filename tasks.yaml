@@ -2,6 +2,27 @@
 
 tasks:
   # Only project-specific tasks
+  ensure-docker:
+    shell: |
+      if ! docker info >/dev/null 2>&1; then
+        echo "Docker not running. Attempting to start Docker Desktop..."
+        if open -a Docker 2>/dev/null; then
+          echo "Waiting for Docker Desktop to start..."
+          for i in $(seq 1 60); do
+            if docker info >/dev/null 2>&1; then
+              echo "Docker is ready."
+              break
+            fi
+            sleep 2
+          done
+        fi
+        if ! docker info >/dev/null 2>&1; then
+          echo "Error: Could not start Docker. Please start Docker Desktop manually."
+          exit 1
+        fi
+      fi
+    help: Ensure Docker is running (starts Docker Desktop if needed)
+
   serve-function:
     shell: python examples/function.py
     help: Run function mode demo
@@ -20,6 +41,7 @@ tasks:
     
   spin:
     sequence:
+      - task: ensure-docker
       - shell: docker stop terminaide-container 2>/dev/null || true
       - shell: docker rm terminaide-container 2>/dev/null || true
       - cmd: docker build -t terminaide .
