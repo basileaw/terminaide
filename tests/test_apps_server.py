@@ -64,6 +64,8 @@ class DemoProcess:
     ) -> None:
         """Start the demo process and wait for it to be ready."""
         env = {**subprocess.os.environ}
+        # Tests read ttyd ports from /health, which is trimmed by default
+        env["TERMINAIDE_HEALTH_VERBOSE"] = "1"
         if env_vars:
             env.update(env_vars)
 
@@ -362,7 +364,8 @@ if __name__ == "__main__":
             env={
                 **os.environ,
                 "TERMINAIDE_CURSOR_MGMT": "0",
-            },  # Disable cursor management for tests
+                "TERMINAIDE_HEALTH_VERBOSE": "1",
+            },  # Disable cursor management for tests; /health used by tests
         )
 
         # Wait for HTTP server to start

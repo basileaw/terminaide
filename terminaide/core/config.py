@@ -5,6 +5,7 @@
 This module contains shared configuration classes and utilities used by different parts of the Terminaide library. It serves as a central point of configuration to avoid circular dependencies.
 """
 
+import os
 import sys
 import shutil
 import logging
@@ -150,6 +151,9 @@ class TerminaideConfig:
 
     # Proxy settings
     ttyd_port: int = 7681  # Base port for ttyd processes
+
+    # Health endpoint disclosure: False returns only {"status": "ok"}
+    health_verbose: bool = False
     
     # Cache configuration
     ephemeral_cache_dir: Optional[Path] = None  # Override for ephemeral script storage
@@ -238,6 +242,13 @@ def configure_routes(
 
     @app.get(config.health_path)
     async def health_check():
+        verbose = config.health_verbose or os.environ.get(
+            "TERMINAIDE_HEALTH_VERBOSE", ""
+        ).lower() in ("1", "true", "yes")
+        if not verbose:
+            # Minimal response: the full payload discloses script paths,
+            # ports, PIDs and route topology to anyone who can reach /health
+            return {"status": "ok"}
         return {
             "ttyd": ttyd_manager.check_health(),
             "proxy": proxy_manager.get_routes_info(),
@@ -612,6 +623,7 @@ def convert_terminaide_config_to_ttyd_config(
         log_level=config.log_level,
         route_configs=route_configs,  # Use route_configs instead of script_configs
         forward_env=config.forward_env,
+        health_verbose=config.health_verbose,
     )
 
     # Propagate the entry mode to TTYDConfig - include meta mode

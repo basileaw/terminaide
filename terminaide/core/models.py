@@ -391,6 +391,11 @@ class TTYDConfig(BaseModel):
     _mode: str = "script"  # Default mode: "function", "script", "apps", or "meta"
     forward_env: Union[bool, List[str], Dict[str, Optional[str]]] = True
     venv_detection: bool = True  # Enable automatic virtual environment detection
+    # When False (default), /health returns only {"status": "ok"} to avoid
+    # disclosing script paths, ports, PIDs and configuration to anyone who can
+    # reach the server. Set True (or TERMINAIDE_HEALTH_VERBOSE=1) for the full
+    # operational payload (useful behind authenticated monitoring).
+    health_verbose: bool = False
 
     # Legacy field names for backward compatibility
     @property

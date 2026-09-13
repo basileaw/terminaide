@@ -298,3 +298,53 @@ class TestInstallerIntegrity:
                 os.environ.pop("TERMINAIDE_TTYD_VERSION", None)
             else:
                 os.environ["TERMINAIDE_TTYD_VERSION"] = old
+
+
+# =============================================================================
+# Fix 4: health endpoint disclosure
+# =============================================================================
+
+
+class TestHealthEndpoint:
+    """The default /health response must not disclose internals."""
+
+    def test_health_minimal_by_default_and_verbose_via_env(self, tmp_path):
+        import asyncio
+        import os
+
+        import httpx
+        from fastapi import FastAPI
+
+        import terminaide
+
+        script = make_test_script(tmp_path)
+        app = FastAPI()
+        terminaide.serve_apps(app, {"/t": {"script": str(script)}}, log_level="warning")
+
+        async def scenario():
+            async with app.router.lifespan_context(app):
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(
+                    transport=transport, base_url="http://test"
+                ) as client:
+                    # Default: minimal status only
+                    r = await client.get("/health")
+                    assert r.status_code == 200
+                    assert r.json() == {"status": "ok"}
+
+                    # Verbose via env override: full operational payload
+                    os.environ["TERMINAIDE_HEALTH_VERBOSE"] = "1"
+                    try:
+                        r2 = await client.get("/health")
+                        data = r2.json()
+                        assert "proxy" in data and "ttyd" in data
+                        routes = [
+                            r
+                            for r in data["proxy"]["routes"]
+                            if r.get("type") == "terminal"
+                        ]
+                        assert len(routes) == 1
+                    finally:
+                        os.environ.pop("TERMINAIDE_HEALTH_VERBOSE", None)
+
+        asyncio.run(scenario())

@@ -34,11 +34,15 @@ class DemoProcess:
 
     def start(self, timeout: int = 10) -> None:
         """Start the demo process and wait for it to be ready."""
+        env = {**subprocess.os.environ}
+        # Tests read ttyd ports from /health, which is trimmed by default
+        env["TERMINAIDE_HEALTH_VERBOSE"] = "1"
         self.process = subprocess.Popen(
             ["python", self.script_path],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env=env,
         )
 
         if not self.check_http:
