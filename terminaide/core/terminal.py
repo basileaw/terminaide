@@ -3,6 +3,7 @@
 """Manages TTYd processes for single (solo-server) or multi-terminal (apps-server) setups, ensuring their lifecycle, cleanup, and health monitoring."""
 
 import os
+import re
 import sys
 import socket
 import time
@@ -329,6 +330,36 @@ class TTYDManager:
         cmd.extend(python_cmd)
         return cmd
 
+    # Names that suggest credential material; values are never logged
+    _SENSITIVE_ENV_PATTERN = re.compile(
+        r"(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|API_KEY)", re.IGNORECASE
+    )
+
+    def _warn_about_sensitive_env(self, env: Dict[str, str]) -> None:
+        """Warn when credential-looking environment variables are passed through.
+
+        Everything in the server's environment is inherited by terminal
+        sessions (forward_env=True default: serving your own scripts in your
+        own environment is the package's contract). This surfaces - without
+        logging values - which sensitive-looking variables terminal users
+        will be able to read, so operators can scope down with an explicit
+        forward_env list.
+        """
+        if not self.config.ttyd_options.credential_required:
+            sensitive = [
+                key
+                for key in env
+                if self._SENSITIVE_ENV_PATTERN.search(key)
+            ]
+            if sensitive:
+                logger.warning(
+                    "Terminal sessions for this server inherit the following "
+                    "sensitive-looking environment variables: "
+                    + ", ".join(sorted(sensitive))
+                    + ". Use forward_env=[...] to pass only what your scripts "
+                    "need if this is unintended."
+                )
+
     def _is_port_in_use(self, host: str, port: int) -> bool:
         """Check if a TCP port is in use on the given host.
 
@@ -475,6 +506,7 @@ class TTYDManager:
         
         # Prepare environment variables
         env = os.environ.copy()
+        self._warn_about_sensitive_env(env)
         if script_config.dynamic:
             # Set the route path for dynamic wrapper to identify itself
             env["TERMINAIDE_ROUTE_PATH"] = route_path

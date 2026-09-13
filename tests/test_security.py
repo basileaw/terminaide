@@ -650,3 +650,67 @@ class TestWebSocketRateLimit:
                 with client.websocket_connect("/t/terminal/ws") as ws2:
                     ws2.receive_text()
             assert exc_info.value.code == 1013
+
+
+# =============================================================================
+# Sensitive environment disclosure warning
+# =============================================================================
+
+
+class TestSensitiveEnvWarning:
+    """Unauthenticated terminals inheriting credential-looking env vars must
+    produce a warning (names only - values are never logged)."""
+
+    def test_warning_lists_names_not_values(self, tmp_path, caplog):
+        import logging
+
+        import os
+
+        manager = make_manager(tmp_path)
+
+        env = {
+            "PATH": "/usr/bin",
+            "MY_API_KEY": "super-secret-value-xyz",
+            "DB_PASSWORD": "hunter2",
+            "SAFE_VAR": "ok",
+        }
+        terminaide_logger = logging.getLogger("terminaide")
+        old_propagate = terminaide_logger.propagate
+        # setup_package_logging (triggered in-process by other tests) disables
+        # propagation; caplog listens at root, so re-enable it for capture
+        terminaide_logger.propagate = True
+        try:
+            with caplog.at_level(logging.WARNING, logger="terminaide"):
+                manager._warn_about_sensitive_env(env)
+        finally:
+            terminaide_logger.propagate = old_propagate
+
+        warning = next(
+            r for r in caplog.records if "sensitive-looking" in r.getMessage()
+        )
+        msg = warning.getMessage()
+        assert "MY_API_KEY" in msg and "DB_PASSWORD" in msg
+        # Values must never appear in the log
+        assert "super-secret-value-xyz" not in msg
+        assert "hunter2" not in msg
+        assert "SAFE_VAR" not in msg
+
+    def test_no_warning_when_nothing_sensitive(self, tmp_path, caplog):
+        import logging
+
+        manager = make_manager(tmp_path)
+
+        terminaide_logger = logging.getLogger("terminaide")
+        old_propagate = terminaide_logger.propagate
+        terminaide_logger.propagate = True
+        try:
+            with caplog.at_level(logging.WARNING, logger="terminaide"):
+                manager._warn_about_sensitive_env(
+                    {"PATH": "/usr/bin", "HOME": "/x"}
+                )
+        finally:
+            terminaide_logger.propagate = old_propagate
+
+        assert not any(
+            "sensitive-looking" in r.getMessage() for r in caplog.records
+        )

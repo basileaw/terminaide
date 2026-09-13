@@ -27,10 +27,10 @@ Terminaide uses a reverse proxy architecture where each terminal runs as a separ
    - Handles reload mode with environment serialization
    - Generates ephemeral wrappers for functions
 
-3. **TTYd Manager** (`terminaide/core/ttyd_manager.py`): Terminal process lifecycle
+3. **TTYd Manager** (`terminaide/core/terminal.py`): Terminal process lifecycle
    - Port allocation and conflict resolution
-   - Health monitoring and automatic restarts
-   - Cleanup of zombie processes
+   - Health monitoring
+   - Safe cleanup of leftover ttyd processes (never kills foreign processes)
    - Virtual environment detection and Python executable resolution
 
 4. **Proxy System** (`terminaide/core/proxy.py`): HTTP/WebSocket reverse proxy
@@ -43,7 +43,7 @@ Terminaide uses a reverse proxy architecture where each terminal runs as a separ
    - Smart defaults and path resolution
    - Unified `log_level` parameter across all API functions
 
-6. **Virtual Environment Utils** (`terminaide/core/venv_utils.py`): Environment detection
+6. **Virtual Environment Utils** (`find_venv_python` in `terminaide/core/terminal.py`): Environment detection
    - Automatic detection of .venv, venv, env directories
    - Poetry project support (pyproject.toml + .venv)
    - Search from script directory upward to project root
@@ -95,6 +95,16 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
    - Menu navigation happens in single ttyd session (arrow keys, Enter to select)
    - Games/apps launch in-place and return to menu on exit
    - Works seamlessly in Docker containers alongside HTML menus
+
+10. **Security-First Defaults** (see `tests/test_security.py` for the enforced behavior):
+    - ttyd processes bind `127.0.0.1` by default; only the proxy talks to them. `ttyd_options.interface` overrides binding, `TTYDOptions.connect_host` resolves wildcard binds for dialing
+    - Port conflicts never SIGKILL foreign processes: only leftover ttyd processes spawned from the terminaide-managed binary are killed; anything else raises a clear `TTYDStartupError`
+    - ttyd version pinned (`TTYD_PINNED_VERSION`) with embedded SHA-256 digests; downloads verified atomically; source tarballs extracted with tarfile's `data` filter
+    - `/health` returns `{"status": "ok"}` by default; full payload via `health_verbose=True` or `TERMINAIDE_HEALTH_VERBOSE=1`
+    - Proxy strips hop-by-hop headers and cookies (keeps Authorization for ttyd `-c`); HTML pages carry nosniff/Referrer-Policy/X-Frame-Options with embedding opt-in via `allow_embedding=True`
+    - Dynamic-route parameters are per-connection files (uuid suffix, atomic write) consumed via an atomic FIFO claim queue in the generated wrapper — no cross-session leakage
+    - Per-IP WebSocket connection rate limiting (`ws_rate_limit_per_minute`, default 30, `None` disables)
+    - Unauthenticated terminals inheriting credential-looking env vars produce a startup warning (names only); scope with `forward_env=[...]`
 
 ### Testing Strategy
 - Tests verify all three serving modes
