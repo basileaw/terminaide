@@ -1,14 +1,14 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for coding agents (Claude Code, Codex, Cursor, Gemini CLI, etc.) working in this repository. All agents should read this file before making changes.
 
 ## Practical Usage
 
-Usage, tenets and value proposition are covered in @README.md.
+Usage, tenets and value proposition are covered in README.md. Security posture and deployment guidance live there too ("Security" and "Cloud & Container Deployment" sections). Release history is in CHANGELOG.md.
 
 ## Common Development Commands
 
-The development commands are defined in @tasks.yaml using poethepoet.
+The development commands are defined in tasks.yaml and run with poethepoet (`poe <task>`). Key tasks: `poe test` (pytest), `poe audit-deps` (deptry), `poe spin` (Docker demo).
 
 ## Architecture Overview
 
@@ -123,7 +123,7 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
 ### Development Notes
 - Python 3.12+ required
 - Uses Poetry for dependencies
-- Task runner uses poethepoet (poe) defined in @tasks.yaml
+- Task runner uses poethepoet (poe) defined in tasks.yaml
 - No linting tools configured - code formatting is manual
 - **Dependency policy**: minimal direct list (every direct dep is vulnerability-alert surface; unused deps rot — bs4/readchar lessons). `>=X,<N` ranges instead of carets for 0.x packages (poetry carets pin the 0.x minor, which blocked starlette security fixes). Run `poe audit-deps` (deptry) after adding/removing dependencies
 - PYTHONPATH automatically includes project root

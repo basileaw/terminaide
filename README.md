@@ -39,23 +39,49 @@ When you serve a Python function or script(s) with Terminaide, several things ha
 
 6. **Resource Management**: All processes, temporary files, and connections are automatically created and cleaned up as needed.
 
-### Disclaimer
+## Security
 
-Terminaide is designed for rapid prototyping with small user bases, not high-traffic production. It provides basic security via TTYD authentication. For deployments, implement proper authentication, network isolation, and access controls.
+Terminaide serves **interactive, writable shells** — so its defaults are built around a single principle: *unauthenticated terminals must be impossible by construction.*
 
-### Security Notes
+### Default posture
 
-By default, Terminaide creates temporary files only within the package directory (`terminaide/cache/`). To use external directories for file storage, you must explicitly configure cache directories:
+- **Loopback everywhere**: `serve_script()`/`serve_function()` bind `127.0.0.1` (local-only), and every ttyd backend process binds loopback regardless — terminal traffic only ever flows through the proxy. Direct access to the ttyd ports from the network is impossible unless you opt in via `ttyd_options.interface`.
+- **Exposure requires a token**: bind a non-loopback host (`host="0.0.0.0"`) without credentials and a session token is auto-generated, printed to the server console as a ready-to-click URL, and required on all terminal routes — the Jupyter model. Loopback-only servers stay frictionless (no token).
+- **Verified binary**: the ttyd binary is downloaded from a pinned release with SHA-256 verification; unverified downloads are never installed.
+- **Minimal disclosure**: `/health` returns `{"status": "ok"}` unless you opt into the full operational payload with `health_verbose=True` (or `TERMINAIDE_HEALTH_VERBOSE=1`).
+- **Session isolation**: dynamic-route URL parameters are passed per-connection (never shared between sessions), WebSocket connections are rate-limited per client IP (30/min by default), and credential-looking environment variables inherited by unauthenticated terminals trigger a startup warning.
+
+### Authentication options
 
 ```python
-# Set explicit cache directories for security compliance
+# Auto-generated token (default when exposed) - printed to the console:
+serve_script("deploy.py", host="0.0.0.0")
+
+# Your own token (also via TERMINAIDE_TOKEN env var):
+serve_script("deploy.py", host="0.0.0.0", auth_token="my-secret")
+
+# ttyd HTTP basic-auth credentials instead of a token:
+serve_script("deploy.py", host="0.0.0.0",
+            ttyd_options={"credential_required": True,
+                          "username": "u", "password": "p"})
+
+# Explicitly unauthenticated (loud warning; only behind your own auth or isolation):
+serve_script("deploy.py", host="0.0.0.0", auth_token="")
+```
+
+A validated `?token=` is stored in an HttpOnly cookie, so menu navigation and terminal iframes work without the token in every URL. `X-Terminaide-Token` is accepted for programmatic clients. The token never reaches your terminal's `argv` or parameter files.
+
+### File caches and other knobs
+
+By default, Terminaide creates temporary files only within the package directory (`terminaide/cache/`). To use external directories, configure them explicitly:
+
+```python
 from terminaide import serve_function, TerminaideConfig
 
 config = TerminaideConfig(
-    ephemeral_cache_dir="/secure/cache",     # For temporary scripts
+    ephemeral_cache_dir="/secure/cache",      # For temporary scripts
     monitor_log_path="/secure/logs/app.log"  # For monitor logs
 )
-
 serve_function(my_function, config=config)
 
 # Or use environment variables
@@ -63,6 +89,8 @@ import os
 os.environ["TERMINAIDE_CACHE_DIR"] = "/secure/cache"
 os.environ["TERMINAIDE_MONITOR_LOG"] = "/secure/logs/app.log"
 ```
+
+Other security-relevant options: `allow_embedding` (X-Frame-Options; terminals are clickjacking targets), `ws_rate_limit_per_minute` (None disables), and `forward_env` (scope the environment your terminals inherit — see the startup warning).
 
 ## Installation
 
@@ -74,7 +102,7 @@ pip install terminaide
 poetry add terminaide
 ```
 
-Terminaide automatically installs and manages its own ttyd binary (using latest version available on GitHub) within the package, with no reliance on system-installed versions, to ensure a consistent experience across environments and simplified setup and cleanup:
+Terminaide automatically installs and manages its own ttyd binary within the package — downloaded from a pinned release with SHA-256 verification — with no reliance on system-installed versions, to ensure a consistent, tamper-checked experience across environments:
 
 - On Linux: Pre-built binaries are downloaded automatically
 - On macOS: The binary is compiled from source (requires Xcode Command Line Tools `xcode-select --install`)
@@ -90,7 +118,11 @@ The absolute simplest way to use Terminaide is to serve an existing Python scrip
 ```python
 from terminaide import serve_script
 
-serve_script("../other_project/client.py")  # Uses ../other_project/.venv if present
+serve_script("../other_project/client.py")  # Local-only: binds 127.0.0.1, open http://localhost:8000
+
+# To expose to the network, bind explicitly — a session token is auto-generated
+# and printed to the console (or set your own with auth_token=...):
+serve_script("deploy.py", host="0.0.0.0")
 ```
 
 ### Function Server
@@ -141,7 +173,12 @@ serve_apps(
             "dynamic": True,
             "args_param": "with"          # Use ?with=arg1,arg2 instead of ?args=arg1,arg2
         }
-    }
+    },
+    # host declares your app's bind for the auth decision: non-loopback + no
+    # credentials => terminal routes get a token. Default "0.0.0.0" (assume
+    # exposed); pass "127.0.0.1" for purely local apps to skip token auth.
+    host="0.0.0.0",
+    auth_token=None,   # or set a fixed token / TERMINAIDE_TOKEN env var
 )
 
 if __name__ == "__main__":
@@ -161,6 +198,11 @@ All three serving functions accept the same configuration options, including com
     "args": ["--verbose", "file.txt"], # Command-line arguments (default: None)
     "dynamic": True,                 # Enable URL query parameter arguments (default: False)
     "args_param": "args",            # Query parameter name for dynamic arguments (default: "args")
+    "host": "127.0.0.1",            # Server bind / declared bind (loopback default for direct modes; "0.0.0.0" = exposed)
+    "auth_token": None,              # Terminal token: None = auto (required when exposed), "" = disabled, "your-token" = fixed
+    "health_verbose": False,        # Full operational payload in /health (default: minimal {"status": "ok"})
+    "allow_embedding": False,       # Allow framing by other origins (X-Frame-Options)
+    "ws_rate_limit_per_minute": 30, # Per-IP WebSocket connection limit (None = unlimited)
     
     # Keyboard mapping (CMD to CTRL on Mac)
     "keyboard_mapping": {
@@ -418,6 +460,37 @@ poe spin                # Run in Docker container (requires Docker Desktop)
 ```
 
 Explore the demo source code to see advanced usage patterns and implementation examples.
+
+## Cloud & Container Deployment
+
+Terminaide is cloud-ready when: **token auth on, ttyd loopback (default), TLS in front, IMDSv2 on the box.** Concretely:
+
+### The checklist
+
+1. **Terminate TLS in front.** Put an ALB / nginx / CloudFlare in front of the app and pass `trust_proxy_headers=True` so generated URLs and cookie flags respect `X-Forwarded-Proto`. Never serve terminals over plain HTTP across a network — keystrokes (including passwords typed into CLIs) and the session token travel in cleartext otherwise.
+2. **Pin your token for scripted deployments.** Auto-generated tokens are great for humans; for containers and CI, set `TERMINAIDE_TOKEN` so the URL is deterministic. For Docker, the token appears in `docker logs`:
+
+   ```bash
+   docker run -p 8000:8000 -e TERMINAIDE_TOKEN=my-token terminaide
+   # then open http://localhost:8000/?token=my-token
+   ```
+
+3. **Security group: one port.** Only the app port (443/8000) needs to be open. The ttyd backends are loopback-bound by default — the historical footgun of opening a 7681+ port range is structurally gone. Never open port ranges.
+4. **On EC2: enable IMDSv2** (hop limit 1) and attach a **least-privilege IAM role**. A writable terminal means the terminal user can reach the instance metadata service — scope the role as if the terminal user will read its credentials, because they can.
+5. **Scope the environment.** Terminals inherit the server's environment (`forward_env=True` by default — that's the contract: your scripts, your environment). The startup warning names credential-looking variables; pass `forward_env=["PATH", "HOME", "MY_TOOL_API_KEY"]` to hand terminals only what they need.
+6. **Monitor with `health_verbose=True`** behind your own auth if you want the full operational payload (per-route ports, process health, and the active auth token) — the public `/health` stays minimal by default.
+
+### Topology
+
+```
+Internet → ALB (TLS) → terminaide (FastAPI, one port)
+                        ├─ token-auth middleware
+                        └─ proxy → ttyd backends (127.0.0.1 only) → your scripts
+```
+
+### A note on trust models
+
+Serving **yourself** your own tools over the internet (token-authenticated) is the supported cloud use case. Serving terminals to **untrusted public users** is a different threat model: anyone typing at the terminal is executing commands as the server user. If you go there, plan for sandboxing, per-session credentials, and input validation — treat it as a separate product tier, not a configuration.
 
 ## Integrations
 
