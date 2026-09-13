@@ -624,6 +624,23 @@ class TestWebSocketRateLimit:
         )
 
         with TestClient(app) as client:
+            # Wait for the ttyd backend listener to be ready (startup returns
+            # when the process is alive, not when it is listening)
+            import os
+
+            os.environ["TERMINAIDE_HEALTH_VERBOSE"] = "1"
+            try:
+                r = client.get("/health")
+                routes = [
+                    rt
+                    for rt in r.json()["proxy"]["routes"]
+                    if rt.get("type") == "terminal"
+                ]
+                port = routes[0]["port"]
+            finally:
+                os.environ.pop("TERMINAIDE_HEALTH_VERBOSE", None)
+            assert wait_for_port(port), "ttyd backend did not start listening"
+
             # First connection is allowed
             with client.websocket_connect("/t/terminal/ws"):
                 pass

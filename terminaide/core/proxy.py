@@ -245,9 +245,7 @@ class ProxyManager:
             )
             self._log_websocket_connection(script_config, route_path)
 
-            async with websockets.connect(
-                ws_url, subprotocols=["tty"], ping_interval=None, close_timeout=5
-            ) as target_ws:
+            async with await self._connect_ttyd_with_retry(ws_url) as target_ws:
 
                 await self._bidirectional_forward(websocket, target_ws, route_path)
 
@@ -260,6 +258,25 @@ class ProxyManager:
                 raise ProxyError(f"WebSocket proxy error: {e}")
         finally:
             await self._safe_close_websocket(websocket)
+
+    async def _connect_ttyd_with_retry(self, ws_url: str) -> Any:
+        """Connect to the ttyd backend, retrying briefly on refused dials.
+
+        TTYDManager considers a process "started" as soon as it is alive, but
+        the listener may need a fraction of a second more; clients connecting
+        in that window would otherwise get an error instead of a terminal.
+        """
+        last_error = None
+        for attempt in range(8):  # ~2s total with 0.25s backoff
+            try:
+                return await websockets.connect(
+                    ws_url, subprotocols=["tty"], ping_interval=None, close_timeout=5
+                )
+            except OSError as e:
+                last_error = e
+                if attempt < 7:
+                    await asyncio.sleep(0.25)
+        raise last_error
 
     async def _resolve_websocket_route(
         self, websocket: WebSocket, route_path: Optional[str]
