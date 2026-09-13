@@ -9,7 +9,6 @@ repository = "https://github.com/basileaw/terminaide"
 version = "1.4.8"
 
 [tool.poetry.dependencies]
-bs4 = "^0.0.2"
 h11 = "^0.16.0"
 httpcore = "^1.0.9"
 httpx = "^0.28.1"
@@ -19,11 +18,11 @@ python = ">=3.12,<4.0"
 readchar = "^4.2.1"
 rich = "^14.0.0"
 websockets = "^12.0"
-fastapi = "^0.117"
+fastapi = "^0.141"
 uvicorn = "^0.34.2"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.3.0"
+pytest = "^9.0"
 pytest-timeout = "^2.4.0"
 requests = "^2.32.0"
 poethepoet = "^0.37.0"
