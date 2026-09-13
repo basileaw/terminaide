@@ -30,7 +30,6 @@ pytest = "^9.0"
 pytest-timeout = "^2.4.0"
 deptry = "^0.23"
 poethepoet = "^0.37.0"
-toolbox = { git = "https://github.com/basileaw/toolbox.git" }
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
