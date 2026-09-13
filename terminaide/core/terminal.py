@@ -350,6 +350,9 @@ class TTYDManager:
                 key
                 for key in env
                 if self._SENSITIVE_ENV_PATTERN.search(key)
+                # terminaide's own session token: the terminal user already
+                # holds it (it is in their URL); not worth warning about
+                and key != "TERMINAIDE_TOKEN"
             ]
             if sensitive:
                 logger.warning(

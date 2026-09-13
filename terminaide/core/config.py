@@ -22,6 +22,7 @@ from typing import Optional, Dict, Union, Tuple, List, Callable, Any
 from .proxy import ProxyManager
 from .terminal import TTYDManager
 from .exceptions import TemplateError
+from .auth import resolve_auth_token, QUERY_PARAM as TOKEN_QUERY_PARAM
 from .models import (
     TTYDConfig,
     ThemeConfig,
@@ -152,6 +153,17 @@ class TerminaideConfig:
     # Proxy settings
     ttyd_port: int = 7681  # Base port for ttyd processes
 
+    # Server bind host. Direct-serve modes bind uvicorn to this address
+    # (loopback by default - pass host="0.0.0.0" to expose). Also drives the
+    # auth decision: non-loopback binds without credentials get an
+    # auto-generated terminal token (see auth_token).
+    host: str = "127.0.0.1"
+
+    # Explicit terminal auth token; None = auto (auto-generated when the
+    # host is non-loopback and no ttyd credentials are configured),
+    # "" = explicitly disable token auth. TERMINAIDE_TOKEN env overrides.
+    auth_token: Optional[str] = None
+
     # Health endpoint disclosure: False returns only {"status": "ok"}
     health_verbose: bool = False
 
@@ -271,8 +283,12 @@ def configure_routes(
             # ports, PIDs and route topology to anyone who can reach /health
             return {"status": "ok"}
         return {
+            "status": "ok",
             "ttyd": ttyd_manager.check_health(),
             "proxy": proxy_manager.get_routes_info(),
+            # Included in the explicit opt-in verbose payload: retrieval
+            # path for operators (scripted deployments, monitoring tooling)
+            "auth_token": config.auth_token,
         }
 
     # Process all route configs
@@ -313,7 +329,7 @@ def configure_routes(
                         )
 
                     return templates.TemplateResponse(
-                        index_template_file, context, headers=_security_headers()
+                        request, index_template_file, context, headers=_security_headers()
                     )
                 except Exception as e:
                     logger.error(
@@ -377,10 +393,23 @@ def configure_routes(
                     # For dynamic routes, append query parameters to the terminal path
                     iframe_src = terminal_path
                     if route_config.dynamic and request.url.query:
-                        iframe_src = f"{terminal_path}?{request.url.query}"
-                        logger.debug(f"Dynamic route {route_path}: appending query params to iframe src: {iframe_src}")
+                        # Exclude the auth token pair without re-encoding the
+                        # rest: the token is authentication metadata, not
+                        # application arguments (the browser cookie
+                        # authenticates the iframe's requests instead)
+                        filtered = "&".join(
+                            part
+                            for part in request.url.query.split("&")
+                            if not part.startswith(f"{TOKEN_QUERY_PARAM}=")
+                        )
+                        if filtered:
+                            iframe_src = f"{terminal_path}?{filtered}"
+                        logger.debug(
+                            f"Dynamic route {route_path}: appending query params to iframe src: {iframe_src}"
+                        )
                     
                     return templates.TemplateResponse(
+                        request,
                         template_file,
                         {
                             "request": request,
@@ -649,6 +678,7 @@ def convert_terminaide_config_to_ttyd_config(
         health_verbose=config.health_verbose,
         allow_embedding=config.allow_embedding,
         ws_rate_limit_per_minute=config.ws_rate_limit_per_minute,
+        auth_token=resolve_auth_token(config),
     )
 
     # Propagate the entry mode to TTYDConfig - include meta mode

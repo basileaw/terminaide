@@ -106,6 +106,13 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
     - Per-IP WebSocket connection rate limiting (`ws_rate_limit_per_minute`, default 30, `None` disables)
     - Unauthenticated terminals inheriting credential-looking env vars produce a startup warning (names only); scope with `forward_env=[...]`
 
+11. **Terminal Token Authentication** (`terminaide/core/auth.py`):
+    - Terminal routes require a token whenever the server is exposed beyond loopback and no other auth is configured (auto-generated, printed as a ready-to-click URL)
+    - Precedence: explicit `auth_token` > `TERMINAIDE_TOKEN` env > auto-generation; `auth_token=""` explicitly disables (loud warning); ttyd `-c` credentials also satisfy auth
+    - Direct modes (`serve_script`/`serve_function`) bind `127.0.0.1` by default (`host=` to change) - local dev stays frictionless; `serve_apps` declares its host (`host="0.0.0.0"` default = conservative)
+    - Token accepted via `?token=`, `X-Terminaide-Token` header, or `terminaide_token` cookie; validated cookie issued on first query-token success so menus/iframes/WebSockets work without tokens in every URL
+    - Index pages and `/health` stay public; the token never reaches terminal argv/parameter files
+
 ### Testing Strategy
 - Tests verify all three serving modes
 - Checks for HTTP errors and Python tracebacks

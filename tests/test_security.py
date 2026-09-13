@@ -319,7 +319,9 @@ class TestHealthEndpoint:
 
         script = make_test_script(tmp_path)
         app = FastAPI()
-        terminaide.serve_apps(app, {"/t": {"script": str(script)}}, log_level="warning")
+        terminaide.serve_apps(
+            app, {"/t": {"script": str(script)}}, log_level="warning", host="127.0.0.1"
+        )
 
         async def scenario():
             async with app.router.lifespan_context(app):
@@ -359,7 +361,9 @@ class TestHealthEndpoint:
 
         script = make_test_script(tmp_path)
         app = FastAPI()
-        terminaide.serve_apps(app, {"/t": {"script": str(script)}}, log_level="warning")
+        terminaide.serve_apps(
+            app, {"/t": {"script": str(script)}}, log_level="warning", host="127.0.0.1"
+        )
 
         async def scenario():
             async with app.router.lifespan_context(app):
@@ -413,7 +417,7 @@ class TestProxyHeaderHygiene:
         script = make_test_script(tmp)
         app = FastAPI()
         terminaide.serve_apps(
-            app, {"/t": {"script": str(script)}}, log_level="warning"
+            app, {"/t": {"script": str(script)}}, log_level="warning", host="127.0.0.1"
         )
 
         async def scenario():
@@ -620,6 +624,7 @@ class TestWebSocketRateLimit:
             app,
             {"/t": {"script": str(script)}},
             log_level="warning",
+            host="127.0.0.1",
             ws_rate_limit_per_minute=1,
         )
 
@@ -714,3 +719,216 @@ class TestSensitiveEnvWarning:
         assert not any(
             "sensitive-looking" in r.getMessage() for r in caplog.records
         )
+
+# =============================================================================
+# Tier 2: token authentication
+# =============================================================================
+
+
+class TestTokenAuth:
+    """Jupyter-style token auth: unauthenticated terminals must be impossible
+    when the server is exposed beyond loopback."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_token_env(self):
+        """Auto-generated tokens are exported to TERMINAIDE_TOKEN for reload
+        stability; scrub it around each test so resolutions are independent."""
+        import os
+
+        os.environ.pop("TERMINAIDE_TOKEN", None)
+        yield
+        os.environ.pop("TERMINAIDE_TOKEN", None)
+
+    def _make_app(self, tmp_path, **serve_kwargs):
+        import terminaide
+        from fastapi import FastAPI
+
+        script = make_test_script(tmp_path)
+        app = FastAPI()
+        terminaide.serve_apps(
+            app,
+            {"/t": {"script": str(script)}},
+            log_level="warning",
+            **serve_kwargs,
+        )
+        return app
+
+    def _verbose_token(self, client) -> "str | None":
+        """Fetch the auth token from verbose /health (operator path)."""
+        import os
+
+        os.environ["TERMINAIDE_HEALTH_VERBOSE"] = "1"
+        try:
+            return client.get("/health").json().get("auth_token")
+        finally:
+            os.environ.pop("TERMINAIDE_HEALTH_VERBOSE", None)
+
+    def test_exposed_without_credentials_auto_generates_token(self, tmp_path):
+        from fastapi.testclient import TestClient
+
+        app = self._make_app(tmp_path, host="0.0.0.0")
+        with TestClient(app) as client:
+            token = self._verbose_token(client)
+            assert token, "exposed server without credentials must have a token"
+
+            # Without token: rejected
+            assert client.get("/t").status_code == 401
+            # With token: allowed, and a cookie is issued for the session
+            r = client.get(f"/t?token={token}")
+            assert r.status_code == 200
+            set_cookie = r.headers.get("set-cookie", "")
+            assert "terminaide_token=" in set_cookie
+            assert "HttpOnly" in set_cookie
+            # Subsequent request via cookie alone: allowed
+            assert client.get("/t").status_code == 200
+
+    def test_wrong_token_rejected(self, tmp_path):
+        from fastapi.testclient import TestClient
+
+        app = self._make_app(tmp_path, host="0.0.0.0")
+        with TestClient(app) as client:
+            assert client.get("/t?token=wrong-token").status_code == 401
+            # Header auth also works for programmatic clients
+            token = self._verbose_token(client)
+            r = client.get("/t", headers={"X-Terminaide-Token": token})
+            assert r.status_code == 200
+
+    def test_websocket_requires_token(self, tmp_path):
+        import pytest
+        from fastapi.testclient import TestClient
+        from starlette.websockets import WebSocketDisconnect
+
+        app = self._make_app(tmp_path, host="0.0.0.0")
+        with TestClient(app) as client:
+            token = self._verbose_token(client)
+
+            with pytest.raises(WebSocketDisconnect):
+                with client.websocket_connect("/t/terminal/ws"):
+                    pass
+
+            with client.websocket_connect(f"/t/terminal/ws?token={token}"):
+                pass
+
+    def test_loopback_host_stays_frictionless(self, tmp_path):
+        from fastapi.testclient import TestClient
+
+        app = self._make_app(tmp_path, host="127.0.0.1")
+        with TestClient(app) as client:
+            assert client.get("/t").status_code == 200
+            assert self._verbose_token(client) is None
+
+    def test_explicit_token_via_env(self, tmp_path, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        monkeypatch.setenv("TERMINAIDE_TOKEN", "my-fixed-token")
+        app = self._make_app(tmp_path, host="0.0.0.0")
+        with TestClient(app) as client:
+            assert client.get("/t").status_code == 401
+            assert client.get("/t?token=my-fixed-token").status_code == 200
+
+    def test_explicit_disable_with_warning(self, tmp_path, caplog):
+        import logging
+
+        from fastapi.testclient import TestClient
+
+        terminaide_logger = logging.getLogger("terminaide")
+        old_propagate = terminaide_logger.propagate
+        terminaide_logger.propagate = True
+        try:
+            with caplog.at_level(logging.WARNING, logger="terminaide"):
+                # The warning fires at serve_apps/convert time
+                app = self._make_app(tmp_path, host="0.0.0.0", auth_token="")
+                with TestClient(app) as client:
+                    # Open by explicit opt-out...
+                    assert client.get("/t").status_code == 200
+        finally:
+            terminaide_logger.propagate = old_propagate
+        assert any("disabled" in r.getMessage() for r in caplog.records)
+
+    def test_credentials_configured_skips_token(self, tmp_path):
+        from fastapi.testclient import TestClient
+
+        # ttyd basic-auth credentials protect the terminals; no extra token
+        app = self._make_app(
+            tmp_path,
+            host="0.0.0.0",
+            ttyd_options={
+                "credential_required": True,
+                "username": "u",
+                "password": "p",
+            },
+        )
+        with TestClient(app) as client:
+            assert self._verbose_token(client) is None
+            # The HTML shell itself is open; ttyd challenges its own endpoints
+            assert client.get("/t").status_code == 200
+
+    def test_index_pages_stay_public(self, tmp_path):
+        from fastapi.testclient import TestClient
+
+        import terminaide
+
+        script = make_test_script(tmp_path)
+        app = __import__("fastapi").FastAPI()
+        terminaide.serve_apps(
+            app,
+            {
+                "/": terminaide.AutoIndex(
+                    type="html", title="Menu", menu=[{"path": "/t", "title": "T"}]
+                ),
+                "/t": {"script": str(script)},
+            },
+            log_level="warning",
+            host="0.0.0.0",
+        )
+        with TestClient(app) as client:
+            token = self._verbose_token(client)
+            assert token
+            # Index menu is public navigation
+            assert client.get("/").status_code == 200
+            # The terminal behind it requires the token
+            assert client.get("/t").status_code == 401
+
+    def test_token_not_passed_to_terminal_params(self, tmp_path):
+        """The auth token is metadata, not application arguments: it must not
+        reach the dynamic-route parameter files."""
+        from fastapi.testclient import TestClient
+
+        app = self._make_app(
+            tmp_path, host="0.0.0.0", auth_token="fixed-token"
+        )
+        route = {"/t": {"script": str(make_test_script(tmp_path)), "dynamic": True}}
+        # rebuild with dynamic route
+        import terminaide
+        from fastapi import FastAPI
+
+        app = FastAPI()
+        terminaide.serve_apps(
+            app, route, log_level="warning", host="0.0.0.0", auth_token="fixed-token"
+        )
+        with TestClient(app) as client:
+            with client.websocket_connect(
+                "/t/terminal/ws?token=fixed-token&args=--verbose"
+            ):
+                import asyncio
+
+                from terminaide.core.wrappers import get_params_dir
+
+                params_dir = get_params_dir()
+                found = None
+
+                async def poll():
+                    for _ in range(100):
+                        files = list(
+                            params_dir.glob("terminaide_params__t_*.json")
+                        )
+                        if files:
+                            import json
+
+                            return json.loads(files[0].read_text())
+                        await asyncio.sleep(0.01)
+
+                found = asyncio.run(poll())
+                assert found is not None
+                assert "token" not in found["params"]
+                assert found["params"]["args"] == "--verbose"

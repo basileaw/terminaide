@@ -118,9 +118,23 @@ def create_app_with_lifespan(title: str, config: TerminaideConfig, ttyd_config: 
         Configured FastAPI application
     """
     app = FastAPI(title=f"Terminaide - {title}")
-    
+
     # Add proxy middleware if needed
     ServeWithConfig.add_proxy_middleware_if_needed(app, config)
+
+    # Enforce terminal token auth (installed pre-start: resolved token in
+    # the ttyd config; no-op when auth_token is None)
+    if ttyd_config.auth_token:
+        from .auth import TokenAuthMiddleware
+
+        app.add_middleware(TokenAuthMiddleware, ttyd_config=ttyd_config)
+        display_host = "localhost" if config.host in ("0.0.0.0", "::") else config.host
+        # logger (not print): survives stdout buffering in docker logs/pipes
+        logger.warning(
+            "Terminal auth token required (auto-generated for non-loopback bind).\n"
+            f"  Open:  http://{display_host}:{config.port}{config.mount_path}"
+            f"?token={ttyd_config.auth_token}"
+        )
     
     # Setup lifespan
     original_lifespan = app.router.lifespan_context

@@ -7,7 +7,8 @@ import time
 import logging
 import asyncio
 from collections import deque
-from typing import Optional, Dict, Any, Tuple
+from contextlib import asynccontextmanager
+from typing import Optional, Dict, Any, AsyncIterator, Tuple
 from urllib.parse import urljoin
 
 import httpx
@@ -245,7 +246,7 @@ class ProxyManager:
             )
             self._log_websocket_connection(script_config, route_path)
 
-            async with await self._connect_ttyd_with_retry(ws_url) as target_ws:
+            async with self._connect_ttyd_with_retry(ws_url) as target_ws:
 
                 await self._bidirectional_forward(websocket, target_ws, route_path)
 
@@ -259,24 +260,35 @@ class ProxyManager:
         finally:
             await self._safe_close_websocket(websocket)
 
-    async def _connect_ttyd_with_retry(self, ws_url: str) -> Any:
+    @asynccontextmanager
+    async def _connect_ttyd_with_retry(self, ws_url: str) -> AsyncIterator[Any]:
         """Connect to the ttyd backend, retrying briefly on refused dials.
 
         TTYDManager considers a process "started" as soon as it is alive, but
         the listener may need a fraction of a second more; clients connecting
         in that window would otherwise get an error instead of a terminal.
+
+        websockets >= 10 removed async-context-manager support from
+        WebSocketClientProtocol, so the connection is managed here instead.
         """
         last_error = None
+        target_ws = None
         for attempt in range(8):  # ~2s total with 0.25s backoff
             try:
-                return await websockets.connect(
+                target_ws = await websockets.connect(
                     ws_url, subprotocols=["tty"], ping_interval=None, close_timeout=5
                 )
+                break
             except OSError as e:
                 last_error = e
                 if attempt < 7:
                     await asyncio.sleep(0.25)
-        raise last_error
+        if target_ws is None:
+            raise last_error
+        try:
+            yield target_ws
+        finally:
+            await target_ws.close()
 
     async def _resolve_websocket_route(
         self, websocket: WebSocket, route_path: Optional[str]
@@ -303,7 +315,13 @@ class ProxyManager:
     ) -> None:
         """Handle query parameters for dynamic routes."""
         if script_config.dynamic:
-            query_params = dict(websocket.query_params)
+            # Exclude auth metadata: the token must never reach the terminal's
+            # argv or parameter files
+            query_params = {
+                k: v
+                for k, v in websocket.query_params.multi_items()
+                if k != "token"
+            }
             try:
                 write_query_params_file(route_path, query_params, self.config)
                 log_msg = f"Wrote {'empty ' if not query_params else ''}query params for dynamic route {route_path}"

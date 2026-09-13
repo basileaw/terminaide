@@ -37,6 +37,10 @@ class DemoProcess:
         env = {**subprocess.os.environ}
         # Tests read ttyd ports from /health, which is trimmed by default
         env["TERMINAIDE_HEALTH_VERBOSE"] = "1"
+        # apps-mode demos declare an exposed host, so terminal routes get
+        # token auth; pin the token for deterministic test requests
+        if "apps" in self.script_path:
+            env["TERMINAIDE_TOKEN"] = DEMO_TOKEN
         self.process = subprocess.Popen(
             ["python", self.script_path],
             stdout=subprocess.PIPE,
@@ -187,6 +191,16 @@ class DemoProcess:
             )
 
 
+# Fixed token for spawned apps-mode demos (see DemoProcess.start)
+DEMO_TOKEN = "terminaide-demo-token"
+
+
+def with_token(path: str) -> str:
+    """Append the fixed auth token to a terminal route path."""
+    sep = "&" if "?" in path else "?"
+    return f"{path}{sep}token={DEMO_TOKEN}"
+
+
 def get_ttyd_ports_from_health(port: int = 8000) -> List[int]:
     """Fetch the actual ttyd ports allocated by the running server.
 
@@ -258,12 +272,14 @@ def test_serve_apps():
         # Verify terminal WebSocket connectivity for all terminals
         demo.verify_terminal_connectivity(expected_ttyd_ports)
 
-        # Test monitor page
-        demo.check_http_response("/monitor")
+        # Test monitor page (terminal route: requires the auth token)
+        demo.check_http_response(with_token("/monitor"))
 
         # Test game routes with terminal health verification
         terminal_routes = ["snake", "tetris", "pong", "asteroids"]
-        demo.check_terminal_health([f"/{route}" for route in terminal_routes])
+        demo.check_terminal_health(
+            [with_token(f"/{route}") for route in terminal_routes]
+        )
 
 
 def test_serve_container():

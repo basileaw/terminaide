@@ -30,6 +30,16 @@ import websockets
 
 from terminaide.core.wrappers import get_params_dir
 
+# Fixed token for spawned apps-mode demos (apps mode declares an exposed
+# host by default, so terminal routes get token auth)
+DEMO_TOKEN = "terminaide-demo-token"
+
+
+def with_token(path: str) -> str:
+    """Append the fixed auth token to a terminal route path."""
+    sep = "&" if "?" in path else "?"
+    return f"{path}{sep}token={DEMO_TOKEN}"
+
 
 # =============================================================================
 # SHARED TESTING UTILITIES
@@ -66,6 +76,9 @@ class DemoProcess:
         env = {**subprocess.os.environ}
         # Tests read ttyd ports from /health, which is trimmed by default
         env["TERMINAIDE_HEALTH_VERBOSE"] = "1"
+        # apps-mode demos declare an exposed host, so terminal routes get
+        # token auth; pin the token for deterministic test requests
+        env["TERMINAIDE_TOKEN"] = DEMO_TOKEN
         if env_vars:
             env.update(env_vars)
 
@@ -365,7 +378,8 @@ if __name__ == "__main__":
                 **os.environ,
                 "TERMINAIDE_CURSOR_MGMT": "0",
                 "TERMINAIDE_HEALTH_VERBOSE": "1",
-            },  # Disable cursor management for tests; /health used by tests
+                "TERMINAIDE_TOKEN": DEMO_TOKEN,
+            },  # Disable cursor mgmt; /health + token used by tests
         )
 
         # Wait for HTTP server to start
@@ -378,7 +392,9 @@ if __name__ == "__main__":
                 )
 
             try:
-                response = requests.get(f"http://localhost:{self.port}/test", timeout=1)
+                response = requests.get(
+                    f"http://localhost:{self.port}/test?token={DEMO_TOKEN}", timeout=1
+                )
                 if response.status_code == 200:
                     return
             except requests.exceptions.RequestException:
@@ -415,9 +431,11 @@ if __name__ == "__main__":
 
     def check_iframe_src(self, query_params: str = "") -> str:
         """Get the iframe src response text for further assertions."""
-        url = f"http://localhost:{self.port}/test"
+        # The HTML page itself requires the token (apps mode defaults to an
+        # exposed declared host); the iframe src excludes it by design
+        url = f"http://localhost:{self.port}/test?token={DEMO_TOKEN}"
         if query_params:
-            url += f"?{query_params}"
+            url += f"&{query_params}"
 
         response = requests.get(url, timeout=5)
         assert response.status_code == 200
@@ -428,10 +446,11 @@ if __name__ == "__main__":
         self, query_params: str = ""
     ) -> Optional[Dict[str, Any]]:
         """Test that WebSocket connection triggers parameter file creation."""
-        # Build WebSocket URL
-        ws_url = f"ws://localhost:{self.port}/test/terminal/ws"
+        # Build WebSocket URL (token authenticates; it is stripped from the
+        # parameters that reach the terminal)
+        ws_url = f"ws://localhost:{self.port}/test/terminal/ws?token={DEMO_TOKEN}"
         if query_params:
-            ws_url += f"?{query_params}"
+            ws_url += f"&{query_params}"
 
         try:
             # Param files are unique per connection (uuid suffix) and are
@@ -532,12 +551,12 @@ def test_apps_server_basic_routing():
         assert len(expected_ttyd_ports) == 5
         demo.verify_ttyd_processes(expected_ttyd_ports)
 
-        # Test specific routes
-        demo.check_http_response("/monitor")
+        # Test specific routes (terminal routes need the auth token)
+        demo.check_http_response(with_token("/monitor"))
 
         # Test game terminal routes
         terminal_routes = ["/snake", "/tetris", "/pong", "/asteroids"]
-        demo.check_terminal_health(terminal_routes)
+        demo.check_terminal_health([with_token(r) for r in terminal_routes])
 
 
 def test_apps_server_websocket_connectivity():
@@ -624,7 +643,13 @@ def test_apps_server_concurrent_connections():
             response = requests.get(f"http://localhost:8000{path}", timeout=10)
             return response.status_code
 
-        paths = ["/", "/monitor", "/snake", "/tetris", "/pong"]
+        paths = [
+            "/",
+            with_token("/monitor"),
+            with_token("/snake"),
+            with_token("/tetris"),
+            with_token("/pong"),
+        ]
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(make_request, path) for path in paths]

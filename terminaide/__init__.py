@@ -76,6 +76,8 @@ def serve_script(
     args: Optional[List[str]] = None,
     dynamic: bool = False,
     args_param: str = "args",
+    host: str = "127.0.0.1",
+    auth_token: Optional[str] = None,
 ) -> None:
     """Serve a Python script in a browser terminal.
 
@@ -90,6 +92,13 @@ def serve_script(
         args: Command-line arguments to pass to the script (default: None)
         dynamic: Enable dynamic arguments via URL query parameters (default: False)
         args_param: Name of the query parameter for dynamic arguments (default: "args")
+        host: Server bind address (default: "127.0.0.1" - local only; pass "0.0.0.0" to expose)
+        auth_token: Terminal auth token (default: auto-generated when the server is
+            exposed without credentials; "" disables token auth)
+
+    Examples:
+        Exposing to the network (a session token is auto-generated and printed):
+            serve_script("deploy.py", host="0.0.0.0")
 
     Examples:
         Basic usage:
@@ -120,6 +129,10 @@ def serve_script(
         kwargs["dynamic"] = dynamic
     if args_param != "args":
         kwargs["args_param"] = args_param
+    if host != "127.0.0.1":
+        kwargs["host"] = host
+    if auth_token is not None:
+        kwargs["auth_token"] = auth_token
 
     cfg = _prepare_config(None, True, **kwargs)
     cfg._target = Path(script_path)
@@ -138,6 +151,8 @@ def serve_function(
     args: Optional[List[str]] = None,
     dynamic: bool = False,
     args_param: str = "args",
+    host: str = "127.0.0.1",
+    auth_token: Optional[str] = None,
 ) -> None:
     """Serve a Python function in a browser terminal.
 
@@ -152,6 +167,9 @@ def serve_function(
         args: Command-line arguments to pass to the function via sys.argv (default: None)
         dynamic: Enable dynamic arguments via URL query parameters (default: False)
         args_param: Name of the query parameter for dynamic arguments (default: "args")
+        host: Server bind address (default: "127.0.0.1" - local only; pass "0.0.0.0" to expose)
+        auth_token: Terminal auth token (default: auto-generated when the server is
+            exposed without credentials; "" disables token auth)
 
     Examples:
         Basic usage:
@@ -186,6 +204,10 @@ def serve_function(
         kwargs["dynamic"] = dynamic
     if args_param != "args":
         kwargs["args_param"] = args_param
+    if host != "127.0.0.1":
+        kwargs["host"] = host
+    if auth_token is not None:
+        kwargs["auth_token"] = auth_token
 
     cfg = _prepare_config(None, True, **kwargs)
     cfg._target = func
@@ -203,6 +225,8 @@ def serve_apps(
     config: Optional[TerminaideConfig] = None,
     banner: Union[bool, str] = True,
     log_level: Optional[str] = "info",
+    host: str = "0.0.0.0",
+    auth_token: Optional[str] = None,
     **kwargs,
 ) -> None:
     """Integrate multiple terminals and index pages into a FastAPI application.
@@ -216,6 +240,12 @@ def serve_apps(
         config: Configuration options for the terminals
         banner: Controls banner display (default: True)
         log_level: Logging level ("debug", "info", "warning", "error", None) (default: "info")
+        host: Declared bind address of the app's server (default: "0.0.0.0").
+            Serve uses this to decide whether terminal routes need an auth token:
+            non-loopback binds without credentials get an auto-generated token.
+            Pass "127.0.0.1" for purely local apps to skip token auth.
+        auth_token: Terminal auth token (default: auto-generated when the declared host
+            is non-loopback and no credentials are configured; "" disables token auth)
         **kwargs: Additional configuration overrides
 
     Terminal Routes Configuration:
@@ -296,7 +326,12 @@ def serve_apps(
 
     if log_level != "info":
         kwargs["log_level"] = log_level
-    
+    # Always declared: apps mode defaults to "exposed" conservatively
+    # (terminaide cannot detect your uvicorn bind, so it assumes exposure)
+    kwargs["host"] = host
+    if auth_token is not None:
+        kwargs["auth_token"] = auth_token
+
     cfg = _prepare_config(config, banner, **kwargs)
     cfg._target = terminal_routes
     cfg._app = app

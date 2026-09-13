@@ -268,6 +268,27 @@ class ServeWithConfig:
             except Exception as e:
                 logger.warning(f"Failed to add proxy header middleware: {e}")
 
+        # Enforce terminal token auth (installed pre-start; no-op when
+        # resolve_auth_token returned None)
+        if ttyd_config.auth_token:
+            try:
+                from .auth import TokenAuthMiddleware
+
+                if not any(
+                    m.cls.__name__ == "TokenAuthMiddleware"
+                    for m in getattr(app, "user_middleware", [])
+                ):
+                    app.add_middleware(TokenAuthMiddleware, ttyd_config=ttyd_config)
+                    logger.warning(
+                        "Terminal routes require an auth token: append "
+                        f"?token={ttyd_config.auth_token} to terminal URLs "
+                        "(also shown in verbose /health). Set TERMINAIDE_TOKEN "
+                        "or auth_token to choose your own, or auth_token='' to "
+                        "disable this protection if your app has its own auth."
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to add token auth middleware: {e}")
+
         # Rest of the method remains the same...
         sentinel_attr = "_terminaide_lifespan_attached"
         if getattr(app.state, sentinel_attr, False):

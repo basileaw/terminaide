@@ -404,6 +404,10 @@ class TTYDConfig(BaseModel):
     # window); None disables the limit. Note: without a trusted proxy, the
     # "client" is the address that connected to the server.
     ws_rate_limit_per_minute: Optional[int] = 30
+    # Resolved token enforcing authentication on terminal routes (None =
+    # open). Resolved from auth_token/TERMINAIDE_TOKEN or auto-generated for
+    # non-loopback binds without credentials - see core/auth.py.
+    auth_token: Optional[str] = None
 
     # Legacy field names for backward compatibility
     @property
