@@ -208,3 +208,93 @@ class TestPortConflictSafety:
             if leftover.poll() is None:
                 leftover.terminate()
                 leftover.wait(timeout=5)
+
+
+# =============================================================================
+# Fix 3: installer integrity
+# =============================================================================
+
+
+class TestInstallerIntegrity:
+    """Downloaded binaries must be digest-verified and never leave partial
+    files behind on failure."""
+
+    def test_verify_sha256_roundtrip(self, tmp_path):
+        from terminaide.core.installer import verify_sha256
+
+        import hashlib
+
+        f = tmp_path / "blob"
+        f.write_bytes(b"terminaide integrity test")
+        digest = hashlib.sha256(b"terminaide integrity test").hexdigest()
+        assert verify_sha256(f, digest)
+        assert not verify_sha256(f, "0" * 64)
+
+    def _download_to(self, tmp_path, content: bytes, digest: str = None):
+        from terminaide.core import installer
+
+        target = tmp_path / "ttyd-test"
+        url = "https://example.invalid/ttyd"
+
+        def fake_urlretrieve(url_arg, dest):
+            Path(dest).write_bytes(content)
+
+        orig = installer.urllib.request.urlretrieve
+        installer.urllib.request.urlretrieve = fake_urlretrieve
+        try:
+            installer.download_binary(url, target, expected_digest=digest)
+        finally:
+            installer.urllib.request.urlretrieve = orig
+        return target
+
+    def test_download_verified_and_installed(self, tmp_path):
+        import hashlib
+
+        content = b"fake ttyd binary"
+        digest = hashlib.sha256(content).hexdigest()
+        target = self._download_to(tmp_path, content, digest)
+
+        assert target.exists()
+        assert target.read_bytes() == content
+        assert target.stat().st_mode & 0o111, "binary must be executable"
+        assert not target.with_name(target.name + ".download").exists()
+
+    def test_download_with_wrong_digest_aborts_and_leaves_nothing(self, tmp_path):
+        from terminaide.core import installer
+
+        content = b"tampered binary"
+        try:
+            self._download_to(tmp_path, content, digest="f" * 64)
+        except RuntimeError as e:
+            assert "SHA-256" in str(e) or "verification" in str(e)
+        else:
+            pytest.fail("tampered download must be rejected")
+
+        # Neither the binary nor a partial download may remain
+        assert not (tmp_path / "ttyd-test").exists()
+        assert not (tmp_path / "ttyd-test.download").exists()
+
+    def test_pinned_version_constants(self):
+        from terminaide.core.installer import (
+            TTYD_PINNED_VERSION,
+            TTYD_BINARY_DIGESTS,
+            get_ttyd_version,
+        )
+
+        # Every pinned platform must have a known digest (64 hex chars)
+        assert TTYD_PINNED_VERSION
+        for key, digest in TTYD_BINARY_DIGESTS.items():
+            assert len(digest) == 64, f"digest for {key} must be sha256 hex"
+            int(digest, 16)
+        # Custom version override changes the version (digests then skipped)
+        import os
+
+        old = os.environ.get("TERMINAIDE_TTYD_VERSION")
+        try:
+            os.environ["TERMINAIDE_TTYD_VERSION"] = "9.9.9"
+            assert get_ttyd_version() == "9.9.9"
+        finally:
+            if old is None:
+                os.environ.pop("TERMINAIDE_TTYD_VERSION", None)
+            else:
+                os.environ["TERMINAIDE_TTYD_VERSION"] = old

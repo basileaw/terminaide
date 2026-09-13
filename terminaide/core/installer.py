@@ -18,41 +18,41 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Tuple, List
 import urllib.request
-import json
 
 logger = logging.getLogger("terminaide")
 
-# Fallback version in case API request fails
-TTYD_FALLBACK_VERSION = "1.7.3"
+# Pinned ttyd version. Downloads are pinned for reproducibility and supply-chain
+# safety: a fixed version with embedded digests can be verified offline, while
+# "latest at runtime" cannot. Bump this together with TTYD_BINARY_DIGESTS
+# (digests are sha256 of the GitHub release assets for this version).
+TTYD_PINNED_VERSION = "1.7.7"
+
+# sha256 digests of the GitHub release assets for TTYD_PINNED_VERSION.
+TTYD_BINARY_DIGESTS = {
+    "x86_64": "8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55",
+    "aarch64": "b38acadd89d1d396a0f5649aa52c539edbad07f4bc7348b27b4f4b7219dd4165",
+}
 
 
-def get_latest_ttyd_version() -> str:
+def get_ttyd_version() -> str:
+    """Get the ttyd version to install.
+
+    Pinned by default. TERMINAIDE_TTYD_VERSION may override it for advanced
+    use (testing a newer ttyd); digest verification is skipped in that case
+    since only the pinned version's digests are embedded.
     """
-    Fetch the latest ttyd version from GitHub releases API.
-    
-    Returns:
-        Latest version string (e.g., "1.7.7")
-    """
-    try:
-        logger.info("Fetching latest ttyd version from GitHub API...")
-        api_url = "https://api.github.com/repos/tsl0922/ttyd/releases/latest"
-        
-        with urllib.request.urlopen(api_url, timeout=10) as response:
-            if response.status == 200:
-                data = json.loads(response.read().decode())
-                version = data.get("tag_name", "").lstrip("v")
-                if version:
-                    logger.info(f"Latest ttyd version: {version}")
-                    return version
-                else:
-                    raise ValueError("No tag_name found in API response")
-            else:
-                raise urllib.error.HTTPError(api_url, response.status, "API request failed", None, None)
-                
-    except Exception as e:
-        logger.warning(f"Failed to fetch latest ttyd version: {e}")
-        logger.info(f"Using fallback version: {TTYD_FALLBACK_VERSION}")
-        return TTYD_FALLBACK_VERSION
+    return os.environ.get("TERMINAIDE_TTYD_VERSION") or TTYD_PINNED_VERSION
+
+
+def verify_sha256(path: Path, expected_hex: str) -> bool:
+    """Verify the SHA-256 digest of a file."""
+    import hashlib
+
+    hasher = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest() == expected_hex
 
 
 def get_ttyd_github_base(version: str) -> str:
@@ -192,15 +192,41 @@ def get_binary_dir() -> Path:
     return bin_dir
 
 
-def download_binary(url: str, target_path: Path) -> None:
-    """Download the ttyd binary from GitHub."""
+def download_binary(url: str, target_path: Path, expected_digest: Optional[str] = None) -> None:
+    """Download the ttyd binary from GitHub and verify its integrity.
+
+    Downloads to a temporary path first; the target is only replaced with a
+    complete, digest-verified binary. If expected_digest is None (custom
+    TERMINAIDE_TTYD_VERSION override), verification is skipped with a
+    warning.
+    """
     logger.info(f"Downloading ttyd from {url}")
+    temp_path = target_path.with_name(target_path.name + ".download")
     try:
-        urllib.request.urlretrieve(url, target_path)
-        # Make binary executable
-        target_path.chmod(target_path.stat().st_mode | stat.S_IEXEC)
-    except Exception as e:
-        raise RuntimeError(f"Failed to download ttyd: {e}")
+        urllib.request.urlretrieve(url, temp_path)
+
+        if expected_digest is None:
+            logger.warning(
+                "Skipping ttyd binary digest verification: custom "
+                "TERMINAIDE_TTYD_VERSION is set and no digest is known for it. "
+                "Only use this in trusted environments."
+            )
+        elif not verify_sha256(temp_path, expected_digest):
+            raise RuntimeError(
+                f"ttyd binary downloaded from {url} failed SHA-256 "
+                f"verification (expected {expected_digest}). Aborting - the "
+                f"download may be corrupted or tampered with."
+            )
+        else:
+            logger.info("ttyd binary SHA-256 verification passed")
+
+        temp_path.chmod(temp_path.stat().st_mode | stat.S_IEXEC)
+        temp_path.replace(target_path)
+    except Exception:
+        # Never leave a partial or unverified download in place
+        if temp_path.exists():
+            temp_path.unlink()
+        raise
 
 
 def compile_ttyd_from_source(target_path: Path, version: str) -> None:
@@ -234,12 +260,13 @@ def compile_ttyd_from_source(target_path: Path, version: str) -> None:
             except Exception as e:
                 raise RuntimeError(f"Failed to download ttyd source: {e}")
 
-            # Extract source tarball
+            # Extract source tarball (data filter blocks path traversal
+            # entries in malicious tarballs, Python 3.12+)
             logger.info("Extracting source code...")
             import tarfile
 
             with tarfile.open(source_tarball, "r:gz") as tar:
-                tar.extractall(path=temp_dir_path)
+                tar.extractall(path=temp_dir_path, filter="data")
 
             # The directory will be named "ttyd-{version}" when extracting from GitHub's tarball
             source_dir = temp_dir_path / f"ttyd-{version}"
@@ -386,9 +413,9 @@ def get_ttyd_path(force_reinstall: bool = False) -> Optional[Path]:
     Returns:
         Path to the ttyd binary
     """
-    # Get the latest version
-    version = get_latest_ttyd_version()
-    
+    # Pinned version (no network resolution - see TTYD_PINNED_VERSION)
+    version = get_ttyd_version()
+
     system, machine = get_platform_info()
     platform_key = (system, machine)
     binary_dir = get_binary_dir()
@@ -452,13 +479,21 @@ def get_ttyd_path(force_reinstall: bool = False) -> Optional[Path]:
 
     url, download_binary_name = platform_binaries[platform_key]
 
+    # Digest for the pinned version (None for custom version overrides)
+    digest_key = "aarch64" if machine in ("arm64", "aarch64") else machine
+    expected_digest = (
+        TTYD_BINARY_DIGESTS.get(digest_key)
+        if version == TTYD_PINNED_VERSION
+        else None
+    )
+
     # Check if binary exists and is executable, or if force_reinstall is specified
     if (
         force_reinstall
         or not binary_path.exists()
         or not os.access(binary_path, os.X_OK)
     ):
-        download_binary(url, binary_path)
+        download_binary(url, binary_path, expected_digest=expected_digest)
 
     return binary_path
 
