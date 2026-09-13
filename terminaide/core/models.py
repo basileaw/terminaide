@@ -487,6 +487,13 @@ class TTYDConfig(BaseModel):
         return f"{self.mount_path}/terminal"
 
     @property
+    def health_path(self) -> str:
+        """Return the health endpoint's path, accounting for root or non-root mounting."""
+        if self.is_root_mounted:
+            return "/health"
+        return f"{self.mount_path}/health"
+
+    @property
     def static_path(self) -> str:
         """Return the path for static files."""
         if self.is_root_mounted:

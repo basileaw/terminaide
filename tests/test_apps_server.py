@@ -28,6 +28,8 @@ import pytest
 import requests
 import websockets
 
+from terminaide.core.wrappers import get_params_dir
+
 
 # =============================================================================
 # SHARED TESTING UTILITIES
@@ -429,15 +431,16 @@ if __name__ == "__main__":
             ws_url += f"?{query_params}"
 
         try:
-            async with websockets.connect(ws_url, subprotocols=["tty"]) as websocket:
-                # Give the proxy time to write the parameter file
-                await asyncio.sleep(0.5)
+            # The dynamic wrapper consumes the param file shortly after the
+            # connection is established, so poll for it immediately rather
+            # than sleeping a fixed duration.
+            param_file = get_params_dir() / "terminaide_params__test.json"
 
-                # Check if parameter file was created
-                param_file = Path("/tmp/params/terminaide_params__test.json")
-                if param_file.exists():
-                    data = json.loads(param_file.read_text())
-                    return data
+            async with websockets.connect(ws_url, subprotocols=["tty"]) as websocket:
+                for _ in range(100):  # poll for up to 1s
+                    if param_file.exists():
+                        return json.loads(param_file.read_text())
+                    await asyncio.sleep(0.01)
 
                 return None
         except Exception as e:
@@ -446,13 +449,12 @@ if __name__ == "__main__":
 
 
 def cleanup_terminaide_param_files() -> None:
-    """Clean up terminaide parameter files from /tmp directory."""
-    # Check both the old location (direct in /tmp) and new location (/tmp/params)
-    temp_dir = Path("/tmp")
-    params_dir = temp_dir / "params"
-    
-    # Clean up from both locations for backward compatibility during transition
-    for search_dir in [temp_dir, params_dir]:
+    """Clean up terminaide parameter files from the cache directories."""
+    # Check the package cache params directory and the legacy location (/tmp)
+    # for backward compatibility
+    search_dirs = [get_params_dir(), Path("/tmp"), Path("/tmp") / "params"]
+
+    for search_dir in search_dirs:
         if search_dir.exists():
             for param_file in search_dir.glob("terminaide_params_*.json"):
                 try:
@@ -465,16 +467,16 @@ def check_parameter_file_exists(route_path: str) -> bool:
     """Check if a parameter file exists for a given route."""
     # Convert route path to parameter file name (e.g., "/test" -> "terminaide_params__test.json")
     route_name = route_path.lstrip("/").replace("/", "_")
-    # Check in the params subdirectory under /tmp
-    param_file = Path(f"/tmp/params/terminaide_params__{route_name}.json")
+    # Check in the package cache params directory
+    param_file = get_params_dir() / f"terminaide_params__{route_name}.json"
     return param_file.exists()
 
 
 def read_parameter_file(route_path: str) -> Optional[Dict[str, Any]]:
     """Read and parse a parameter file for a given route."""
     route_name = route_path.lstrip("/").replace("/", "_")
-    # Look in the params subdirectory under /tmp
-    param_file = Path(f"/tmp/params/terminaide_params__{route_name}.json")
+    # Check in the package cache params directory
+    param_file = get_params_dir() / f"terminaide_params__{route_name}.json"
 
     if not param_file.exists():
         return None
@@ -495,6 +497,21 @@ def read_parameter_file(route_path: str) -> Optional[Dict[str, Any]]:
 # - Error handling and recovery
 
 
+def get_ttyd_ports_from_health(port: int = 8000) -> List[int]:
+    """Fetch the actual ttyd ports allocated by the running server.
+
+    Ports are assigned dynamically (skipping any that are in use), so tests
+    must derive expectations from the /health endpoint instead of hardcoding
+    port numbers.
+    """
+    response = requests.get(f"http://localhost:{port}/health", timeout=5)
+    response.raise_for_status()
+    routes = response.json()["proxy"]["routes"]
+    ports = [r["port"] for r in routes if r.get("type") == "terminal" and r.get("port")]
+    assert ports, "No terminal routes with ports found in /health"
+    return ports
+
+
 def test_apps_server_basic_routing():
     """Test basic apps server routing and proxy functionality."""
     with DemoProcess("examples/apps.py", port=8000) as demo:
@@ -504,8 +521,9 @@ def test_apps_server_basic_routing():
         content = demo.check_http_response("/")
         assert len(content) > 100, "Main page should have substantial content"
 
-        # Verify ttyd processes for all terminals
-        expected_ttyd_ports = [7740, 7741, 7742, 7743, 7744]  # monitor, games
+        # Verify ttyd processes for all terminals (monitor + 4 games)
+        expected_ttyd_ports = get_ttyd_ports_from_health()
+        assert len(expected_ttyd_ports) == 5
         demo.verify_ttyd_processes(expected_ttyd_ports)
 
         # Test specific routes
@@ -522,7 +540,8 @@ def test_apps_server_websocket_connectivity():
         demo.start()
 
         # Verify WebSocket connectivity for all terminals
-        expected_ttyd_ports = [7740, 7741, 7742, 7743, 7744]
+        expected_ttyd_ports = get_ttyd_ports_from_health()
+        assert len(expected_ttyd_ports) == 5
         demo.verify_terminal_connectivity(expected_ttyd_ports)
 
 
@@ -533,7 +552,8 @@ def test_apps_server_port_allocation():
         demo1.start()
 
         # Verify ports are allocated
-        expected_ports = [7740, 7741, 7742, 7743, 7744]
+        expected_ports = get_ttyd_ports_from_health()
+        assert len(expected_ports) == 5
         demo1.verify_ttyd_processes(expected_ports)
 
         # TODO: Test port conflict scenarios when multiple servers run
@@ -550,7 +570,7 @@ def test_apps_server_graceful_shutdown():
         demo.check_http_response("/")
 
         # Verify ttyd processes exist
-        expected_ports = [7740, 7741, 7742, 7743, 7744]
+        expected_ports = get_ttyd_ports_from_health()
         demo.verify_ttyd_processes(expected_ports)
 
         # Stop and verify cleanup
@@ -724,9 +744,9 @@ def test_parameter_file_cleanup():
     # Create a test parameter file manually
     test_route = "/test-cleanup"
     route_name = test_route.lstrip("/").replace("/", "_")
-    
+
     # Ensure the params directory exists
-    params_dir = Path("/tmp/params")
+    params_dir = get_params_dir()
     params_dir.mkdir(exist_ok=True, parents=True)
     param_file = params_dir / f"terminaide_params__{route_name}.json"
 

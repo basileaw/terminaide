@@ -183,6 +183,21 @@ class DemoProcess:
             )
 
 
+def get_ttyd_ports_from_health(port: int = 8000) -> List[int]:
+    """Fetch the actual ttyd ports allocated by the running server.
+
+    Ports are assigned dynamically (skipping any that are in use), so tests
+    must derive expectations from the /health endpoint instead of hardcoding
+    port numbers.
+    """
+    response = requests.get(f"http://localhost:{port}/health", timeout=5)
+    response.raise_for_status()
+    routes = response.json()["proxy"]["routes"]
+    ports = [r["port"] for r in routes if r.get("type") == "terminal" and r.get("port")]
+    assert ports, "No terminal routes with ports found in /health"
+    return ports
+
+
 
 
 def test_serve_function():
@@ -191,10 +206,12 @@ def test_serve_function():
         demo.start()
 
         # Verify ttyd process is running for the terminal
-        demo.verify_ttyd_processes([7740])
+        expected_ttyd_ports = get_ttyd_ports_from_health()
+        assert len(expected_ttyd_ports) == 1
+        demo.verify_ttyd_processes(expected_ttyd_ports)
 
         # Verify terminal WebSocket connectivity
-        demo.verify_terminal_connectivity([7740])
+        demo.verify_terminal_connectivity(expected_ttyd_ports)
 
         # Test HTTP response
         content = demo.check_http_response()
@@ -208,10 +225,12 @@ def test_serve_script():
         demo.start()
         
         # Verify ttyd process is running for the terminal
-        demo.verify_ttyd_processes([7740])
+        expected_ttyd_ports = get_ttyd_ports_from_health()
+        assert len(expected_ttyd_ports) == 1
+        demo.verify_ttyd_processes(expected_ttyd_ports)
         
         # Verify terminal WebSocket connectivity
-        demo.verify_terminal_connectivity([7740])
+        demo.verify_terminal_connectivity(expected_ttyd_ports)
         
         # Test HTTP response
         content = demo.check_http_response()
@@ -227,14 +246,9 @@ def test_serve_apps():
         demo.check_http_response("/")
 
         # Verify ttyd processes are running for all terminals
-        # Apps mode allocates ports starting from 7740
-        expected_ttyd_ports = [
-            7740,
-            7741,
-            7742,
-            7743,
-            7744,
-        ]  # monitor, snake, tetris, pong, asteroids
+        # Ports are allocated dynamically - derive expectations from /health
+        expected_ttyd_ports = get_ttyd_ports_from_health()
+        assert len(expected_ttyd_ports) == 5  # monitor, snake, tetris, pong, asteroids
         demo.verify_ttyd_processes(expected_ttyd_ports)
 
         # Verify terminal WebSocket connectivity for all terminals
@@ -250,11 +264,11 @@ def test_serve_apps():
 
 def test_serve_container():
     """Test: poe spin builds Docker image and runs container (requires Docker)."""
-    # Skip if Docker not available
+    # Skip if Docker daemon is not available (CLI alone is not enough)
     try:
-        subprocess.run(["docker", "--version"], check=True, capture_output=True)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pytest.skip("Docker not available")
+        subprocess.run(["docker", "info"], check=True, capture_output=True, timeout=15)
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+        pytest.skip("Docker daemon not available")
 
     # Clean up any existing container first
     try:

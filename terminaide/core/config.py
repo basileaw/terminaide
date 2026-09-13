@@ -236,7 +236,7 @@ def configure_routes(
             f"Index pages configured but {index_template_file} not found in templates directory"
         )
 
-    @app.get(f"{config.mount_path}/health")
+    @app.get(config.health_path)
     async def health_check():
         return {
             "ttyd": ttyd_manager.check_health(),
