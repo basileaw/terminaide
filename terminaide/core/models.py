@@ -396,6 +396,10 @@ class TTYDConfig(BaseModel):
     # reach the server. Set True (or TERMINAIDE_HEALTH_VERBOSE=1) for the full
     # operational payload (useful behind authenticated monitoring).
     health_verbose: bool = False
+    # Allow terminaide pages to be framed by other origins (X-Frame-Options
+    # is set to SAMEORIGIN unless this is True). Writable terminals are
+    # clickjacking targets, so embedding is opt-in.
+    allow_embedding: bool = False
 
     # Legacy field names for backward compatibility
     @property

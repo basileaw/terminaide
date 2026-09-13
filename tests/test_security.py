@@ -348,3 +348,81 @@ class TestHealthEndpoint:
                         os.environ.pop("TERMINAIDE_HEALTH_VERBOSE", None)
 
         asyncio.run(scenario())
+
+    def test_html_security_headers_present(self, tmp_path):
+        import asyncio
+
+        import httpx
+        from fastapi import FastAPI
+
+        import terminaide
+
+        script = make_test_script(tmp_path)
+        app = FastAPI()
+        terminaide.serve_apps(app, {"/t": {"script": str(script)}}, log_level="warning")
+
+        async def scenario():
+            async with app.router.lifespan_context(app):
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(
+                    transport=transport, base_url="http://test"
+                ) as client:
+                    r = await client.get("/t")
+                    assert r.status_code == 200
+                    assert r.headers["x-content-type-options"] == "nosniff"
+                    assert r.headers["referrer-policy"] == "no-referrer"
+                    assert r.headers["x-frame-options"] == "SAMEORIGIN"
+
+        asyncio.run(scenario())
+
+
+class TestProxyHeaderHygiene:
+    """The proxy must not forward hop-by-hop headers or cookies to ttyd,
+    but must keep Authorization (ttyd -c basic auth passes through)."""
+
+    def test_excluded_request_headers(self):
+        from terminaide.core.proxy import ProxyManager
+
+        excluded = ProxyManager._EXCLUDED_REQUEST_HEADERS
+        for header in (
+            "host",
+            "connection",
+            "keep-alive",
+            "proxy-authorization",
+            "te",
+            "trailer",
+            "upgrade",
+            "cookie",
+        ):
+            assert header in excluded, f"{header} must not be forwarded to ttyd"
+        # Authorization is deliberately forwarded for ttyd -c credentials
+        assert "authorization" not in excluded
+
+    def test_trace_not_accepted(self):
+        """The terminal proxy route must not accept TRACE."""
+        import asyncio
+
+        import httpx
+        from fastapi import FastAPI
+
+        import terminaide
+        from pathlib import Path
+
+        tmp = Path("/tmp/terminaide_trace_test")
+        tmp.mkdir(exist_ok=True)
+        script = make_test_script(tmp)
+        app = FastAPI()
+        terminaide.serve_apps(
+            app, {"/t": {"script": str(script)}}, log_level="warning"
+        )
+
+        async def scenario():
+            async with app.router.lifespan_context(app):
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(
+                    transport=transport, base_url="http://test"
+                ) as client:
+                    r = await client.request("TRACE", "/t/terminal/token.js")
+                    assert r.status_code == 405, "TRACE must be rejected"
+
+        asyncio.run(scenario())

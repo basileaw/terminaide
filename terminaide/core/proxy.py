@@ -130,9 +130,26 @@ class ProxyManager:
             headers={"Access-Control-Allow-Origin": "*"},
         )
 
-    # Pre-define header filter sets for performance
-    _EXCLUDED_REQUEST_HEADERS = frozenset(["host"])
-    _EXCLUDED_RESPONSE_HEADERS = frozenset(["content-encoding", "content-length", "transfer-encoding"])
+    # Pre-define header filter sets for performance.
+    # Request side: hop-by-hop headers (RFC 7230 6.1) must never be forwarded,
+    # and cookies belong to the outer app - ttyd has no use for them, so they
+    # are not leaked into the terminal backend. Authorization IS forwarded
+    # deliberately: ttyd's -c basic-auth credentials pass through the proxy.
+    _EXCLUDED_REQUEST_HEADERS = frozenset(
+        [
+            "host",
+            "connection",
+            "keep-alive",
+            "proxy-authorization",
+            "te",
+            "trailer",
+            "upgrade",
+            "cookie",
+        ]
+    )
+    _EXCLUDED_RESPONSE_HEADERS = frozenset(
+        ["content-encoding", "content-length", "transfer-encoding", "connection"]
+    )
 
     async def proxy_http(self, request: Request) -> Response:
         """Forward HTTP requests to the correct ttyd, adjusting paths and headers as needed."""

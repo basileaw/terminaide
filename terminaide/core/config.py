@@ -154,6 +154,11 @@ class TerminaideConfig:
 
     # Health endpoint disclosure: False returns only {"status": "ok"}
     health_verbose: bool = False
+
+    # Allow terminaide pages to be framed by other origins (default False
+    # keeps X-Frame-Options: SAMEORIGIN since terminals are clickjacking
+    # targets)
+    allow_embedding: bool = False
     
     # Cache configuration
     ephemeral_cache_dir: Optional[Path] = None  # Override for ephemeral script storage
@@ -240,6 +245,18 @@ def configure_routes(
             f"Index pages configured but {index_template_file} not found in templates directory"
         )
 
+    def _security_headers() -> Dict[str, str]:
+        """Security headers applied to terminaide's HTML responses."""
+        headers = {
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+        }
+        if not config.allow_embedding:
+            # Writable terminals are prime clickjacking targets; embedding in
+            # other origins is opt-in via allow_embedding=True
+            headers["X-Frame-Options"] = "SAMEORIGIN"
+        return headers
+
     @app.get(config.health_path)
     async def health_check():
         verbose = config.health_verbose or os.environ.get(
@@ -291,7 +308,9 @@ def configure_routes(
                             status_code=500,
                         )
 
-                    return templates.TemplateResponse(index_template_file, context)
+                    return templates.TemplateResponse(
+                        index_template_file, context, headers=_security_headers()
+                    )
                 except Exception as e:
                     logger.error(
                         f"Error rendering index page for route {route_path}: {e}"
@@ -380,6 +399,7 @@ def configure_routes(
                                 }
                             },
                         },
+                        headers=_security_headers(),
                     )
                 except Exception as e:
                     logger.error(
@@ -401,7 +421,6 @@ def configure_routes(
                     "OPTIONS",
                     "HEAD",
                     "PATCH",
-                    "TRACE",
                 ],
             )
             async def proxy_terminal_request(
@@ -624,6 +643,7 @@ def convert_terminaide_config_to_ttyd_config(
         route_configs=route_configs,  # Use route_configs instead of script_configs
         forward_env=config.forward_env,
         health_verbose=config.health_verbose,
+        allow_embedding=config.allow_embedding,
     )
 
     # Propagate the entry mode to TTYDConfig - include meta mode
