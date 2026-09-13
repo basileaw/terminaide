@@ -551,3 +551,85 @@ class TestPerConnectionParamFiles:
         assert not fresh.exists()
         assert not in_flight.exists()
         assert not claimed.exists()
+
+
+# =============================================================================
+# Fix 7: WebSocket rate limiting
+# =============================================================================
+
+
+class _FakeClient:
+    def __init__(self, host):
+        self.host = host
+
+
+class _FakeWebSocket:
+    def __init__(self, host="127.0.0.1"):
+        self.client = _FakeClient(host)
+
+
+class TestWebSocketRateLimit:
+    """Per-IP WebSocket connection limiting (each WS connection spawns a
+    ttyd child process - unauthenticated connection floods are trivial
+    resource exhaustion without this)."""
+
+    def _proxy(self, ws_rate_limit_per_minute=30, tmp_path=None):
+        from terminaide.core.models import TTYDConfig
+        from terminaide.core.proxy import ProxyManager
+
+        config = TTYDConfig(
+            port=free_port(),
+            ws_rate_limit_per_minute=ws_rate_limit_per_minute,
+            route_configs=[
+                ScriptConfig(
+                    route_path="/",
+                    script=tmp_path / "hello.py",
+                    port=free_port(),
+                )
+            ],
+        )
+        return ProxyManager(config)
+
+    def test_allows_up_to_limit_then_blocks(self, tmp_path):
+        (tmp_path / "hello.py").write_text("print(1)")
+        proxy = self._proxy(ws_rate_limit_per_minute=3, tmp_path=tmp_path)
+
+        assert proxy._check_ws_rate_limit(_FakeWebSocket("1.2.3.4"))
+        assert proxy._check_ws_rate_limit(_FakeWebSocket("1.2.3.4"))
+        assert proxy._check_ws_rate_limit(_FakeWebSocket("1.2.3.4"))
+        assert not proxy._check_ws_rate_limit(_FakeWebSocket("1.2.3.4"))
+        # Other IPs have their own budget
+        assert proxy._check_ws_rate_limit(_FakeWebSocket("5.6.7.8"))
+
+    def test_disabled_when_none(self, tmp_path):
+        (tmp_path / "hello.py").write_text("print(1)")
+        proxy = self._proxy(ws_rate_limit_per_minute=None, tmp_path=tmp_path)
+        for _ in range(50):
+            assert proxy._check_ws_rate_limit(_FakeWebSocket("1.2.3.4"))
+
+    def test_integration_second_connection_rejected(self, tmp_path):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from starlette.websockets import WebSocketDisconnect
+
+        import terminaide
+
+        script = make_test_script(tmp_path)
+        app = FastAPI()
+        terminaide.serve_apps(
+            app,
+            {"/t": {"script": str(script)}},
+            log_level="warning",
+            ws_rate_limit_per_minute=1,
+        )
+
+        with TestClient(app) as client:
+            # First connection is allowed
+            with client.websocket_connect("/t/terminal/ws"):
+                pass
+            # Second connection from the same client (same IP in tests) is
+            # rejected with a close frame; surfaced by attempting to receive
+            with pytest.raises(WebSocketDisconnect) as exc_info:
+                with client.websocket_connect("/t/terminal/ws") as ws2:
+                    ws2.receive_text()
+            assert exc_info.value.code == 1013

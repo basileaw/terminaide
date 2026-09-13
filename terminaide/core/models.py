@@ -400,6 +400,10 @@ class TTYDConfig(BaseModel):
     # is set to SAMEORIGIN unless this is True). Writable terminals are
     # clickjacking targets, so embedding is opt-in.
     allow_embedding: bool = False
+    # Max WebSocket terminal connections per client IP per minute (sliding
+    # window); None disables the limit. Note: without a trusted proxy, the
+    # "client" is the address that connected to the server.
+    ws_rate_limit_per_minute: Optional[int] = 30
 
     # Legacy field names for backward compatibility
     @property

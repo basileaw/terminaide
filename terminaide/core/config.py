@@ -159,6 +159,10 @@ class TerminaideConfig:
     # keeps X-Frame-Options: SAMEORIGIN since terminals are clickjacking
     # targets)
     allow_embedding: bool = False
+
+    # Max WebSocket terminal connections per client IP per minute (sliding
+    # window); None disables the limit
+    ws_rate_limit_per_minute: Optional[int] = 30
     
     # Cache configuration
     ephemeral_cache_dir: Optional[Path] = None  # Override for ephemeral script storage
@@ -644,6 +648,7 @@ def convert_terminaide_config_to_ttyd_config(
         forward_env=config.forward_env,
         health_verbose=config.health_verbose,
         allow_embedding=config.allow_embedding,
+        ws_rate_limit_per_minute=config.ws_rate_limit_per_minute,
     )
 
     # Propagate the entry mode to TTYDConfig - include meta mode

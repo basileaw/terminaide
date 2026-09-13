@@ -3,8 +3,10 @@
 """Manages HTTP and WebSocket proxying for ttyd processes, including path rewriting and multiple-route support."""
 
 import json
+import time
 import logging
 import asyncio
+from collections import deque
 from typing import Optional, Dict, Any, Tuple
 from urllib.parse import urljoin
 
@@ -33,6 +35,8 @@ class ProxyManager:
         self.config = config
         self._client: Optional[httpx.AsyncClient] = None
         self.targets: Dict[str, Dict[str, str]] = {}
+        # WebSocket connection rate limiting (per client IP, sliding window)
+        self._ws_connect_times: Dict[str, deque] = {}
         self._initialize_targets()
 
         self.terminal_configs = [
@@ -184,10 +188,47 @@ class ProxyManager:
             logger.error(f"HTTP proxy error: {e}")
             raise ProxyError(f"Failed to proxy request: {e}")
 
+    def _check_ws_rate_limit(self, websocket: WebSocket) -> bool:
+        """Enforce per-IP WebSocket connection rate limiting.
+
+        Returns True if the connection is allowed. Without this, an attacker
+        can spawn unlimited ttyd child processes (one per WS connection) -
+        trivial resource exhaustion.
+        """
+        limit = self.config.ws_rate_limit_per_minute
+        if not limit:
+            return True
+
+        client = websocket.client
+        ip = client.host if client else "unknown"
+        now = time.monotonic()
+
+        times = self._ws_connect_times.setdefault(ip, deque())
+        # Sliding one-minute window
+        while times and now - times[0] > 60:
+            times.popleft()
+
+        if len(times) >= limit:
+            logger.warning(
+                f"WebSocket rate limit exceeded for {ip} "
+                f"({limit} connections/minute)"
+            )
+            return False
+
+        times.append(now)
+        return True
+
     async def proxy_websocket(
         self, websocket: WebSocket, route_path: Optional[str] = None
     ) -> None:
         """Forward WebSocket connections to ttyd, including bidirectional data flow."""
+        if not self._check_ws_rate_limit(websocket):
+            await websocket.accept()
+            await websocket.close(
+                code=1013, reason="Terminal connection rate limit exceeded"
+            )
+            return
+
         try:
             script_config, route_path = await self._resolve_websocket_route(
                 websocket, route_path
