@@ -8,29 +8,42 @@ readme = "README.md"
 repository = "https://github.com/basileaw/terminaide"
 version = "1.4.8"
 
+# Dependency policy: keep the direct list minimal (every direct dep is
+# vulnerability-alert surface, and unused deps rot - bs4/readchar lessons).
+# Use ">=X,<N" ranges instead of carets for 0.x packages: poetry's caret pins
+# the minor of a 0.x version, which historically BLOCKED security patches
+# (fastapi ^0.117 could not resolve starlette 1.x security fixes). Ranges admit
+# security minors without pyproject surgery.
 [tool.poetry.dependencies]
-h11 = "^0.16.0"
-httpcore = "^1.0.9"
 httpx = "^0.28.1"
 jinja2 = "^3.1.2"
 pydantic = "^2.4.2"
 python = ">=3.12,<4.0"
-readchar = "^4.2.1"
 rich = "^14.0.0"
-websockets = "^12.0"
-fastapi = "^0.141"
-uvicorn = "^0.34.2"
+starlette = ">=0.46,<2.0"
+websockets = ">=12.0,<16.0"
+fastapi = ">=0.141,<1.0"
+uvicorn = ">=0.34,<1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0"
 pytest-timeout = "^2.4.0"
-requests = "^2.32.0"
+deptry = "^0.23"
 poethepoet = "^0.37.0"
 toolbox = { git = "https://github.com/basileaw/toolbox.git" }
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
 requires = ["poetry-core"]
+
+[tool.deptry]
+# Generated wrapper scripts live in terminaide/cache - they are artifacts, not source
+extend_exclude = ["terminaide/cache"]
+known_first_party = ["terminaide", "terminarcade"]
+
+[tool.deptry.per_rule_ignores]
+# Used via fastapi.templating.Jinja2Templates (no direct import by name)
+DEP002 = ["jinja2"]
 
 [tool.poe]
 include = ["tasks.yaml"]

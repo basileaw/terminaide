@@ -14,7 +14,7 @@ import time
 from typing import Optional, List
 
 import pytest
-import requests
+import httpx
 import websockets
 
 # Note: This test file may produce some harmless pytest warnings about:
@@ -72,10 +72,10 @@ class DemoProcess:
                 )
 
             try:
-                response = requests.get(f"http://localhost:{self.port}", timeout=1)
+                response = httpx.get(f"http://localhost:{self.port}", timeout=1)
                 if response.status_code == 200:
                     return
-            except requests.exceptions.RequestException:
+            except httpx.RequestError:
                 pass
 
             time.sleep(0.5)
@@ -84,7 +84,7 @@ class DemoProcess:
 
     def check_http_response(self, path: str = "/") -> str:
         """Check HTTP response and return content."""
-        response = requests.get(f"http://localhost:{self.port}{path}", timeout=5)
+        response = httpx.get(f"http://localhost:{self.port}{path}", timeout=5)
         assert response.status_code == 200, f"Expected 200, got {response.status_code}"
 
         content = response.text
@@ -208,7 +208,7 @@ def get_ttyd_ports_from_health(port: int = 8000) -> List[int]:
     must derive expectations from the /health endpoint instead of hardcoding
     port numbers.
     """
-    response = requests.get(f"http://localhost:{port}/health", timeout=5)
+    response = httpx.get(f"http://localhost:{port}/health", timeout=5)
     response.raise_for_status()
     routes = response.json()["proxy"]["routes"]
     ports = [r["port"] for r in routes if r.get("type") == "terminal" and r.get("port")]
@@ -326,10 +326,10 @@ def test_serve_container():
             start_time = time.time()
             while time.time() - start_time < max_wait:
                 try:
-                    response = requests.get("http://localhost:8000", timeout=2)
+                    response = httpx.get("http://localhost:8000", timeout=2)
                     if response.status_code == 200:
                         break  # Server is ready
-                except requests.exceptions.RequestException:
+                except httpx.RequestError:
                     time.sleep(2)  # Wait before retrying
             else:
                 # If we get here, server didn't start in time

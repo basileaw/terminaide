@@ -125,6 +125,7 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
 - Uses Poetry for dependencies
 - Task runner uses poethepoet (poe) defined in @tasks.yaml
 - No linting tools configured - code formatting is manual
+- **Dependency policy**: minimal direct list (every direct dep is vulnerability-alert surface; unused deps rot — bs4/readchar lessons). `>=X,<N` ranges instead of carets for 0.x packages (poetry carets pin the 0.x minor, which blocked starlette security fixes). Run `poe audit-deps` (deptry) after adding/removing dependencies
 - Environment variables loaded from .env if present
 - PYTHONPATH automatically includes project root
 - **Docker builds**: `.dockerignore` is symlinked to `.gitignore` to prevent architecture mismatches

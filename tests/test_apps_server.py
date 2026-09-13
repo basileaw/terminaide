@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 
 import pytest
-import requests
+import httpx
 import websockets
 
 from terminaide.core.wrappers import get_params_dir
@@ -117,10 +117,10 @@ class DemoProcess:
                 )
 
             try:
-                response = requests.get(f"http://localhost:{self.port}", timeout=1)
+                response = httpx.get(f"http://localhost:{self.port}", timeout=1)
                 if response.status_code == 200:
                     return
-            except requests.exceptions.RequestException:
+            except httpx.RequestError:
                 pass
 
             time.sleep(0.5)
@@ -184,7 +184,7 @@ def validate_http_response(port: int, path: str = "/", timeout: int = 5) -> str:
 
     Used by all server types for consistent response validation.
     """
-    response = requests.get(f"http://localhost:{port}{path}", timeout=timeout)
+    response = httpx.get(f"http://localhost:{port}{path}", timeout=timeout)
     assert response.status_code == 200, f"Expected 200, got {response.status_code}"
 
     content = response.text
@@ -392,12 +392,12 @@ if __name__ == "__main__":
                 )
 
             try:
-                response = requests.get(
+                response = httpx.get(
                     f"http://localhost:{self.port}/test?token={DEMO_TOKEN}", timeout=1
                 )
                 if response.status_code == 200:
                     return
-            except requests.exceptions.RequestException:
+            except httpx.RequestError:
                 pass
 
             time.sleep(0.5)
@@ -437,7 +437,7 @@ if __name__ == "__main__":
         if query_params:
             url += f"&{query_params}"
 
-        response = requests.get(url, timeout=5)
+        response = httpx.get(url, timeout=5)
         assert response.status_code == 200
 
         return response.text
@@ -529,7 +529,7 @@ def get_ttyd_ports_from_health(port: int = 8000) -> List[int]:
     must derive expectations from the /health endpoint instead of hardcoding
     port numbers.
     """
-    response = requests.get(f"http://localhost:{port}/health", timeout=5)
+    response = httpx.get(f"http://localhost:{port}/health", timeout=5)
     response.raise_for_status()
     routes = response.json()["proxy"]["routes"]
     ports = [r["port"] for r in routes if r.get("type") == "terminal" and r.get("port")]
@@ -621,11 +621,11 @@ def test_apps_server_error_responses():
         demo.start()
 
         # Test 404 for non-existent routes
-        response = requests.get("http://localhost:8000/nonexistent", timeout=5)
+        response = httpx.get("http://localhost:8000/nonexistent", timeout=5)
         assert response.status_code == 404, "Should return 404 for non-existent routes"
 
         # Test invalid terminal routes
-        response = requests.get("http://localhost:8000/invalid-terminal", timeout=5)
+        response = httpx.get("http://localhost:8000/invalid-terminal", timeout=5)
         assert (
             response.status_code == 404
         ), "Should return 404 for invalid terminal routes"
@@ -640,7 +640,7 @@ def test_apps_server_concurrent_connections():
         import concurrent.futures
 
         def make_request(path: str) -> int:
-            response = requests.get(f"http://localhost:8000{path}", timeout=10)
+            response = httpx.get(f"http://localhost:8000{path}", timeout=10)
             return response.status_code
 
         paths = [

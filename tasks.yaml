@@ -17,6 +17,10 @@ tasks:
   test:
     cmd: pytest tests/ -v
     help: Run pytest tests
+
+  audit-deps:
+    cmd: deptry terminaide terminarcade
+    help: Detect unused/missing dependencies (dead deps are vulnerability surface - the bs4/readchar lessons)
     
   spin:
     sequence:
