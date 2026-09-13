@@ -10,6 +10,7 @@ Provides function wrappers (ephemeral Python scripts) and dynamic wrappers
 import os
 import json
 import time
+import uuid
 import inspect
 import logging
 import shutil
@@ -504,49 +505,80 @@ sanitized_route = route_path.replace("/", "_")
 if sanitized_route == "_":
     sanitized_route = "_root"
 
-# Construct parameter file path in cache directory
+# Parameter files live in the cache directory, one per connection, named
+# terminaide_params_<route>_<uuid>.json. Each wrapper process atomically
+# claims one file (FIFO order) via os.rename; two wrappers can never claim
+# the same file, and no session can consume another session's parameters.
 cache_dir = Path({repr(cache_dir_str)})
-param_file = cache_dir / f"terminaide_params_{{sanitized_route}}.json"
+param_pattern = f"terminaide_params_{{sanitized_route}}_*.json"
 
 # Static configuration
 script_path = {repr(script_path_str)}
 static_args = {static_args_repr}
 
-# Wait for parameter file (with timeout)
-max_wait_time = 2.0  # seconds (reduced since proxy always writes file now)
+# Wait for a parameter file (with timeout)
+max_wait_time = 2.0  # seconds
 wait_interval = 0.1  # seconds
 waited_time = 0.0
 
 dynamic_args = []
+claimed_file = None
 
-while waited_time < max_wait_time:
-    if os.path.exists(param_file):
+while waited_time < max_wait_time and claimed_file is None:
+    try:
+        # Oldest file first: parameters are consumed in connection order
+        candidates = sorted(
+            cache_dir.glob(param_pattern), key=lambda p: p.stat().st_mtime
+        )
+    except OSError:
+        candidates = []
+
+    for candidate in candidates:
+        claim_target = candidate.with_name(
+            candidate.name + f".{{os.getpid()}}.claimed"
+        )
         try:
-            with open(param_file, "r") as f:
-                data = json.load(f)
-            
-            # Extract query parameters
-            if data.get("type") == "query_params":
-                params = data.get("params", {{}})
-                args_str = params.get("{args_param}", "")
-                
-                # Parse comma-separated args
-                if args_str:
-                    dynamic_args = [arg.strip() for arg in args_str.split(",") if arg.strip()]
-            
-            # Clean up temp file immediately after reading
-            try:
-                os.unlink(param_file)
-            except:
-                pass
-            
+            # Atomic claim: if another wrapper got here first, the rename
+            # fails with FileNotFoundError and we move to the next file
+            os.rename(candidate, claim_target)
+            claimed_file = claim_target
             break
-        except (json.JSONDecodeError, IOError) as e:
-            # Invalid or incomplete file, wait and retry
+        except FileNotFoundError:
+            continue
+        except OSError:
+            continue
+
+    if claimed_file is None:
+        time.sleep(wait_interval)
+        waited_time += wait_interval
+
+if claimed_file is not None:
+    try:
+        with open(claimed_file, "r") as f:
+            data = json.load(f)
+
+        # Extract query parameters
+        if data.get("type") == "query_params":
+            params = data.get("params", {{}})
+            args_str = params.get("{args_param}", "")
+
+            # Parse comma-separated args
+            if args_str:
+                dynamic_args = [
+                    arg.strip() for arg in args_str.split(",") if arg.strip()
+                ]
+    except (json.JSONDecodeError, IOError) as e:
+        print(f"[Dynamic wrapper] Error reading parameters file: {{e}}", file=sys.stderr)
+    finally:
+        try:
+            os.unlink(claimed_file)
+        except:
             pass
-    
-    time.sleep(wait_interval)
-    waited_time += wait_interval
+elif waited_time >= max_wait_time:
+    print(
+        f"[Dynamic wrapper] No parameters file found after {{max_wait_time}}s, using static args only",
+        file=sys.stderr,
+    )
 
 # If no file found after timeout, proceed with static args only
 if not dynamic_args and waited_time >= max_wait_time:
@@ -641,7 +673,14 @@ def parse_args_query_param(args_str: str, args_param: str = "args") -> List[str]
 
 def write_query_params_file(route_path: str, query_params: dict, config: Optional[Any] = None) -> Path:
     """
-    Write query parameters to a file for the dynamic wrapper to read.
+    Write query parameters to a unique per-connection file for the dynamic
+    wrapper to claim.
+
+    Each WebSocket connection gets its own file (uuid suffix), written
+    atomically so the wrapper never observes a partially-written JSON file.
+    This eliminates the race where concurrent connections overwrote each
+    other's parameters or a stale file from a previous session was consumed
+    by the next one.
 
     Args:
         route_path: The route path (used to generate filename)
@@ -654,16 +693,21 @@ def write_query_params_file(route_path: str, query_params: dict, config: Optiona
     # Sanitize route path for filename
     sanitized_route = sanitize_route_path(route_path)
 
-    # Create parameter file path in params cache directory
+    # Create parameter file path in params cache directory (unique per write)
     cache_dir = get_params_dir(config)
-    param_file = cache_dir / f"terminaide_params_{sanitized_route}.json"
+    param_file = (
+        cache_dir / f"terminaide_params_{sanitized_route}_{uuid.uuid4().hex}.json"
+    )
 
     # Write parameters
     data = {"type": "query_params", "params": query_params, "timestamp": time.time()}
 
     try:
-        with open(param_file, "w") as f:
+        # Atomic write: the wrapper never sees a partial file
+        tmp_file = param_file.with_name(param_file.name + ".tmp")
+        with open(tmp_file, "w") as f:
             json.dump(data, f)
+        os.replace(tmp_file, param_file)
 
         # Set restrictive permissions
         param_file.chmod(0o600)
@@ -687,7 +731,9 @@ def cleanup_stale_param_files(max_age_seconds: int = 300, config: Optional[Any] 
         current_time = time.time()
         cache_dir = get_params_dir(config)
 
-        for param_file in cache_dir.glob("terminaide_params_*.json"):
+        # Covers param files (.json), in-flight writes (.tmp) and
+        # wrapper-claimed files (.<pid>.claimed)
+        for param_file in cache_dir.glob("terminaide_params_*"):
             try:
                 # Check file age
                 file_age = current_time - param_file.stat().st_mtime

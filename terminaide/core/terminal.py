@@ -611,15 +611,18 @@ class TTYDManager:
                     except Exception as e:
                         logger.warning(f"Failed to clean up dynamic wrapper: {e}")
                     
-                    # Also clean up any lingering parameter file
+                    # Also clean up any lingering parameter files for this route
                     from .wrappers import get_params_dir, sanitize_route_path
                     sanitized_route = sanitize_route_path(route_path)
                     cache_dir = get_params_dir(self.config)
-                    param_file = cache_dir / f"terminaide_params_{sanitized_route}.json"
-                    if param_file.exists():
+                    for param_file in cache_dir.glob(
+                        f"terminaide_params_{sanitized_route}*"
+                    ):
                         try:
                             param_file.unlink()
-                            logger.debug(f"Cleaned up parameter file for route {route_path}")
+                            logger.debug(
+                                f"Cleaned up parameter file for route {route_path}"
+                            )
                         except Exception:
                             pass
 

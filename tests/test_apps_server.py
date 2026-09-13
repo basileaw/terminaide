@@ -434,15 +434,17 @@ if __name__ == "__main__":
             ws_url += f"?{query_params}"
 
         try:
-            # The dynamic wrapper consumes the param file shortly after the
-            # connection is established, so poll for it immediately rather
-            # than sleeping a fixed duration.
-            param_file = get_params_dir() / "terminaide_params__test.json"
+            # Param files are unique per connection (uuid suffix) and are
+            # claimed/consumed by the dynamic wrapper shortly after the
+            # connection is established, so poll the params directory for
+            # a fresh file immediately rather than sleeping a fixed duration.
+            params_dir = get_params_dir()
 
             async with websockets.connect(ws_url, subprotocols=["tty"]) as websocket:
                 for _ in range(100):  # poll for up to 1s
-                    if param_file.exists():
-                        return json.loads(param_file.read_text())
+                    files = list(params_dir.glob("terminaide_params__test_*.json"))
+                    if files:
+                        return json.loads(files[0].read_text())
                     await asyncio.sleep(0.01)
 
                 return None
@@ -468,24 +470,25 @@ def cleanup_terminaide_param_files() -> None:
 
 def check_parameter_file_exists(route_path: str) -> bool:
     """Check if a parameter file exists for a given route."""
-    # Convert route path to parameter file name (e.g., "/test" -> "terminaide_params__test.json")
+    # Convert route path to parameter file prefix (e.g., "/test" -> "terminaide_params__test_*")
     route_name = route_path.lstrip("/").replace("/", "_")
-    # Check in the package cache params directory
-    param_file = get_params_dir() / f"terminaide_params__{route_name}.json"
-    return param_file.exists()
+    # Check in the package cache params directory (unique per-connection files)
+    return any(get_params_dir().glob(f"terminaide_params__{route_name}_*.json"))
 
 
 def read_parameter_file(route_path: str) -> Optional[Dict[str, Any]]:
     """Read and parse a parameter file for a given route."""
     route_name = route_path.lstrip("/").replace("/", "_")
-    # Check in the package cache params directory
-    param_file = get_params_dir() / f"terminaide_params__{route_name}.json"
-
-    if not param_file.exists():
+    # Check in the package cache params directory (unique per-connection files)
+    files = sorted(
+        get_params_dir().glob(f"terminaide_params__{route_name}_*.json"),
+        key=lambda p: p.stat().st_mtime,
+    )
+    if not files:
         return None
 
     try:
-        return json.loads(param_file.read_text())
+        return json.loads(files[0].read_text())
     except (json.JSONDecodeError, IOError):
         return None
 

@@ -426,3 +426,128 @@ class TestProxyHeaderHygiene:
                     assert r.status_code == 405, "TRACE must be rejected"
 
         asyncio.run(scenario())
+
+
+# =============================================================================
+# Fix 6: per-connection parameter files
+# =============================================================================
+
+
+class TestPerConnectionParamFiles:
+    """Dynamic-route parameters must be isolated per connection."""
+
+    def test_write_query_params_file_unique_and_atomic(self, tmp_path):
+        import json
+
+        from terminaide.core.wrappers import write_query_params_file
+        from terminaide.core.config import TerminaideConfig
+
+        config = TerminaideConfig(ephemeral_cache_dir=tmp_path)
+
+        f1 = write_query_params_file("/test", {"args": "--a"}, config)
+        f2 = write_query_params_file("/test", {"args": "--b"}, config)
+
+        # Unique files per connection, same route-scoped prefix
+        assert f1 != f2
+        assert f1.name.startswith("terminaide_params__test_")
+        assert f2.name.startswith("terminaide_params__test_")
+        # Both parse to their own content
+        assert json.loads(f1.read_text())["params"]["args"] == "--a"
+        assert json.loads(f2.read_text())["params"]["args"] == "--b"
+        # No partial-write leftovers, restrictive permissions
+        assert not list(tmp_path.joinpath("params").glob("*.tmp"))
+        assert f1.stat().st_mode & 0o777 == 0o600
+
+    def test_generated_wrapper_uses_atomic_claim(self, tmp_path):
+        from terminaide.core.wrappers import generate_dynamic_wrapper_script
+
+        script = make_test_script(tmp_path)
+        content = generate_dynamic_wrapper_script(
+            script_path=script,
+            static_args=["--base"],
+            python_executable="python",
+            args_param="args",
+            cache_dir=tmp_path,
+        )
+
+        # Claim queue, not a fixed filename
+        assert "os.rename" in content
+        assert "terminaide_params_{sanitized_route}_*.json" in content
+        assert ".claimed" in content
+        assert "FileNotFoundError" in content
+
+        # The generated code must be syntactically valid
+        compile(content, "dynamic_wrapper.py", "exec")
+
+    def test_claim_logic_two_wrappers_never_share_a_file(self, tmp_path):
+        """Simulate the generated wrapper's claim loop: two competing
+        consumers must end up with distinct parameter files."""
+        import json
+        import os
+
+        from terminaide.core.wrappers import write_query_params_file
+        from terminaide.core.config import TerminaideConfig
+
+        config = TerminaideConfig(ephemeral_cache_dir=tmp_path)
+        f1 = write_query_params_file("/test", {"args": "--first"}, config)
+        f2 = write_query_params_file("/test", {"args": "--second"}, config)
+
+        def claim_like_wrapper(pid: int):
+            """Mirror of the claim loop from generate_dynamic_wrapper_script."""
+            pattern = "terminaide_params__test_*.json"
+            for candidate in sorted(
+                tmp_path.joinpath("params").glob(pattern),
+                key=lambda p: p.stat().st_mtime,
+            ):
+                claim_target = candidate.with_name(
+                    candidate.name + f".{pid}.claimed"
+                )
+                try:
+                    os.rename(candidate, claim_target)
+                    return claim_target
+                except FileNotFoundError:
+                    continue
+            return None
+
+        # First "wrapper" (pid 111) claims, second (pid 222) must get the other file
+        w1 = claim_like_wrapper(111)
+        w2 = claim_like_wrapper(222)
+
+        assert w1 is not None and w2 is not None
+        assert w1 != w2
+        args1 = json.loads(w1.read_text())["params"]["args"]
+        args2 = json.loads(w2.read_text())["params"]["args"]
+        assert {args1, args2} == {"--first", "--second"}
+
+        # Nothing left unclaimed
+        assert not list(
+            tmp_path.joinpath("params").glob("terminaide_params__test_*.json")
+        )
+
+    def test_cleanup_covers_all_param_file_states(self, tmp_path):
+        import os
+        import time
+
+        from terminaide.core.wrappers import (
+            write_query_params_file,
+            cleanup_stale_param_files,
+        )
+        from terminaide.core.config import TerminaideConfig
+
+        config = TerminaideConfig(ephemeral_cache_dir=tmp_path)
+        fresh = write_query_params_file("/test", {}, config)
+        # Simulate an in-flight write and a wrapper-claimed file
+        in_flight = fresh.with_name("terminaide_params__test_x.json.tmp")
+        in_flight.write_text("{}")
+        claimed = fresh.with_name("terminaide_params__test_y.json.999.claimed")
+        claimed.write_text("{}")
+        # Make everything stale
+        old = time.time() - 3600
+        for f in (fresh, in_flight, claimed):
+            os.utime(f, (old, old))
+
+        cleanup_stale_param_files(max_age_seconds=300, config=config)
+
+        assert not fresh.exists()
+        assert not in_flight.exists()
+        assert not claimed.exists()
