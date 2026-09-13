@@ -330,34 +330,87 @@ class TTYDManager:
         return cmd
 
     def _is_port_in_use(self, host: str, port: int) -> bool:
-        """
-        Check if a TCP port is in use on the given host.
+        """Check if a TCP port is in use on the given host.
+
+        Uses a bind test rather than a connect test: a listener with a full
+        accept backlog refuses connections while still holding the port, so
+        connect-based checks can report a busy port as free. Binding is the
+        definitive occupancy test.
         """
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(0.5)
-            return sock.connect_ex((host, port)) == 0
+            # SO_REUSEADDR lets us probe through lingering TIME_WAIT sockets
+            # left by recently killed processes, while still failing on any
+            # actively listening socket.
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((host, port))
+                return False
+            except OSError:
+                return True
 
     def _kill_process_on_port(self, host: str, port: int) -> None:
+        """Kill leftover terminaide-managed ttyd processes occupying the port.
+
+        Only processes whose command line references the terminaide-managed
+        ttyd binary are killed. If the port is held by an unrelated process,
+        a TTYDStartupError is raised with actionable information - we never
+        SIGKILL a process we don't own.
         """
-        Attempt to kill any process listening on the given port, if supported.
-        """
-        system = platform.system().lower()
-        logger.warning(f"Port {port} is in use. Attempting to kill leftover process...")
+        logger.warning(
+            f"Port {port} is in use. Checking for leftover terminaide ttyd processes..."
+        )
+
+        if platform.system().lower() not in ["linux", "darwin"]:
+            logger.warning("Process inspection not supported on this OS.")
+            return
 
         try:
-            if system in ["linux", "darwin"]:
-                result = subprocess.run(
-                    f"lsof -t -i tcp:{port}".split(), capture_output=True, text=True
-                )
-                pids = result.stdout.strip().split()
-                for pid in pids:
-                    if pid.isdigit():
-                        logger.warning(f"Killing leftover process {pid} on port {port}")
-                        subprocess.run(["kill", "-9", pid], check=False)
-            else:
-                logger.warning("Automatic kill not implemented on this OS.")
+            result = subprocess.run(
+                ["lsof", "-t", "-i", f"tcp:{port}"],
+                capture_output=True,
+                text=True,
+            )
+            pids = [pid for pid in result.stdout.strip().split() if pid.isdigit()]
         except Exception as e:
-            logger.error(f"Failed to kill leftover process on port {port}: {e}")
+            logger.error(f"Failed to inspect processes on port {port}: {e}")
+            return
+
+        if not pids:
+            return
+
+        ttyd_binary = str(self._ttyd_path) if self._ttyd_path else ""
+        # Compare case-insensitively: macOS filesystem paths may appear in
+        # ps output with different casing than our resolved binary path
+        ttyd_binary_lower = ttyd_binary.lower()
+        foreign: list = []
+
+        for pid in pids:
+            try:
+                cmd_result = subprocess.run(
+                    ["ps", "-p", pid, "-o", "command="],
+                    capture_output=True,
+                    text=True,
+                )
+                cmdline = cmd_result.stdout.strip()
+            except Exception:
+                cmdline = ""
+
+            if ttyd_binary_lower and ttyd_binary_lower in cmdline.lower():
+                logger.warning(
+                    f"Killing leftover terminaide ttyd process {pid} on port {port}"
+                )
+                subprocess.run(["kill", "-9", pid], check=False)
+            else:
+                foreign.append((pid, cmdline or "<unknown>"))
+
+        if foreign:
+            details = ", ".join(f"PID {pid} ({cmd[:80]})" for pid, cmd in foreign)
+            raise TTYDStartupError(
+                f"Port {port} is in use by an unrelated process: {details}. "
+                f"Choose a different port (e.g. ttyd_port or route port) or stop "
+                f"that process yourself. Terminaide never kills processes it "
+                f"does not own."
+            )
 
     def start(self) -> None:
         """
@@ -402,7 +455,9 @@ class TTYDManager:
         if route_path in self.processes and self.is_process_running(route_path):
             raise TTYDProcessError(f"TTYd already running for route {route_path}")
 
-        host = self.config.ttyd_options.interface
+        # ttyd binds the configured interface, but we check/dial via the
+        # effective connect host so wildcard binds still resolve correctly
+        host = self.config.ttyd_options.connect_host
         port = script_config.port
 
         if self._is_port_in_use(host, port):

@@ -51,9 +51,10 @@ class ProxyManager:
 
     def _initialize_targets(self) -> None:
         """Build base URLs for each terminal route's ttyd process."""
+        connect_host = self.config.ttyd_options.connect_host
         for route_config in self.config.route_configs:
             if isinstance(route_config, ScriptConfig) and route_config.port:
-                host = f"{self.config.ttyd_options.interface}:{route_config.port}"
+                host = f"{connect_host}:{route_config.port}"
                 http_url = f"http://{host}"
                 self.targets[route_config.route_path] = {
                     "host": host,

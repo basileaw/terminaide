@@ -19,13 +19,28 @@ class TTYDOptions(BaseModel):
 
     writable: bool = True
     port: int = Field(default=7681, gt=1024, lt=65535)
-    interface: str = "0.0.0.0"  # Changed from "127.0.0.1" to bind to all interfaces
+    # Secure default: ttyd is only ever consumed through terminaide's proxy,
+    # which runs on the same host. Binding loopback keeps the ttyd backends
+    # unreachable from the network even when the FastAPI server is exposed.
+    # Set interface="0.0.0.0" only if you need direct ttyd access (not recommended).
+    interface: str = "127.0.0.1"
     check_origin: bool = True
     max_clients: int = Field(default=1, gt=0)
     credential_required: bool = False
     username: Optional[str] = None
     password: Optional[str] = None
     force_https: bool = False
+
+    @property
+    def connect_host(self) -> str:
+        """Host the proxy uses to reach ttyd.
+
+        Wildcard binds ("0.0.0.0"/"::") cannot be dialed directly on all
+        platforms, so connections resolve to loopback in that case.
+        """
+        if self.interface in ("0.0.0.0", "::", ""):
+            return "127.0.0.1"
+        return self.interface
 
     @model_validator(mode="after")
     def validate_credentials(self) -> "TTYDOptions":

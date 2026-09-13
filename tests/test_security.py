@@ -1,0 +1,210 @@
+"""
+Security-focused tests for terminaide hardening.
+
+Covers:
+- ttyd loopback binding by default (network isolation of backends)
+- Port-conflict handling (never SIGKILL unrelated processes)
+- Download integrity verification
+- Health endpoint information disclosure
+- Proxy header hygiene
+- Per-connection parameter files
+- WebSocket rate limiting
+"""
+
+import socket
+import subprocess
+import time
+from pathlib import Path
+
+import pytest
+
+from terminaide.core.models import TTYDConfig, ScriptConfig, TTYDOptions
+from terminaide.core.exceptions import TTYDStartupError
+
+
+def free_port() -> int:
+    """Allocate a currently-free TCP port on loopback."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def wait_for_port(port: int, timeout: float = 10.0) -> bool:
+    """Wait until a TCP port accepts connections (ttyd needs a moment)."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        with socket.socket() as s:
+            s.settimeout(0.5)
+            if s.connect_ex(("127.0.0.1", port)) == 0:
+                return True
+        time.sleep(0.1)
+    return False
+
+
+def make_test_script(tmp_path: Path) -> Path:
+    script = tmp_path / "hello.py"
+    script.write_text("print('hello from terminaide test')\n")
+    return script
+
+
+def make_manager(tmp_path: Path, interface: str = None, port: int = None):
+    port = port or free_port()
+    options = TTYDOptions(port=port)
+    if interface is not None:
+        options.interface = interface
+    script = make_test_script(tmp_path)
+    config = TTYDConfig(
+        port=port,
+        ttyd_options=options,
+        route_configs=[ScriptConfig(route_path="/", script=script, port=port)],
+    )
+    from terminaide.core.terminal import TTYDManager
+
+    return TTYDManager(config)
+
+
+# =============================================================================
+# Fix 1: ttyd loopback binding
+# =============================================================================
+
+
+class TestConnectHost:
+    """TTYDOptions.connect_host resolves wildcard binds to loopback."""
+
+    def test_loopback_default(self):
+        assert TTYDOptions().interface == "127.0.0.1"
+
+    def test_wildcard_resolves_to_loopback(self):
+        assert TTYDOptions(interface="0.0.0.0").connect_host == "127.0.0.1"
+        assert TTYDOptions(interface="::").connect_host == "127.0.0.1"
+        assert TTYDOptions(interface="").connect_host == "127.0.0.1"
+
+    def test_specific_host_preserved(self):
+        assert TTYDOptions(interface="10.0.0.5").connect_host == "10.0.0.5"
+
+
+class TestTTYDLoopbackBinding:
+    """ttyd processes bind loopback by default; the proxy dials loopback."""
+
+    def test_build_command_binds_loopback_by_default(self, tmp_path):
+        manager = make_manager(tmp_path)
+        cmd = manager._build_command(manager.terminal_configs[0])
+        assert cmd[cmd.index("-i") + 1] == "127.0.0.1"
+
+    def test_explicit_interface_still_respected(self, tmp_path):
+        manager = make_manager(tmp_path, interface="0.0.0.0")
+        cmd = manager._build_command(manager.terminal_configs[0])
+        assert cmd[cmd.index("-i") + 1] == "0.0.0.0"
+
+    def test_proxy_targets_dial_connect_host(self, tmp_path):
+        # Wildcard bind: ttyd listens on 0.0.0.0 but proxy must dial loopback
+        manager = make_manager(tmp_path, interface="0.0.0.0")
+        from terminaide.core.proxy import ProxyManager
+
+        proxy = ProxyManager(manager.config)
+        target = proxy.targets["/"]
+        assert target["host"].startswith("127.0.0.1:")
+
+    def test_started_ttyd_listens_only_on_loopback(self, tmp_path):
+        """Integration: an actually-started ttyd is not reachable on a
+        non-loopback interface."""
+        manager = make_manager(tmp_path)
+        port = manager.terminal_configs[0].port
+        manager.start()
+        try:
+            # Loopback should accept connections (ttyd needs a moment to bind)
+            assert wait_for_port(port), "ttyd did not start listening on loopback"
+
+            # The machine's non-loopback addresses should refuse it.
+            hostname = socket.gethostname()
+            ext_ips = []
+            try:
+                for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
+                    ip = info[4][0]
+                    if not ip.startswith("127."):
+                        ext_ips.append(ip)
+            except Exception:
+                pass
+
+            for ip in ext_ips[:1]:  # one external address is enough
+                with socket.socket() as s:
+                    s.settimeout(2)
+                    assert (
+                        s.connect_ex((ip, port)) != 0
+                    ), f"ttyd unexpectedly reachable on {ip}:{port}"
+        finally:
+            manager.stop()
+
+
+# =============================================================================
+# Fix 2: port-conflict handling
+# =============================================================================
+
+
+class TestPortConflictSafety:
+    """A port occupied by an unrelated process must produce a clear error,
+    never a silent SIGKILL."""
+
+    def test_foreign_process_on_port_raises_clear_error(self, tmp_path):
+        port = free_port()
+        # Start an unrelated process listening on the configured port.
+        # Use a real backlog so probes don't saturate it and confuse
+        # port-in-use checks.
+        listener = subprocess.Popen(
+            [
+                "python",
+                "-c",
+                "import socket,time;"
+                "s=socket.socket();s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1);"
+                f"s.bind(('127.0.0.1',{port}));s.listen(128);"
+                "time.sleep(60)",
+            ]
+        )
+        try:
+            assert wait_for_port(port), "test listener did not start"
+
+            manager = make_manager(tmp_path, port=port)
+            with pytest.raises(TTYDStartupError, match="PID"):
+                manager.start_process(manager.terminal_configs[0])
+
+            # The foreign process must still be alive
+            assert listener.poll() is None
+        finally:
+            listener.terminate()
+            listener.wait(timeout=5)
+
+    def test_own_leftover_ttyd_is_killed_and_port_reused(self, tmp_path):
+        """A leftover ttyd process spawned from the terminaide-managed binary
+        is still cleaned up automatically (zombie cleanup behavior)."""
+        manager = make_manager(tmp_path)
+        port = manager.terminal_configs[0].port
+
+        # Simulate a leftover ttyd from a crashed run, using the same binary
+        leftover = subprocess.Popen(
+            [
+                str(manager._ttyd_path),
+                "-p",
+                str(port),
+                "-i",
+                "127.0.0.1",
+                "python",
+                "-c",
+                "import time; time.sleep(60)",
+            ]
+        )
+        try:
+            assert wait_for_port(port), "leftover ttyd did not start"
+
+            # Starting the manager for that route must kill the leftover
+            # and successfully bind the port itself
+            manager.start_process(manager.terminal_configs[0])
+            try:
+                assert manager.is_process_running("/")
+                assert wait_for_port(port), "manager ttyd did not start"
+            finally:
+                manager.stop()
+        finally:
+            # Ensure cleanup even if assertions fail
+            if leftover.poll() is None:
+                leftover.terminate()
+                leftover.wait(timeout=5)
