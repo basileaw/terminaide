@@ -68,6 +68,66 @@ def generate_requirements_txt(pyproject_path: Path, temp_dir: Union[str, Path]) 
         sys.exit(1)
 
 
+def docker_daemon_running() -> bool:
+    """True if the Docker daemon is reachable (CLI alone is not enough)."""
+    try:
+        result = subprocess.run(
+            ["docker", "info"], capture_output=True, text=True, timeout=15
+        )
+        return result.returncode == 0
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return False
+
+
+def ensure_docker_daemon(timeout: int = 180) -> None:
+    """Ensure the Docker daemon is running, auto-starting it if needed.
+
+    On macOS, starts Docker Desktop (``open -a Docker``) and waits for the
+    daemon socket. On Linux, attempts ``systemctl start docker`` (may need
+    sudo) and otherwise exits with guidance.
+    """
+    if docker_daemon_running():
+        return
+
+    logger.info("Docker daemon not running - attempting to start it...")
+
+    if sys.platform == "darwin":
+        # macOS: Docker Desktop app controls the daemon
+        try:
+            subprocess.run(["open", "-a", "Docker"], check=True, capture_output=True)
+            logger.info("Starting Docker Desktop (first start can take ~30-60s)...")
+        except subprocess.SubprocessError as e:
+            logger.error(f"Could not launch Docker Desktop: {e}")
+            sys.exit(1)
+    elif sys.platform.startswith("linux"):
+        # Linux: try the systemd unit without sudo first (user-managed daemon)
+        result = subprocess.run(
+            ["systemctl", "start", "docker"], capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            logger.error(
+                "Docker daemon not running and could not be started. "
+                "Run: sudo systemctl start docker (or install Docker)."
+            )
+            sys.exit(1)
+    else:
+        logger.error("Unsupported platform for Docker auto-start")
+        sys.exit(1)
+
+    # Wait for the daemon socket to come up
+    import time
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if docker_daemon_running():
+            logger.info("Docker daemon is ready")
+            return
+        time.sleep(2)
+
+    logger.error(f"Docker daemon did not become ready within {timeout}s")
+    sys.exit(1)
+
+
 def build_and_run_container(port: int = 8000) -> None:
     """Build and run the application in a Docker container.
 
@@ -85,6 +145,9 @@ def build_and_run_container(port: int = 8000) -> None:
     except (subprocess.SubprocessError, FileNotFoundError):
         logger.error("Docker is not installed or not in PATH")
         sys.exit(1)
+
+    # Ensure the daemon is actually running (auto-start Docker Desktop)
+    ensure_docker_daemon()
 
     project_root = Path(__file__).parent.parent.absolute()
     image_name = project_root.name.lower()

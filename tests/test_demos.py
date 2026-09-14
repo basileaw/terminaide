@@ -306,21 +306,27 @@ def test_serve_container():
     )
 
     try:
-        # Wait for build and startup process
-        time.sleep(10)
-
-        # Check if process is still running (container should be running)
-        if process.poll() is None:
-            # Still running - container is likely running successfully
-            # Verify container is actually running
+        # Wait for the container to be up: build time varies with load, so
+        # poll instead of a fixed sleep (the sleep flaked under full-suite
+        # load once the Docker daemon was actually available)
+        deadline = time.time() + 90
+        container_running = False
+        while time.time() < deadline:
+            if process.poll() is not None:
+                break  # poe spin exited early - check errors below
             result = subprocess.run(
                 ["docker", "ps", "--filter", "name=terminaide-container", "--format", "{{.Names}}"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
-            assert "terminaide-container" in result.stdout, "Container is not running"
+            if "terminaide-container" in result.stdout:
+                container_running = True
+                break
+            time.sleep(2)
 
+        if container_running:
+            # Still running - container is running successfully
             # Wait for HTTP server to be ready (container needs time to install deps and start)
             max_wait = 30  # seconds
             start_time = time.time()
@@ -336,10 +342,15 @@ def test_serve_container():
                 raise RuntimeError(f"Container HTTP server did not start within {max_wait} seconds")
 
         else:
-            # Process completed - check for errors
+            # Process exited early (or timed out) without a running container.
+            # Terminate first so communicate() cannot block on a live process.
+            if process.poll() is None:
+                process.terminate()
             stdout, stderr = process.communicate()
-            if "Error" in stderr or process.returncode != 0:
-                raise RuntimeError(f"poe spin failed:\nSTDOUT: {stdout}\nSTDERR: {stderr}")
+            raise RuntimeError(
+                "poe spin did not produce a running container:\n"
+                f"STDOUT: {stdout}\nSTDERR: {stderr}"
+            )
 
     finally:
         # Clean up: kill process and containers
