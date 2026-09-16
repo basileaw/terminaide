@@ -70,7 +70,7 @@ class DemoProcess:
         self.process: Optional[subprocess.Popen] = None
 
     def start(
-        self, timeout: int = 10, env_vars: Optional[Dict[str, str]] = None
+        self, timeout: int = 30, env_vars: Optional[Dict[str, str]] = None
     ) -> None:
         """Start the demo process and wait for it to be ready."""
         env = {**subprocess.os.environ}

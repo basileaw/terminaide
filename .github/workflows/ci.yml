@@ -34,6 +34,9 @@ jobs:
       - name: Dependency audit (deptry)
         run: poetry run deptry terminaide terminarcade
 
+      - name: Pre-download ttyd binary
+        run: poetry run python -c "from terminaide.core.installer import setup_ttyd; setup_ttyd()"
+
       # Full suite, including the live Docker container test
       # (ubuntu-latest ships a Docker daemon) and real ttyd processes
       # (the pinned installer downloads the digest-verified Linux binary).

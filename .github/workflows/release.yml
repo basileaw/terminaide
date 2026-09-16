@@ -54,6 +54,9 @@ jobs:
             exit 1
           fi
 
+      - name: Pre-download ttyd binary
+        run: poetry run python -c "from terminaide.core.installer import setup_ttyd; setup_ttyd()"
+
       - name: Test suite (releases must be green)
         run: poetry run pytest tests/ -q --timeout=600
         env:
