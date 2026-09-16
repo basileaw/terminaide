@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      # Deptry gate: dead/undeclared deps are vulnerability surface
+      # (the bs4/readchar lessons). Fails fast before the slow suite.
+      - name: Dependency audit (deptry)
+        run: poetry run deptry terminaide terminarcade
+
+      # Full suite, including the live Docker container test
+      # (ubuntu-latest ships a Docker daemon) and real ttyd processes
+      # (the pinned installer downloads the digest-verified Linux binary).
+      - name: Test suite
+        run: poetry run pytest tests/ -v --timeout=600
+        env:
+          CI: "true"

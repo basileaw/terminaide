@@ -1,0 +1,97 @@
+# Release pipeline: git tag vX.Y.Z -> tests -> wheel + sdist ->
+# GitHub Release (notes from CHANGELOG.md) -> PyPI (trusted publishing).
+#
+# ONE-TIME SETUP (cannot be done from here):
+#   1. Sign in to pypi.org -> terminaide project -> Publishing
+#   2. Add a trusted publisher:
+#        owner:        basileaw
+#        repository:   terminaide
+#        workflow:     release.yml
+#        environment:  (leave blank - no approval gate; tag push = release)
+#   3. Delete the PYPI_API_TOKEN from .env - nothing needs it anymore
+#
+# To release:
+#   1. Bump version in pyproject.toml, add the CHANGELOG.md section, commit
+#   2. git tag vX.Y.Z && git push origin main vX.Y.Z
+#   3. Watch the pipeline; it refuses to publish on test failure
+#      or version/tag mismatch
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write   # create the GitHub Release
+  id-token: write   # PyPI trusted publishing (OIDC) - no stored tokens
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Install dependencies
+        run: poetry install --no-interaction
+
+      # Tag and pyproject must agree - catches "tagged the wrong commit"
+      # before anything is built or shipped.
+      - name: Verify tag matches pyproject version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VER="$(poetry version --short)"
+          if [ "$TAG" != "$VER" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match pyproject version $VER"
+            exit 1
+          fi
+
+      - name: Test suite (releases must be green)
+        run: poetry run pytest tests/ -q --timeout=600
+        env:
+          CI: "true"
+
+      - name: Build distributions
+        run: poetry build
+
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          python - <<'EOF'
+          import os, sys
+          tag = os.environ["GITHUB_REF_NAME"].lstrip("v")
+          changelog = open("CHANGELOG.md").read()
+          try:
+              start = changelog.index(f"## {tag}")
+          except ValueError:
+              sys.exit(f"::error::No '## {tag}' section in CHANGELOG.md - add it before tagging")
+          nxt = changelog.find("\n## ", start + 1)
+          end = nxt + 1 if nxt != -1 else len(changelog)
+          notes = changelog[start:end].strip()
+          open("release_notes.md", "w").write(notes)
+          print(f"Extracted {len(notes)} chars of notes for v{tag}")
+          EOF
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Release $GITHUB_REF_NAME" \
+            --latest \
+            --notes-file release_notes.md
+
+      # PyPI trusted publishing: authenticates this workflow via GitHub's
+      # OIDC attestation - no API token exists anywhere, so nothing can
+      # leak or need rotation.
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

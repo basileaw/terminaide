@@ -1,0 +1,24 @@
+# Grouped weekly dependency updates. Alerts close because updates never
+# accumulate; CI (ci.yml) gates every PR these generate.
+version: 2
+updates:
+  # Python dependencies (poetry.lock)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      dependencies:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # Keep the GitHub Actions in .github/workflows/ fresh too
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ["*"]
