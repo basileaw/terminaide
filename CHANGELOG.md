@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.0.1 — Automation release
+
+### Added
+
+- **Docker daemon auto-start (#148)**: `examples/container.py` detects a down daemon and starts Docker Desktop (macOS) or the systemd unit (Linux), waiting on the socket with clear guidance on failure; the `poe spin` sequence now begins with an `ensure-docker` step.
+- **CI + release automation**: full test suite (including the live Docker container test and pinned ttyd download) on every PR and push to main; `v*` tag push now drives the entire release — tag/version match check, test gate, build, GitHub Release with notes extracted from this changelog, and PyPI publish via **trusted publishing** (OIDC — no API token stored anywhere). `RELEASING.md` documents the procedure.
+- **Dependabot version updates** (grouped, weekly) — dependency alerts can no longer accumulate; every update PR lands against the CI gate.
+- **Utility test coverage**: `tests/test_utilities.py` for terminascii, ServerMonitor, and AutoIndex, including the curses-menu → terminal-route integration.
+
+### Fixed
+
+- Container demo test flake: polls for readiness instead of a fixed sleep, and its failure path can no longer block on a live process.
+- Server-start readiness timeout raised 10s → 30s: a fresh runner downloading the ttyd binary inside its first server start exceeded the old window.
+
 ## 2.0.0 — Security hardening release
 
 A full security review drove this release. The headline: **unauthenticated terminals are now impossible by construction when the server is exposed**, while local development stays exactly as frictionless as before.
