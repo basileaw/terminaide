@@ -1329,6 +1329,22 @@
                                         const cmd = isMac ? e.metaKey : e.ctrlKey;
                                         const opt = e.altKey;
                                         const shift = e.shiftKey;
+                                        // SHIFT+ENTER -> CTRL+J. A terminal cannot tell shift+enter
+                                        // from enter — xterm sends CR for both — so chat-style
+                                        // "shift+enter for newline" has to be translated here,
+                                        // browser-side, before xterm ever sees the key. Plain
+                                        // enter is never touched; the 'enter' behavior gates it.
+                                        if (e.key === 'Enter' && shift && !cmd && !opt) {
+                                            if ((behaviors['enter'] || 'none') === 'terminal') {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                // Synchronously, not on a timer: input order is the
+                                                // document, and a timer can slip the newline in after
+                                                // characters typed during its delay.
+                                                dispatchSynthetic({ key: 'j', code: 'KeyJ', keyCode: 74, which: 74, ctrlKey: true });
+                                            }
+                                            return;
+                                        }
                                         // Only CMD- or OPTION-led combos are candidates. Synthetic events
                                         // (dispatched below with neither modifier) fall out here -> no re-entry.
                                         if (!cmd && !opt) return;

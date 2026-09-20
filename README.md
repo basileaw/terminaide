@@ -239,6 +239,8 @@ serve_script("my_app.py", keyboard_mapping={"mode": "smart"})
 # Editing: CMD+Z/Y/X/S/F → terminal CTRL+key
 # Navigation: CMD+arrows → terminal navigation (Home/End/CTRL+Home/CTRL+End)
 # Browser shortcuts preserved: CMD+W/R/T (close/refresh/new tab)
+# Shift+Enter: not in smart mode (it would change what plain apps see) —
+# enable per route with a custom mapping (see below)
 
 # All mode: Maps all CMD combinations to terminal CTRL
 serve_script("my_app.py", keyboard_mapping={"mode": "all"})
@@ -253,6 +255,7 @@ serve_script("my_app.py", keyboard_mapping={
         "z": "terminal",   # Undo: terminal only
         "x": "both",       # Cut: browser + terminal (if desired)
         "arrowleft": "terminal",  # Navigation: terminal only
+        "enter": "terminal",  # Shift+Enter → CTRL+J newline (chat-style input)
         # Behavior options: "both", "browser", "terminal", or omit to disable
     }
 })

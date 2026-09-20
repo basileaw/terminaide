@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Shift+Enter → CTRL+J mapping** (opt-in per route via `"enter": "terminal"`
+  in `custom_mappings`): a terminal cannot distinguish shift+enter from
+  enter — xterm sends `\r` for both — so terminaide now intercepts
+  shift+enter browser-side and translates it to CTRL+J (LF) before xterm
+  sees the key. Chat-style "shift+enter for newline" input fields work
+  in browsers; plain enter is never intercepted, and smart mode is
+  unchanged (enable it only where the app binds the newline).
+
 ## 2.0.1 — Automation release
 
 ### Added
