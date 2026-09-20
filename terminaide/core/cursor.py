@@ -140,7 +140,16 @@ def signal_handler(sig, _):
     os.kill(os.getpid(), sig)
 
 
-for sig in (signal.SIGINT, signal.SIGTERM):
+# SIGHUP is what a terminal sends to its foreground process group when the
+# terminal goes away (window closed, ssh/pty dropped, web-terminal session
+# disconnected). Without a handler, a child can be left orphaned and — for a
+# TUI still polling its now-hung-up stdin — spinning at full CPU. Windows has
+# no SIGHUP, hence the guard.
+_handled_signals = [signal.SIGINT, signal.SIGTERM]
+if hasattr(signal, "SIGHUP"):
+    _handled_signals.append(signal.SIGHUP)
+
+for sig in _handled_signals:
     signal.signal(sig, signal_handler)
 
 
