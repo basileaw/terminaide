@@ -28,7 +28,7 @@ import pytest
 import httpx
 import websockets
 
-from terminaide.core.wrappers import get_params_dir
+from terminaide.core.wrappers import get_params_dir, iter_process_cache_dirs
 
 # Fixed token for spawned apps-mode demos (apps mode declares an exposed
 # host by default, so terminal routes get token auth)
@@ -457,11 +457,17 @@ if __name__ == "__main__":
             # claimed/consumed by the dynamic wrapper shortly after the
             # connection is established, so poll the params directory for
             # a fresh file immediately rather than sleeping a fixed duration.
-            params_dir = get_params_dir()
+            # Cache dirs are per-process and the demo runs in a subprocess, so
+            # search every namespace, not just this process's.
+            params_dirs = iter_process_cache_dirs()
 
             async with websockets.connect(ws_url, subprotocols=["tty"]) as websocket:
                 for _ in range(100):  # poll for up to 1s
-                    files = list(params_dir.glob("terminaide_params__test_*.json"))
+                    files = [
+                        f
+                        for d in params_dirs
+                        for f in d.glob("terminaide_params__test_*.json")
+                    ]
                     if files:
                         return json.loads(files[0].read_text())
                     await asyncio.sleep(0.01)
@@ -474,9 +480,13 @@ if __name__ == "__main__":
 
 def cleanup_terminaide_param_files() -> None:
     """Clean up terminaide parameter files from the cache directories."""
-    # Check the package cache params directory and the legacy location (/tmp)
+    # Check the per-process params directories and the legacy location (/tmp)
     # for backward compatibility
-    search_dirs = [get_params_dir(), Path("/tmp"), Path("/tmp") / "params"]
+    search_dirs = [
+        *iter_process_cache_dirs(),
+        Path("/tmp"),
+        Path("/tmp") / "params",
+    ]
 
     for search_dir in search_dirs:
         if search_dir.exists():
@@ -491,16 +501,23 @@ def check_parameter_file_exists(route_path: str) -> bool:
     """Check if a parameter file exists for a given route."""
     # Convert route path to parameter file prefix (e.g., "/test" -> "terminaide_params__test_*")
     route_name = route_path.lstrip("/").replace("/", "_")
-    # Check in the package cache params directory (unique per-connection files)
-    return any(get_params_dir().glob(f"terminaide_params__{route_name}_*.json"))
+    # Cache dirs are per-process; the demo server is a separate process.
+    return any(
+        d.glob(f"terminaide_params__{route_name}_*.json")
+        for d in iter_process_cache_dirs()
+    )
 
 
 def read_parameter_file(route_path: str) -> Optional[Dict[str, Any]]:
     """Read and parse a parameter file for a given route."""
     route_name = route_path.lstrip("/").replace("/", "_")
-    # Check in the package cache params directory (unique per-connection files)
+    # Cache dirs are per-process; the demo server is a separate process.
     files = sorted(
-        get_params_dir().glob(f"terminaide_params__{route_name}_*.json"),
+        (
+            f
+            for d in iter_process_cache_dirs()
+            for f in d.glob(f"terminaide_params__{route_name}_*.json")
+        ),
         key=lambda p: p.stat().st_mtime,
     )
     if not files:

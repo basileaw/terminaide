@@ -54,6 +54,13 @@ Terminaide uses a reverse proxy architecture where each terminal runs as a separ
    - Performance optimized with intelligent caching (LRU cache, directory caching, signature caching)
    - Unified cleanup and file management for all wrapper types
    - Security: Requires explicit configuration for external file creation
+   - **Per-process cache namespacing** (`cache/pid/<pid>/{scripts,params}`): the
+     package cache is shared by every terminaide process on the host, so a
+     single shared directory let one process's startup cleanup delete another
+     running process's live wrappers. A process can now only delete its own
+     files; `cleanup_orphaned_process_dirs()` reclaims dead-pid namespaces, and
+     `iter_process_cache_dirs()` lets out-of-process callers find live ones.
+     Never reintroduce a flat, shared wrapper directory.
 
 8. **Keyboard Mapping System** (`terminaide/core/models.py`, `terminaide/templates/terminal.html`): CMD→CTRL mapping for Mac users
    - Configuration via `KeyboardMappingConfig` model with multiple modes
