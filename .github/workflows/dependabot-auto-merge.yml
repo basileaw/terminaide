@@ -1,0 +1,93 @@
+# Auto-merge low-risk dependency updates, keep majors human-gated.
+#
+# This is the "close" half of the automation: dependabot.yml opens PRs and
+# ci.yml validates them, but neither merges anything. Without this, green
+# Dependabot PRs sit open until a human notices (which is exactly how the
+# 2026-10 backlog happened).
+#
+# Rules:
+#   * Minor/patch PRs authored by Dependabot -> arm squash auto-merge. GitHub
+#     merges them itself once the required `test` check (see main branch
+#     protection) is green.
+#   * Major PRs -> left alone for human review, but labelled `major-bump`
+#     so they are visible rather than merely pending.
+#   * Anything already behind main -> the stale base is what makes
+#     Dependabot's own CI red; ask Dependabot to rebase instead of guessing.
+#
+# SECURITY: the auto-merge decision only trusts CI on OUR commit, never the
+# head of a fork. `pull_request` from a fork gets a read-only token, and we
+# only ever act on PRs whose author is exactly `dependabot[bot]`.
+name: Dependabot Auto-merge
+
+on: pull_request
+
+permissions:
+  contents: write        # arm auto-merge / comment
+  pull-requests: write   # read PR metadata, apply labels
+
+jobs:
+  auto-merge:
+    # Hard gate: only Dependabot-authored PRs, never forks.
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check the PR is up to date with main
+        id: uptodate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          MERGE_STATE=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" \
+            --json mergeStateStatus --jq .mergeStateStatus)
+          echo "mergeStateStatus=$MERGE_STATE"
+          if [ "$MERGE_STATE" = "BEHIND" ]; then
+            # A behind-base PR runs CI against a stale merge commit; that is
+            # how update PRs show a false red and then sit forever.
+            echo "behind=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "behind=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ask Dependabot to rebase stale PRs
+        if: steps.uptodate.outputs.behind == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "@dependabot rebase"
+          echo "Requested rebase; auto-merge will arm on the next run."
+
+      - name: Label major bumps for human review
+        if: steps.meta.outputs.update-type == 'version-update:semver-major'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh label create major-bump \
+            --repo "$GITHUB_REPOSITORY" \
+            --color B60205 \
+            --description "Major version bump - human review required" \
+            --force
+          gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label major-bump
+
+      - name: Arm squash auto-merge (minor/patch only)
+        if: >-
+          steps.meta.outputs.update-type != 'version-update:semver-major' &&
+          steps.uptodate.outputs.behind != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" \
+            --squash --auto --delete-branch
+          echo "Armed auto-merge for #$PR (${{
+            steps.meta.outputs.update-type }})."

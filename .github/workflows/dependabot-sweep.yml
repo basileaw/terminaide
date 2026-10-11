@@ -1,0 +1,82 @@
+# Periodic sweeper for Dependabot PRs.
+#
+# The auto-merge workflow reacts to events, but two states need a nudge that
+# no event delivers:
+#
+#   1. A PR that went BEHIND main (required checks are strict, so main
+#      moving makes every open PR unmergeable until it rebases).
+#   2. A PR whose auto-merge was armed and then disarmed by a push.
+#
+# GitHub only re-runs Dependabot's rebase when asked, so this sweep asks
+# daily rather than letting PRs rot. It is intentionally idempotent: it only
+# comments on PRs that are actually BEHIND, and re-arms merges that lost
+# their auto-merge flag.
+name: Dependabot Sweep
+
+on:
+  schedule:
+    # Daily at 09:00 UTC. Dependabot itself opens PRs weekly/monthly; this
+    # keeps whatever exists current without an event to trigger it.
+    - cron: "0 9 * * *"
+  workflow_dispatch:      # manual nudge
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Rebase behind PRs and re-arm lost auto-merges
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Only Dependabot PRs, oldest first so the queue drains in order.
+          prs=$(gh pr list --repo "$REPO" --author 'app/dependabot' \
+                  --state open --limit 100 --json number,mergeStateStatus,title)
+
+          count=$(echo "$prs" | jq 'length')
+          echo "Found $count open Dependabot PR(s)."
+
+          echo "$prs" | jq -c '.[]' | while read -r pr; do
+            num=$(echo "$pr" | jq -r .number)
+            state=$(echo "$pr" | jq -r .mergeStateStatus)
+            title=$(echo "$pr" | jq -r .title)
+            echo "--- #$num [$state] $title"
+
+            if [ "$state" = "BEHIND" ]; then
+              # Required checks are strict: an out-of-date PR can never merge.
+              echo "    behind main -> requesting rebase"
+              gh pr comment "$num" --repo "$REPO" --body "@dependabot rebase"
+              continue
+            fi
+
+            # Dirty = genuine conflict; Dependabot can usually rebase it too.
+            if [ "$state" = "DIRTY" ]; then
+              echo "    conflicting -> requesting rebase"
+              gh pr comment "$num" --repo "$REPO" --body "@dependabot rebase"
+              continue
+            fi
+
+            # Major bumps stay human-gated (see dependabot-auto-merge.yml).
+            if gh pr view "$num" --repo "$REPO" \
+                 --json labels --jq '.labels[].name' | grep -qx 'major-bump'; then
+              echo "    major bump -> human review, skipping"
+              continue
+            fi
+
+            if [ "$state" = "CLEAN" ] || [ "$state" = "UNSTABLE" ] \
+               || [ "$state" = "BLOCKED" ] || [ "$state" = "HAS_HOOKS" ]; then
+              # Re-arm: idempotent, GitHub ignores an already-armed PR.
+              echo "    arming auto-merge"
+              gh pr merge "$num" --repo "$REPO" --squash --auto \
+                --delete-branch || echo "    (already armed or not yet eligible)"
+            fi
+          done
+
+          echo "Sweep complete."
