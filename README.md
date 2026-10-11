@@ -222,7 +222,10 @@ All three serving functions accept the same configuration options, including com
         "selection": "#333333",      # Selection highlight color (default: None)
         "font_family": "monospace",  # Terminal font (default: None)
         "font_size": 14,             # Desktop font size in pixels (default: 18)
-        "mobile_font_size": 10       # Mobile font size in pixels (default: 16)
+        "mobile_font_size": 10,      # Mobile font size in pixels (default: 16)
+        "padding": "0",              # Page padding around the terminal (default: clamp(.5rem, 2vw, 1rem))
+        "border_radius": "0px",      # Terminal corner radius (default: 4px)
+        "box_shadow": "none"         # Terminal shadow (default: subtle drop shadow)
     }
 }
 ```

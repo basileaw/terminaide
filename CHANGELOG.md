@@ -4,6 +4,12 @@
 
 ### Added
 
+- **Theme spacing/appearance options**: `theme={"padding": ...,
+  "border_radius": ..., "box_shadow": ...}` controls the page padding
+  around the terminal, its corner radius, and its shadow (defaults
+  unchanged). Theme keys are emitted as hyphenated CSS custom properties,
+  so `border_radius` now reaches `--border-radius` instead of silently
+  doing nothing.
 - **Shift+Enter support (enhanced keyboard protocols)**: a browser terminal
   cannot distinguish Shift+Enter from Enter — xterm sends `\r` for both.
   Terminaide now watches terminal output for apps that request an enhanced
