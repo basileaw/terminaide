@@ -4,13 +4,19 @@
 
 ### Added
 
-- **Shift+Enter → CTRL+J mapping** (opt-in per route via `"enter": "terminal"`
-  in `custom_mappings`): a terminal cannot distinguish shift+enter from
-  enter — xterm sends `\r` for both — so terminaide now intercepts
-  shift+enter browser-side and translates it to CTRL+J (LF) before xterm
-  sees the key. Chat-style "shift+enter for newline" input fields work
-  in browsers; plain enter is never intercepted, and smart mode is
-  unchanged (enable it only where the app binds the newline).
+- **Shift+Enter support (enhanced keyboard protocols)**: a browser terminal
+  cannot distinguish Shift+Enter from Enter — xterm sends `\r` for both.
+  Terminaide now watches terminal output for apps that request an enhanced
+  keyboard protocol — Kitty (`\x1b[>Nu\x1b[?u`) or xterm modifyOtherKeys
+  (`\x1b[>4;2m`) — and sends the matching Shift+Enter sequence
+  (`\x1b[13;2u` / `\x1b[27;2;13~`) straight to the pty via
+  `Terminal.input()`. Apps like pi, Claude Code and neovim get real
+  Shift+Enter with no configuration; apps that never negotiate see no
+  change. For apps that never negotiate but bind CTRL+J (many Textual
+  inputs), opt in per route with `"enter": "terminal"` in
+  `custom_mappings`; `"enter": "browser"` opts out of Shift+Enter
+  interception entirely. The DOM-free protocol logic ships as
+  `terminaide/static/keyboard_protocol.js` and is unit-tested with Node.
 
 ## 2.0.1 — Automation release
 

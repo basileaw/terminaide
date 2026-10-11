@@ -10,6 +10,7 @@ import sys
 import shutil
 import logging
 import hashlib
+from functools import lru_cache
 from pathlib import Path
 from dataclasses import dataclass, field
 from contextlib import asynccontextmanager
@@ -221,6 +222,13 @@ def build_config(
     return config
 
 
+@lru_cache(maxsize=1)
+def _keyboard_protocol_js() -> str:
+    """DOM-free enhanced-keyboard protocol helpers, inlined into terminals."""
+    path = Path(__file__).parent.parent / "static" / "keyboard_protocol.js"
+    return path.read_text(encoding="utf-8")
+
+
 def setup_templates(config: TerminaideConfig) -> Tuple[Jinja2Templates, str]:
     """Set up the Jinja2 templates for the HTML interface."""
     if config.template_override:
@@ -417,6 +425,7 @@ def configure_routes(
                             "theme": config.theme.model_dump(),
                             "title": title,
                             "preview_image": preview_image,
+                            "keyboard_protocol_js": _keyboard_protocol_js(),
                             "keyboard_mapping": {
                                 "config": route_config.keyboard_mapping.model_dump(),
                                 "mode": route_config.keyboard_mapping.mode,

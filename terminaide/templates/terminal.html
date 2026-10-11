@@ -124,6 +124,9 @@
     <script id="keyboard-mapping-data" type="application/json">
         {{ keyboard_mapping | tojson | safe }}
     </script>
+    <script id="keyboard-protocol-data" type="application/json">
+        {{ keyboard_protocol_js | tojson | safe }}
+    </script>
 </head>
 
 <body>
@@ -1268,16 +1271,63 @@
 
                 // KEYBOARD MAPPING: Inject into iframe for CMD->CTRL mapping
                 const kbMapping = JSON.parse(document.getElementById('keyboard-mapping-data').textContent);
-                if (kbMapping.mode !== 'none') {
+                // Optional for custom template overrides: absent means the legacy
+                // CTRL+J fallback only (no enhanced-protocol emulation).
+                const protocolData = document.getElementById('keyboard-protocol-data');
+                const protocolSource = protocolData ? JSON.parse(protocolData.textContent) : '';
+                // Always inject: enhanced-keyboard detection is a terminal-level
+                // capability; mode "none" only disables the CMD/OPTION mappings.
+                {
                     try {
                         const iframeDoc = terminal.contentDocument || terminal.contentWindow.document;
                         if (iframeDoc) {
+                            // Load the DOM-free protocol module first: it defines
+                            // window.__terminaideKeyboardProtocol for the mapping script.
+                            const protocolScript = iframeDoc.createElement('script');
+                            protocolScript.textContent = protocolSource;
+                            iframeDoc.head.appendChild(protocolScript);
+
                             // Inject keyboard mapping directly into iframe
                             const script = iframeDoc.createElement('script');
                             script.textContent = `
                                 (function() {
                                     const behaviors = ${JSON.stringify(kbMapping.behaviors || {})};
                                     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+
+                                    // ENHANCED KEYBOARD PROTOCOLS. The module injected just
+                                    // before this script watches the output stream for apps that
+                                    // ask for Kitty / modifyOtherKeys and hands back the
+                                    // Shift+Enter sequence to send. Keeping the protocol logic in
+                                    // terminaide/static/keyboard_protocol.js makes it testable.
+                                    const protocol = window.__terminaideKeyboardProtocol
+                                        ? window.__terminaideKeyboardProtocol.createWatcher()
+                                        : { sniff: function () {}, shiftEnterSequence: function (b) { return b === 'terminal' ? '\\n' : null; } };
+
+                                    (function watchKeyboardProtocol() {
+                                        function patch() {
+                                            if (!window.term || window.__terminaideKeyboardWatcher) return false;
+                                            window.__terminaideKeyboardWatcher = true;
+                                            const original = window.term.write.bind(window.term);
+                                            window.term.write = function (data, callback) {
+                                                try { protocol.sniff(data); } catch (e) { /* output must never break */ }
+                                                return original(data, callback);
+                                            };
+                                            return true;
+                                        }
+                                        if (patch()) return;
+                                        const timer = setInterval(function () { if (patch()) clearInterval(timer); }, 10);
+                                        setTimeout(function () { clearInterval(timer); }, 30000);
+                                    })();
+
+                                    // Write exact bytes to the pty, bypassing xterm's key encoder
+                                    // (ttyd exposes Terminal.input()).
+                                    function sendInput(data) {
+                                        if (window.term && typeof window.term.input === 'function') {
+                                            window.term.input(data);
+                                            return true;
+                                        }
+                                        return false;
+                                    }
 
                                     // Send a synthetic keydown into xterm's input target.
                                     function dispatchSynthetic(cfg) {
@@ -1329,18 +1379,22 @@
                                         const cmd = isMac ? e.metaKey : e.ctrlKey;
                                         const opt = e.altKey;
                                         const shift = e.shiftKey;
-                                        // SHIFT+ENTER -> CTRL+J. A terminal cannot tell shift+enter
-                                        // from enter — xterm sends CR for both — so chat-style
-                                        // "shift+enter for newline" has to be translated here,
-                                        // browser-side, before xterm ever sees the key. Plain
-                                        // enter is never touched; the 'enter' behavior gates it.
+                                        // SHIFT+ENTER. A plain terminal sends CR for both
+                                        // enter and shift+enter, so apps either negotiate an
+                                        // enhanced keyboard protocol or bind CTRL+J (LF) as a
+                                        // newline alias. Once the app has asked for an enhanced
+                                        // protocol (sniffer above), send the sequence it parses;
+                                        // otherwise fall back to CTRL+J only for routes that opt
+                                        // in with "enter": "terminal". "browser" opts out.
                                         if (e.key === 'Enter' && shift && !cmd && !opt) {
-                                            if ((behaviors['enter'] || 'none') === 'terminal') {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                // Synchronously, not on a timer: input order is the
-                                                // document, and a timer can slip the newline in after
-                                                // characters typed during its delay.
+                                            const sequence = protocol.shiftEnterSequence(behaviors['enter'] || 'none');
+                                            if (sequence === null) return;
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            // Synchronously, not on a timer: input order is the
+                                            // document, and a timer can slip the newline in after
+                                            // characters typed during its delay.
+                                            if (!sendInput(sequence) && sequence === '\\n') {
                                                 dispatchSynthetic({ key: 'j', code: 'KeyJ', keyCode: 74, which: 74, ctrlKey: true });
                                             }
                                             return;

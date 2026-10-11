@@ -239,8 +239,9 @@ serve_script("my_app.py", keyboard_mapping={"mode": "smart"})
 # Editing: CMD+Z/Y/X/S/F → terminal CTRL+key
 # Navigation: CMD+arrows → terminal navigation (Home/End/CTRL+Home/CTRL+End)
 # Browser shortcuts preserved: CMD+W/R/T (close/refresh/new tab)
-# Shift+Enter: not in smart mode (it would change what plain apps see) —
-# enable per route with a custom mapping (see below)
+# Shift+Enter: apps that negotiate the Kitty keyboard protocol or xterm
+# modifyOtherKeys (pi, Claude Code, neovim, …) get real Shift+Enter
+# automatically. Apps that only bind CTRL+J need the opt-in below.
 
 # All mode: Maps all CMD combinations to terminal CTRL
 serve_script("my_app.py", keyboard_mapping={"mode": "all"})
@@ -255,10 +256,24 @@ serve_script("my_app.py", keyboard_mapping={
         "z": "terminal",   # Undo: terminal only
         "x": "both",       # Cut: browser + terminal (if desired)
         "arrowleft": "terminal",  # Navigation: terminal only
-        "enter": "terminal",  # Shift+Enter → CTRL+J newline (chat-style input)
+        "enter": "terminal",  # Shift+Enter: CTRL+J fallback for apps that
+                              # cannot negotiate an enhanced keyboard protocol
         # Behavior options: "both", "browser", "terminal", or omit to disable
     }
 })
+```
+
+**Shift+Enter (enhanced keyboards):**
+
+A browser terminal cannot express Shift+Enter by itself — xterm.js sends the same CR for Enter and Shift+Enter. Terminaide watches the terminal output and, when a hosted app asks for an enhanced keyboard protocol, sends true Shift+Enter before xterm ever sees the key:
+
+| App request (stdout)            | Shift+Enter sent    |
+| ------------------------------- | ------------------- |
+| `\x1b[>Nu\x1b[?u` (Kitty)      | `\x1b[13;2u`        |
+| `\x1b[>4;2m` (modifyOtherKeys)  | `\x1b[27;2;13~`     |
+| none                            | fallback or pass-through |
+
+Apps such as pi, Claude Code and neovim negotiate automatically; no configuration is needed. For apps that never negotiate but bind CTRL+J (many Textual inputs), opt in with `"enter": "terminal"`; `"enter": "browser"` disables Shift+Enter interception entirely.
 
 **Clipboard Integration Strategy:**
 

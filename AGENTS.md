@@ -89,6 +89,7 @@ Client → FastAPI → ProxyManager → TTYd Process → Python Script
    - Four behavior types: "terminal", "browser", "both", "none"
    - Template receives behavior map via JSON for client-side event handling
    - JavaScript injection intercepts events and dispatches synthetic keyboard events to xterm input handler
+   - Enhanced keyboard protocols (`terminaide/static/keyboard_protocol.js`): watches terminal output for Kitty / modifyOtherKeys requests and pushes true Shift+Enter sequences to the pty via `Terminal.input()` — automatic for apps that negotiate, with per-route `"enter"` fallback (CTRL+J) or opt-out ("browser")
 
 9. **Curses AutoIndex Support**: Curses menus served through ttyd in browser
    - `AutoIndex(type="curses")` automatically wrapped as terminal function
