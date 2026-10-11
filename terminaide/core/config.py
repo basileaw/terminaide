@@ -123,6 +123,71 @@ def copy_preview_image_to_static(preview_image: Path) -> str:
         return "preview.png"
 
 
+_FAVICON_EXTENSIONS = (".png", ".ico", ".svg", ".gif", ".jpg", ".jpeg", ".webp")
+
+
+def copy_favicon_to_static(favicon: Path) -> str:
+    """Copy a route favicon to the static dir and return its served filename."""
+    if not favicon or not favicon.exists():
+        logger.debug(f"Favicon doesn't exist, using default: {favicon}")
+        return "favicon.ico"
+
+    package_dir = Path(__file__).parent.parent
+    assets_dir = package_dir / "cache" / "assets"
+    static_dir = package_dir / "static"
+    assets_dir.mkdir(exist_ok=True, parents=True)
+    static_dir.mkdir(exist_ok=True)
+
+    try:
+        file_hash = hashlib.md5(favicon.read_bytes()).hexdigest()[:12]
+        extension = favicon.suffix.lower()
+        if extension not in _FAVICON_EXTENSIONS:
+            logger.warning(
+                f"Unsupported favicon extension: {extension}. Using default favicon."
+            )
+            return "favicon.ico"
+
+        new_filename = f"favicon_{file_hash}{extension}"
+        assets_path = assets_dir / new_filename
+        static_path = static_dir / new_filename
+        shutil.copy2(favicon, assets_path)
+        shutil.copy2(assets_path, static_path)
+        logger.debug(f"Copied favicon {favicon} to {static_path}")
+        return new_filename
+    except Exception as e:
+        logger.warning(f"Failed to copy favicon: {e}. Using default favicon.")
+        return "favicon.ico"
+
+
+def _resolve_local_asset(spec: str) -> Optional[Path]:
+    """Resolve a route asset string to an existing local path, if any."""
+    path = Path(spec).expanduser()
+    if path.is_absolute():
+        return path if path.exists() else None
+    for candidate in (Path.cwd() / path, Path(sys.argv[0]).resolve().parent / path):
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def resolve_favicon_url(favicon: Optional[str], request: Request) -> str:
+    """Resolve a route's favicon (URL, data URI, or file path) to a served URL.
+
+    Falls back to the bundled terminaide favicon when unset or unresolvable.
+    """
+    default_url = str(request.url_for("terminaide_static", path="favicon.ico"))
+    if not favicon:
+        return default_url
+    if favicon.startswith(("http://", "https://", "//", "data:")):
+        return favicon
+    path = _resolve_local_asset(favicon)
+    if path:
+        filename = copy_favicon_to_static(path)
+        return str(request.url_for("terminaide_static", path=filename))
+    logger.warning(f"Favicon not found: {favicon}. Using default favicon.")
+    return default_url
+
+
 @dataclass
 class TerminaideConfig:
     """Unified configuration for all Terminaide serving modes."""
@@ -326,6 +391,9 @@ def configure_routes(
                         preview_image = "preview.png"
 
                     context["preview_image"] = preview_image
+                    context["favicon_url"] = resolve_favicon_url(
+                        route_config.favicon, request
+                    )
 
                     logger.debug(f"Rendering index page for route {route_path}")
 
@@ -425,6 +493,9 @@ def configure_routes(
                             "theme": config.theme.model_dump(),
                             "title": title,
                             "preview_image": preview_image,
+                            "favicon_url": resolve_favicon_url(
+                                route_config.favicon, request
+                            ),
                             "keyboard_protocol_js": _keyboard_protocol_js(),
                             "keyboard_mapping": {
                                 "config": route_config.keyboard_mapping.model_dump(),

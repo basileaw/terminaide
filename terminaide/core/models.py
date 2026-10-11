@@ -168,6 +168,9 @@ class RouteConfigBase(BaseModel):
     route_path: str
     preview_image: Optional[Path] = None
     title: Optional[str] = None
+    # Per-route browser tab icon: an http(s)/data URL or a path to a local image
+    # (copied into static at render time). Falls back to terminaide's favicon.
+    favicon: Optional[str] = None
 
     @field_validator("route_path")
     @classmethod
@@ -747,6 +750,9 @@ def create_route_configs(
             if "preview_image" in route_spec:
                 cfg_data["preview_image"] = route_spec["preview_image"]
 
+            if "favicon" in route_spec:
+                cfg_data["favicon"] = route_spec["favicon"]
+
             if "dynamic" in route_spec:
                 cfg_data["dynamic"] = route_spec["dynamic"]
 
@@ -796,6 +802,9 @@ def create_route_configs(
                 if "preview_image" in route_spec:
                     cfg_data["preview_image"] = route_spec["preview_image"]
 
+                if "favicon" in route_spec:
+                    cfg_data["favicon"] = route_spec["favicon"]
+
                 if "dynamic" in route_spec:
                     cfg_data["dynamic"] = route_spec["dynamic"]
 
@@ -844,6 +853,9 @@ def create_route_configs(
             # Handle preview_image if provided in the script_spec
             if "preview_image" in route_spec:
                 cfg_data["preview_image"] = route_spec["preview_image"]
+
+            if "favicon" in route_spec:
+                cfg_data["favicon"] = route_spec["favicon"]
 
             if "dynamic" in route_spec:
                 cfg_data["dynamic"] = route_spec["dynamic"]

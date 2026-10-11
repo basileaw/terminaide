@@ -151,7 +151,14 @@ class BaseIndex:
         launcher_args = item.get("launcher_args", {}).copy()
         
         # Move route-specific configs into launcher_args if they exist
-        route_configs = ["keyboard_mapping", "dynamic", "args_param", "preview_image", "port"]
+        route_configs = [
+            "keyboard_mapping",
+            "dynamic",
+            "args_param",
+            "preview_image",
+            "favicon",
+            "port",
+        ]
         for config_key in route_configs:
             if config_key in item:
                 launcher_args[config_key] = item[config_key]
