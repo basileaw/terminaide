@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Fixed
+
+- **Cross-process wrapper deletion** (`Script not found:
+  .../cache/scripts/<fn>.py`): generated wrappers lived in a single shared
+  `cache/scripts/` directory, so starting any second terminaide process
+  deleted the wrapper scripts a running server's ttyd processes were still
+  executing. Function routes then failed immediately (`/monitor` connected
+  and dropped) while the orphaned ttyd held a deleted file descriptor.
+  Cache directories are now per-process (`cache/pid/<pid>/{scripts,params}`),
+  so a process's startup cleanup can only reach its own files. Abandoned
+  namespaces are reclaimed by pid liveness plus an age guard, and
+  `iter_process_cache_dirs()` lets out-of-process callers (tests, tooling)
+  find the live namespaces.
+
 ### Added
 
 - **Theme spacing/appearance options**: `theme={"padding": ...,

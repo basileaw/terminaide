@@ -1,5 +1,6 @@
 terminaide/cache/scripts/*
 terminaide/cache/params/*
+terminaide/cache/pid/
 terminaide/cache/logs/*
 terminaide/cache/assets/*
 terminaide/cache/binaries/*

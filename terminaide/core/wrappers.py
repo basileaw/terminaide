@@ -28,26 +28,44 @@ _ephemeral_dir_cache = None
 _function_signature_cache = {}
 
 
+# Per-process cache namespacing.
+#
+# terminaide/cache is inside the installed package, so it is shared by every
+# terminaide process on the machine (a toolbox server, a dev server, a
+# serve_script run). Generated wrappers used to live directly in that shared
+# directory, which meant one process's startup cleanup deleted another
+# process's live wrappers - ttyd then failed with
+# "Script not found: .../cache/scripts/<fn>.py".
+#
+# Each process therefore owns a private subdirectory, named for its pid. Its
+# cleanup can only ever reach its own files. The pid of a dead process is
+# reused eventually, but a stale directory from a crashed run is reclaimed
+# by the age-based sweep in cleanup_orphaned_process_dirs().
+_PID_NAMESPACE = str(os.getpid())
+
+
+def _process_cache_root() -> Path:
+    """Root of this process's private cache namespace."""
+    package_root = Path(__file__).parent.parent  # terminaide/
+    return package_root / "cache" / "pid" / _PID_NAMESPACE
+
+
+def _get_package_cache_dir() -> Path:
+    """Get this process's cache directory for generated scripts."""
+    return _process_cache_root() / "scripts"
+
+
+def _get_package_params_cache_dir() -> Path:
+    """Get this process's cache directory for parameter files."""
+    return _process_cache_root() / "params"
+
+
 # Common Utilities
 def _test_directory_writable(directory: Path) -> None:
     """Test if directory is writable by creating and removing a test file."""
     test_file = directory / f".write_test_{os.getpid()}"
     test_file.touch()
     test_file.unlink()
-
-
-def _get_package_cache_dir() -> Path:
-    """Get package-based cache directory for scripts."""
-    package_root = Path(__file__).parent.parent  # terminaide/
-    return package_root / "cache" / "scripts"
-
-
-def _get_package_params_cache_dir() -> Path:
-    """Get package-based cache directory for parameter files."""
-    package_root = Path(__file__).parent.parent  # terminaide/
-    return package_root / "cache" / "params"
-
-
 
 
 def _resolve_cache_directory(config: Optional[Any] = None, cache_type: str = "scripts") -> Path:
@@ -135,6 +153,33 @@ def get_params_dir(config: Optional[Any] = None) -> Path:
         Path to the params directory
     """
     return _resolve_cache_directory(config, "params")
+
+
+def iter_process_cache_dirs(config: Optional[Any] = None) -> List[Path]:
+    """All cache namespaces for this cache root, ours first.
+
+    Cache directories are per-process (see _PID_NAMESPACE), so a caller that
+    runs outside the serving process - a test harness, an operator script -
+    cannot assume ``get_params_dir()`` points at the live server's files.
+    This walks every namespace under the same root so such callers can look
+    across them. Never returns directories outside the configured root.
+    """
+    current = _resolve_cache_directory(config, "params")
+    # <package>/cache/pid/<pid>/params -> walk <package>/cache/pid/*/params
+    pid_root = current.parent.parent
+    dirs = [current]
+
+    try:
+        for entry in sorted(pid_root.iterdir()):
+            if not entry.is_dir():
+                continue
+            candidate = entry / "params"
+            if candidate.is_dir() and candidate not in dirs:
+                dirs.append(candidate)
+    except OSError:
+        pass
+
+    return dirs
 
 
 @lru_cache(maxsize=256)
@@ -419,9 +464,15 @@ def cleanup_stale_ephemeral_files(config: Optional[Any] = None) -> None:
     """
     # Run cache migration first, before cleaning up
     migrate_cache_structure()
-    
+
+    # Reclaim abandoned namespaces from processes that are gone. This is the
+    # only cleanup that reaches outside our own directory, and it never
+    # touches a live process's files.
+    cleanup_orphaned_process_dirs()
+
     try:
-        temp_dir = get_ephemeral_dir(config)  # This now points to scripts directory
+        # Per-process directory: this can only ever remove our own files.
+        temp_dir = get_ephemeral_dir(config)  # points to this process's scripts dir
         
         # Use glob pattern matching for better performance
         py_files = list(temp_dir.glob("*.py"))
@@ -439,6 +490,75 @@ def cleanup_stale_ephemeral_files(config: Optional[Any] = None) -> None:
             )
     except Exception as e:
         logger.debug(f"Startup cleanup failed (non-critical): {e}")
+
+
+def _pid_is_alive(pid: int) -> bool:
+    """Whether a process with this pid currently exists."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # Exists but owned by another user - still alive.
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def cleanup_orphaned_process_dirs(max_age_seconds: int = 24 * 60 * 60) -> int:
+    """Remove cache namespaces belonging to processes that no longer exist.
+
+    A namespace is reclaimed only when the recorded pid is not alive, or the
+    directory is older than ``max_age_seconds`` (a guard against pid reuse
+    keeping a stale directory alive indefinitely). Live namespaces - ours and
+    any other running terminaide process - are never touched.
+
+    Returns the number of namespaces removed.
+    """
+    removed = 0
+    pid_root = _process_cache_root().parent  # cache/pid/
+
+    try:
+        if not pid_root.exists():
+            return 0
+        for entry in pid_root.iterdir():
+            if not entry.is_dir() or entry.name == _PID_NAMESPACE:
+                continue
+
+            try:
+                pid = int(entry.name)
+            except ValueError:
+                continue
+
+            alive = _pid_is_alive(pid)
+            try:
+                age = time.time() - entry.stat().st_mtime
+            except OSError:
+                continue
+
+            if alive and age < max_age_seconds:
+                continue
+
+            if alive:
+                logger.debug(
+                    f"Reclaiming stale cache namespace {entry.name} "
+                    f"(pid alive but unused for {age / 3600:.1f}h)"
+                )
+            else:
+                logger.debug(f"Reclaiming cache namespace for dead pid {entry.name}")
+
+            try:
+                shutil.rmtree(entry)
+                removed += 1
+            except (OSError, PermissionError) as e:
+                logger.debug(f"Could not remove cache namespace {entry}: {e}")
+    except Exception as e:
+        logger.debug(f"Orphaned cache sweep failed (non-critical): {e}")
+
+    return removed
 
 
 def cleanup_own_ephemeral_files() -> None:
