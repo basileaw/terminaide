@@ -116,7 +116,9 @@
             Object.entries(themeData).forEach(function (entry) {
                 const [key, value] = entry;
                 if (value) {
-                    document.documentElement.style.setProperty(`--${key}`, value);
+                    // Python/snake_case theme keys map onto hyphenated CSS
+                    // custom properties (border_radius -> --border-radius).
+                    document.documentElement.style.setProperty(`--${key.replace(/_/g, '-')}`, value);
                 }
             });
         })();
