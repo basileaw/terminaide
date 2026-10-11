@@ -1,5 +1,16 @@
-# Grouped weekly dependency updates. Alerts close because updates never
-# accumulate; CI (ci.yml) gates every PR these generate.
+# Dependency automation, tiered by risk.
+#
+# Two groups per ecosystem, because they are handled by different rules:
+#
+#   * minor/patch -> grouped together, CI-gated, and AUTO-MERGED by
+#     dependabot-auto-merge.yml once the `test` check passes.
+#   * major       -> grouped separately so they arrive as one visible PR
+#     that a human merges. Majors can change behaviour while tests stay
+#     green (e.g. a framework major), so they never auto-merge.
+#
+# Grouping majors too (rather than leaving them ungrouped) is what stops
+# the branch pile-up: one PR per ecosystem per week instead of one per
+# package. See .github/workflows/dependabot-auto-merge.yml.
 version: 2
 updates:
   # Python dependencies (poetry.lock)
@@ -7,18 +18,27 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10
     groups:
-      dependencies:
+      # Auto-mergeable: low-risk, keep them flowing.
+      minor-and-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+      # Human review: breaking-change candidates, one batched PR.
+      major:
+        patterns: ["*"]
+        update-types: ["major"]
 
   # Keep the GitHub Actions in .github/workflows/ fresh too
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 3
+      interval: "weekly"
+    open-pull-requests-limit: 5
     groups:
-      actions:
+      minor-and-patch:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
+      major:
+        patterns: ["*"]
+        update-types: ["major"]
